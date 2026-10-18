@@ -1,0 +1,27 @@
+{
+  "name": "@specforge/snapshot",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Content-addressed workspace snapshots for non-git workspaces: diff and restore (ADR-011).",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "diff": "^9.0.0",
+    "picomatch": "^4.0.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "@types/picomatch": "^4.0.3"
+  }
+}

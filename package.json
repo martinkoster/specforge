@@ -1,0 +1,43 @@
+{
+  "name": "specforge",
+  "private": true,
+  "version": "0.0.0",
+  "description": "SpecForge — local-first, human-directed, multi-agent AI software engineering platform",
+  "license": "Apache-2.0",
+  "type": "module",
+  "packageManager": "pnpm@12.11.2",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "tsc -b && vite build packages/ui && tsx tooling/src/cli/check-layering.ts",
+    "clean": "tsc -b --clean",
+    "typecheck": "tsc -b --noEmit",
+    "lint": "eslint . && prettier --check \"packages/**/*.{ts,tsx,json}\" \"tooling/**/*.{ts,json}\" \"*.{js,ts,json}\"",
+    "format": "prettier --write \"packages/**/*.{ts,tsx,json}\" \"tooling/**/*.{ts,json}\" \"*.{js,ts,json}\"",
+    "test": "vitest run",
+    "coverage": "vitest run --coverage",
+    "test:perf": "vitest run --config vitest.perf.config.ts",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
+    "check:layering": "tsx tooling/src/cli/check-layering.ts",
+    "check:spdx": "tsx tooling/src/cli/check-spdx.ts",
+    "check:licenses": "tsx tooling/src/cli/check-licenses.ts",
+    "audit:deps": "corepack pnpm audit --prod --audit-level high"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@types/node": "^26.6.5",
+    "@vitest/coverage-v8": "^5.0.4",
+    "eslint": "^10.12.0",
+    "eslint-config-prettier": "^10.1.8",
+    "fast-check": "^4.10.2",
+    "globals": "^17.13.0",
+    "prettier": "^3.9.10",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.71.2",
+    "vite": "^8.3.4",
+    "vitest": "^5.0.4"
+  }
+}

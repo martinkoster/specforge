@@ -1,0 +1,27 @@
+{
+  "name": "@specforge/agent-mock",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Scripted MockAdapter implementing the AgentAdapter port (ADR-008).",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@specforge/application": "workspace:*",
+    "@specforge/domain": "workspace:*"
+  },
+  "devDependencies": {
+    "@specforge/agent-adapter-contract": "workspace:*",
+    "@types/node": "^26.6.5"
+  }
+}

@@ -1,27 +1,27 @@
 # SpecForge — Technical Decisions
 
 **Last updated:** 2026-10-14  
-See `c4_architecture.md` for ADR-001 – ADR-021.
+See `c4_architecture.md` for ADR-001 – ADR-022.
 
 ## 1. Technology stack
 
 | Layer | Choice | Rationale |
 |---|---|---|
-| Language | TypeScript (strict) everywhere | One language across UI, core and adapter; Agent SDK is TS (ADR-001/006) |
+| Language | TypeScript 6.0.x (strict) everywhere | One language across UI, core and adapter; Agent SDK is TS (ADR-001/006); 6.0 pinned because TS 7 lacks the compiler API needed by lint/layering tooling (ADR-022) |
 | Desktop shell | Electron (current stable), `utilityProcess` for core | Cross-platform parity (CON-009), process isolation (ADR-002) |
 | UI framework | React 19 + Vite | Ecosystem for rich clients |
 | UI components | Radix UI primitives + Tailwind CSS | Accessible primitives (NFR-020), consistent styling |
 | Kanban DnD | dnd-kit | Accessible drag & drop incl. keyboard (NFR-020) |
-| Dependency graph | React Flow (xyflow) + elkjs layout | Interactive graph view (FR-064) |
+| Dependency graph | React Flow (xyflow) + dagre layout | Interactive graph view (FR-064); dagre (MIT) instead of elkjs (EPL-2.0 OR GPL-3.0, flagged for licence review) — 2026-10-16, US-041 |
 | Markdown edit / render | CodeMirror 6 / unified (remark + rehype) | Fast editor; same parser as indexer |
-| Diff view | Monaco diff editor | Side-by-side/unified diffs (FR-043) |
+| Diff view | CodeMirror 6 `@codemirror/merge` (MergeView / unified view) | Side-by-side/unified diffs (FR-043); chosen by the product owner instead of the Monaco diff editor — same editor stack and CSP style nonce as the artifact editor, no web workers or extra 5 MB bundle — 2026-10-16, US-057 |
 | Log view | Virtualised list (react-virtuoso) + ANSI rendering | 1M-line logs (NFR-005) |
 | UI state | Zustand (local) + TanStack Query over IPC | Simple, cache-aware |
 | Validation / contracts | zod | IPC (ADR-015), front-matter, RunResult schema |
 | Database | SQLite (better-sqlite3, WAL, FTS5) + Kysely | ADR-005 |
 | Markdown front-matter | gray-matter / yaml | |
 | File watching | chokidar v4 | Cross-platform, debounced |
-| Git | system `git` ≥ 2.30 via `execFile` (thin wrapper) | Worktree support; no shell (NFR-011) |
+| Git | system `git` ≥ 2.30 (≥ 2.38 recommended) via `execFile` (thin wrapper) | Worktree support; `merge-tree --write-tree` for integration commits from 2.38 (ADR-010); no shell (NFR-011) |
 | Agent runtime | `@anthropic-ai/claude-agent-sdk` with `pathToClaudeCodeExecutable` | ADR-006 |
 | Secrets | Electron `safeStorage` (DPAPI / Keychain / libsecret) | ADR-012 |
 | Packaging | electron-builder: NSIS per-user (Win), signed+notarised dmg (macOS), AppImage + deb (Linux) | NFR-026 |
@@ -92,7 +92,7 @@ Overall coverage target ≥ 75 % (NFR-023). TDD per story (stage 5 process).
 - **Distribution**: GitHub Releases (or internal share) with installers per OS; code signing (Windows Authenticode, Apple Developer ID + notarisation); Linux AppImage + deb.
 - **Updates**: Manual by default; optional opt-in update check (NFR-009).
 - **CI/CD**: GitHub Actions matrix `windows-latest`, `macos-latest`, `ubuntu-latest`: lint → typecheck → unit/integration → E2E (mock adapter, xvfb on Linux) → package → sign (release branches only).
-- **Runtime prerequisites**: Claude Code installed by the user (minimum version enforced), Git ≥ 2.30 (optional), API key or cloud provider credentials (ADR-007).
+- **Runtime prerequisites**: Claude Code installed by the user (minimum version enforced), Git ≥ 2.30 (optional; ≥ 2.38 recommended), API key or cloud provider credentials (ADR-007).
 
 ## 7. Licensing
 
@@ -102,7 +102,7 @@ SpecForge is licensed under **Apache License 2.0** (CON-015).
 - CI: license scan of production dependencies (e.g. `license-checker` / `pnpm licenses list`) with an allow-list (MIT, BSD-2/3-Clause, ISC, Apache-2.0, 0BSD, CC0); GPL/AGPL/unknown fail the build; others require review.
 - Packaging: generate `THIRD_PARTY_NOTICES` and include it in every installer.
 - Stack check (§1): all proposed libraries are MIT/Apache-2.0 except:
-  - **elkjs** — EPL-2.0 (weak copyleft): acceptable as an unmodified dependency with notice; alternative `dagre` (MIT) if we want permissive-only.
+  - **elkjs** — EPL-2.0 OR GPL-3.0 (weak copyleft / copyleft): flagged by the licence check for review; **not used** — the graph view uses `@dagrejs/dagre` (MIT) for the layered layout (2026-10-16, US-041).
   - **@anthropic-ai/claude-agent-sdk** — governed by Anthropic's terms, not an OSI license: verify that bundling it in installers is permitted; exclude its optional bundled Claude Code binary from packaging (SpecForge uses the user's installation, ADR-006).
 
 ## 8. NFR coverage
@@ -111,7 +111,7 @@ SpecForge is licensed under **Apache License 2.0** (CON-015).
 |---|---|
 | NFR-001 UI responsiveness | ADR-002 (core in utilityProcess), stream batching, virtualised lists |
 | NFR-002 Streaming latency | SDK message iteration → 50 ms batches |
-| NFR-003 Startup | Incremental index with content hashes; lazy loading of runs |
+| NFR-003 Startup | Core forked together with the window (port held until the page has loaded); last project reopened in parallel with the capability check; incremental index with content hashes; lazy loading of runs; measured against a bare-Electron baseline (US-065) |
 | NFR-004 Run start latency | Worktree creation (git) / snapshot (ADR-011), scheduler latency (ADR-009) |
 | NFR-005 Large logs | Sidecar log files, FTS5, virtualised rendering |
 | NFR-006 Secrets | ADR-012 |

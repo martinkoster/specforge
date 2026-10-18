@@ -1,0 +1,9 @@
+packages:
+  - packages/*
+  - packages/adapters/*
+  - tooling
+
+allowBuilds:
+  better-sqlite3: true
+  electron: true
+  esbuild: true

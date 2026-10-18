@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: Apache-2.0
+# Spike S1 (US-001): live validation of the Claude Code integration via the Agent SDK.
+# Manually triggered; runs real model calls (costs usage) with the ANTHROPIC_API_KEY repository secret (ADR-007).
+name: spike-s1-live
+
+on:
+  workflow_dispatch:
+    inputs:
+      wait_minutes:
+        description: Minutes the permission relay test keeps a request pending (AC-2)
+        default: '10'
+      os:
+        description: Runners to use (JSON array)
+        default: '["macos-latest", "ubuntu-latest"]'
+
+jobs:
+  live:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(inputs.os) }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: spikes/s1
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install Claude Code (user installation, CON-002)
+        run: npm install -g @anthropic-ai/claude-code
+      - name: Install spike dependencies
+        run: npm ci
+      - name: Unit tests
+        run: npx vitest run --exclude test/docs.test.ts
+      - name: Live scenarios
+        env:
+          S1_LIVE: '1'
+          S1_WAIT_MS: ${{ fromJSON(inputs.wait_minutes) * 60000 }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: npx vitest run test/live.test.ts --testTimeout=1800000
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: s1-results-${{ matrix.os }}
+          path: spikes/s1/results/*.json

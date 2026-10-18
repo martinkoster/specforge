@@ -1,0 +1,25 @@
+{
+  "name": "@specforge/agent-adapter-contract",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Shared contract test suite for AgentAdapter implementations (ADR-008, NFR-022).",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@specforge/application": "workspace:*"
+  },
+  "peerDependencies": {
+    "vitest": ">=5"
+  }
+}

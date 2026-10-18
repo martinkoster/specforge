@@ -33,3 +33,6 @@ Thumbs.db
 .idea/
 .vscode/*
 !.vscode/extensions.json
+
+# Claude Code scheduler lock (machine-specific)
+.claude/scheduled_tasks.lock

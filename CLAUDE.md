@@ -8,7 +8,7 @@ Guidance for Claude Code when working in this repository.
 
 SpecForge is itself built **specification-first with Claude Code**. The spec in `spec/` is the source of truth; code must trace back to it.
 
-**Current state (2026-10-14):** intent, requirements and design are complete and quality-checked. No application code exists yet. Next step: `/generate-userstories`, starting with the technical spikes and a thin end-to-end slice.
+**Current state (2026-10-18):** spec complete; Release 1 stories in `spec/04_user_stories/`. Done: US-002–US-007, US-010–US-044, US-046–US-065 (monorepo, Electron shell + React app shell, typed IPC contract with core events, SQLite execution store, secret vault + core↔main secret bridge + redaction, artifact indexer + file watcher, artifact editor (CodeMirror) + approval, traceability panel (artifacts, story drawer, run panel), epics (generate/manage, coverage strip) + stories per approved epic with validated dependencies, story state machine + dependencies, Kanban board (dnd-kit) with epic swimlanes, dependency badges/graph (React Flow + dagre) and queue UI, scheduler, run execution (ExecutionService: worktrees / snapshots, batched redacted events, timeouts, context assembly, structured results + computed changes, cancel with process-tree kill, crash recovery with orphan cleanup), executions view (run list, virtualised live logs with FTS5 search, tiles), specification runs (target-folder write scope, snapshot, validation, Keep/Discard/fix review), close handshake, capability gating (limited mode banner), next-step engine + phase stepper, dashboard, read-only project chat, commit spec changes, merge detection, retry/resume/discard, review screen (CodeMirror merge diffs, approve with merge order, reject with rejected branch / restore, request corrections with session resume or fresh run), intent editor + clarification, AI quality check, refine with AI, permission broker + prompts + pending decisions + notifications, approval rules, settings, setup wizard, Claude Code runtime detection, project create/open/registry + start wizard, agent adapter port + MockAdapter, E2E suite with a scripted test agent, fault injection against the real core, performance/accessibility checks). In progress: US-001 (macOS/Linux live runs), US-008 (first GitHub Actions run — needs a remote). Open: US-009 (installers), US-045 (Claude Code adapter, blocked by US-001), US-066 (manual acceptance with real Claude Code); US-067 blocked. Runs execute end to end with the MockAdapter (tests) and the scripted test agent (`SPECFORGE_TEST=1 SPECFORGE_MOCK_AGENT=1`, E2E); in the app no agent adapter exists until US-045, so launched runs fail with a stated reason. Build scripts of esbuild, better-sqlite3 and electron are approved in `pnpm-workspace.yaml` (`allowBuilds`, pnpm 12). Workspace packages resolve to their sources in tests (vitest aliases). `packages/adapters/process` (`@specforge/process`) holds the process-tree code ported from spike S3. Vitest runs with `maxWorkers: 30%`; core IPC tests with real Git runs use a 60 s timeout.
 
 ## Repository layout
 
@@ -25,7 +25,7 @@ spec/
                                       # domain_model, user_flows (UF-xx)
     technical_design/                 # c4_architecture (incl. ADR-001…ADR-021 + decision log),
                                       # service_design, data_model, technical_decisions
-  04_user_stories/                    # (next) US-xxx story files
+  04_user_stories/                    # US-xxx story files (R1: US-001…US-067), README.md index, backlog.md
 .claude/skills/                       # spec-driven workflow skills (see below)
 LICENSE, NOTICE                       # Apache-2.0
 ```
@@ -65,16 +65,34 @@ Always work downstream from approved upstream artifacts. When a requirement or d
 
 ## Technical foundations (accepted ADRs)
 
-- **Electron + TypeScript** end-to-end; React 19 + Vite renderer (Radix/Tailwind, dnd-kit, React Flow, Monaco, CodeMirror 6).
+- **Electron + TypeScript 6.0.x** end-to-end (ADR-022: TS 7 lacks the compiler API for lint/layering); React 19 + Vite renderer (Radix/Tailwind, dnd-kit, React Flow, CodeMirror 6 incl. `@codemirror/merge` diffs instead of Monaco).
 - **Three processes**: sandboxed renderer ↔ thin Electron main (IPC broker, notifications, `safeStorage`) ↔ **core in an Electron `utilityProcess`** (all business logic).
 - **Modular monolith, hexagonal**: pnpm workspaces `packages/{domain, application, ipc-contract, adapters/*, core, main, ui}`; domain is pure TS; layering enforced with dependency-cruiser.
 - **Persistence**: workspace Markdown + YAML front-matter = source of truth; SQLite (better-sqlite3, WAL, FTS5) + Kysely as rebuildable index and execution store.
 - **Agent adapter**: vendor-neutral `AgentAdapter` port; Claude Code via `@anthropic-ai/claude-agent-sdk` with `pathToClaudeCodeExecutable` (user's install), permissions via `canUseTool`, structured result via fenced ```` ```specforge-result ```` JSON. *Conditional on spike S1.*
 - **Scheduler**: single-writer, event-driven; corrections/resumes first, then FIFO; default 3 parallel runs (1 in non-git mode).
-- **Git**: system `git` ≥ 2.30 via `execFile` with argument arrays (never a shell); worktrees under `<appdata>/wt/<project>/<story>`. *Stacking conditional on spike S2.*
+- **Git**: system `git` ≥ 2.30 (≥ 2.38 recommended) via `execFile` with argument arrays (never a shell) and `-c core.longpaths=true`; worktrees under `<appdata>/wt/<project>/<story>`; integration commits for stacked bases via `git merge-tree --write-tree` (Git ≥ 2.38) with scratch-worktree fallback (ADR-010, confirmed by spike S2). Keep Git invocations few — each costs ~0.3–0.5 s on Windows.
 - **IPC**: zod-validated typed contract shared by UI and core.
 - **Testing**: Vitest (+ fast-check property tests for scheduler/graph), Playwright for Electron E2E with a MockAdapter; CI matrix Windows/macOS/Linux; ≥ 75 % coverage overall, ≥ 90 % domain.
 - **Security**: Electron hardening (sandbox, contextIsolation, no nodeIntegration, CSP), secrets redaction in logs, no telemetry.
+
+## Commands
+
+pnpm is used via corepack (no global install needed): prefix with `corepack pnpm` if `pnpm` is not on PATH.
+
+| Command | Purpose |
+|---|---|
+| `corepack pnpm install` | Install workspace dependencies |
+| `corepack pnpm build` | `tsc -b` + renderer bundle (`vite build packages/ui` → `packages/ui/dist/app`) + layering check (fails on dependency-cruiser violations) |
+| `corepack pnpm lint` / `format` | ESLint + Prettier check / write |
+| `corepack pnpm test` / `coverage` | Vitest / with v8 coverage and thresholds (timing tests excluded) |
+| `corepack pnpm test:perf` | Performance tests (`*.perf.test.ts`), run sequentially |
+| `corepack pnpm test:e2e` | Electron end-to-end tests (`*.e2e.test.ts`, Playwright), run sequentially; Linux needs `xvfb-run -a` |
+| `corepack pnpm check:spdx` | SPDX header check |
+| `corepack pnpm audit:deps` | Dependency vulnerability audit (fails on high/critical in production dependencies) |
+| `corepack pnpm check:licenses` | License policy for production dependencies (fails on GPL/AGPL/unknown) |
+
+Process wiring: the core (`packages/core/src/main.ts` → `createCore` in `composition.ts`) opens the database in the app-data dir passed by main (`SPECFORGE_APP_DATA`; better-sqlite3 13's N-API prebuilds load unchanged in Electron) and posts `{type:'ready'}` — main hands the renderer its port only then (slow first starts must not time out the handshake). The core is forked together with the window; `RendererLink` (main) holds its port and status until the page has loaded. Secrets: the core asks main's `SecretVault` over the parent port (`BridgeSecretStore` ↔ `handleSecretRequest`). The renderer CSP allows runtime `<style>` elements only with the per-session nonce (`specforgeShell.styleNonce` → `EditorView.cspNonce`); never add `unsafe-inline`. E2E tests use `launch()` from `packages/main/test/e2e-support.ts` (isolated profile via `SPECFORGE_USER_DATA`, first-start setup skipped unless `{ setup: 'keep' }`, `mockAgent: true` for the scripted test agent — story titles with `slow`, `hang` or `stream` change its behaviour — `stubFolderPicker` for native dialogs, and shared helpers `createProject`, `allowPending`, `moveTo`, `waitForColumn`, `storyFile`). The board re-reads on every shell-state change (`refreshKey`). NFR-003 cold start is measured against a bare-Electron baseline (`test/fixtures/bare-main.cjs`); accessibility uses `axe-core` (`color-contrast`). UI component tests use `// @vitest-environment happy-dom` (jsdom's slow start exceeded Vitest's fixed 60 s worker-start timeout in the parallel run) with React Testing Library; the renderer CSP (`style-src 'self'`) forbids inline styles — use `packages/ui/src/styles.css`. Notes: TypeScript is pinned to **6.0.x** — TypeScript 7 (native) lacks the compiler API used by typescript-eslint and dependency-cruiser. Spikes in `spikes/s1..s3` are standalone npm packages outside the workspace (`npm test` inside each; S1 live tests need `S1_LIVE=1`).
 
 ## Implementation order
 

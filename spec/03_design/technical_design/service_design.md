@@ -112,10 +112,10 @@ The Scheduler calls back into execution through a `RunLauncher` port implemented
 
 ## ReviewService
 **Purpose**: Review outcomes for implementation runs.
-**Public Interface**: `review.get(storyId)` (result, diff summary, warnings, merge order), `review.approve(storyId)`, `review.requestCorrections(storyId, feedback)` (feedback pre-filled from pending in-flight feedback, Release 2; emits `CorrectionRequested` to the Scheduler, which launches via `RunLauncher` with priority *correction*), `review.reject(storyId, {reason, restoreSnapshot})`; epic review (Release 2): `epicReview.get(epicId)` (stories + outcomes, union of changed files with per-story diffs, epic acceptance criteria), `epicReview.aiCheck(epicId)` (`quality_check` run, target epic), `epicReview.confirm(epicId, checklist)`, `epicReview.skip(epicId)`, `epicReview.addFollowUp(epicId, storyDraft)`.
+**Public Interface**: `review.get(storyId)` (result, diff summary, warnings, merge order), `review.approve(storyId)`, `review.correctionOptions(storyId)` (whether the agent session of the last run can be resumed, and why not), `review.requestCorrections(storyId, feedback, fresh?)` (feedback pre-filled from pending in-flight feedback, Release 2; emits `CorrectionRequested` to the Scheduler, which launches via `RunLauncher` with priority *correction*; the correction run reuses the story's branch/worktree and resumes the session unless `fresh`), `review.reject(storyId, {reason, restoreSnapshot})`; epic review (Release 2): `epicReview.get(epicId)` (stories + outcomes, union of changed files with per-story diffs, epic acceptance criteria), `epicReview.aiCheck(epicId)` (`quality_check` run, target epic), `epicReview.confirm(epicId, checklist)`, `epicReview.skip(epicId)`, `epicReview.addFollowUp(epicId, storyDraft)`.
 **Dependencies**: BoardService (status writes), Scheduler (`StoryApproved`, `CorrectionRequested`), ExecutionSpaceManager (diff, restore, markRejected), Persistence (`review_decision`).
 **Data Owned**: `review_decision`.
-**Resilience Notes**: Approval is a single transaction (decision + status write + event); session not resumable → fallback fresh run with feedback (UC-022 2a).
+**Resilience Notes**: Approval is a single transaction (decision + status write + event); session not resumable → the user is offered a fresh run on the same branch with feedback and the previous run summary (UC-022 2a); the feedback is kept in `story_state` until the correction run ends.
 
 ## NotificationHub
 **Purpose**: Pending-decisions read model and notifications.

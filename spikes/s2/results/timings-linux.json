@@ -1,0 +1,42 @@
+{
+  "base": {
+    "medianMs": 13,
+    "samplesMs": [
+      24,
+      14,
+      13,
+      13,
+      13
+    ]
+  },
+  "single": {
+    "medianMs": 22,
+    "samplesMs": [
+      16,
+      25,
+      22,
+      22,
+      25
+    ]
+  },
+  "integration (worktree)": {
+    "medianMs": 52,
+    "samplesMs": [
+      46,
+      42,
+      52,
+      84,
+      67
+    ]
+  },
+  "integration (merge-tree)": {
+    "medianMs": 29,
+    "samplesMs": [
+      38,
+      31,
+      28,
+      28,
+      29
+    ]
+  }
+}

@@ -62,7 +62,9 @@ design: [UC-004, ADR-002]
 depends_on:                 # blocking
   - id: US-002
     rationale: Needs the user entity and login endpoint
-related_to: [US-006]        # non-blocking
+related_to:                 # non-blocking; plain IDs ([US-006]) are accepted, agent proposals carry a rationale
+  - id: US-006
+    rationale: Shares the session timeout setting
 branch: specforge/US-005    # set by SpecForge when a run starts (git mode)
 ---
 ## Description
@@ -178,7 +180,7 @@ Conventions: `TEXT` UUIDs, timestamps as ISO-8601 `TEXT` (UTC), JSON columns as 
 | executable_path | TEXT NOT NULL | |
 | detected_version | TEXT | |
 | capabilities | TEXT (JSON) | |
-| default_config | TEXT (JSON AgentConfig) | secret env values stored as `{ "secretRef": "<key>" }` |
+| default_config | TEXT (JSON AgentConfig) | runtime-specific config (secret env values as `{ "secretRef": "<key>" }`); the user-facing global agent defaults live in `app_setup.agent_defaults` |
 | verified_at | TEXT | |
 
 **permission_rule**
@@ -218,7 +220,9 @@ Run kind → `applies_to` bucket (ADR-013):
 | completed_steps | TEXT (JSON) | |
 | runtime_ok, provider_ok, git_detected | INTEGER | last health check |
 | provider_kind | TEXT | `anthropic_api_key` / `bedrock` / `vertex` / `foundry` (secrets in keychain) |
-| exec_defaults | TEXT (JSON) | concurrency, timeouts, notifications, log retention |
+| provider_config | TEXT (JSON) | provider environment for the agent (`{env: [{name, value} \| {name, secretRef}]}`); secret values only as keychain references |
+| agent_defaults | TEXT (JSON AgentConfig) | global agent defaults (model, effort, max turns, env with secret refs); kept here rather than on `agent_runtime` so they can be set before a runtime is detected (2026-10-15, US-015) |
+| exec_defaults | TEXT (JSON) | max run duration, idle timeout, notifications, log retention, log level |
 | last_health_check_at | TEXT | |
 
 ### 2.2 Workspace index (rebuildable from files)
@@ -254,6 +258,7 @@ Index: `(project_id, artifact_path)` — re-index per file.
 |---|---|---|
 | id | INTEGER PK | |
 | project_id | TEXT | |
+| artifact_path | TEXT | artifact the link was parsed from (replaced per artifact on reindex; US-020) |
 | source_ref | TEXT | element id / `run:<id>` / `file:<path>` |
 | target_ref | TEXT | |
 | link_type | TEXT | |
@@ -270,13 +275,21 @@ Indexes: `(project_id, source_ref)`, `(project_id, target_ref)` — bidirectiona
 | size | TEXT NULL | from file (`size:`) |
 | board_status | TEXT | from file |
 | approval_state | TEXT | from file |
-| exec_substate | TEXT | DB-only (FR-021): none/queued/blocked_conflict/preparing/running/awaiting_approval/failed/interrupted |
-| board_order | REAL | DB-only, fractional ordering |
-| branch | TEXT | |
-| rejected_branches | TEXT (JSON array) | DB-only, branches marked rejected |
+| title | TEXT | from file |
+| branch | TEXT | from file |
+Indexes: `(project_id, board_status)`, `(project_id, epic_id, board_status)` — board rendering and lanes.
+
+**story_state** (DB-only, **not** part of the rebuildable index — survives "Rebuild index"; US-007)
+| Column | Type | Notes |
+|---|---|---|
+| project_id, story_id | TEXT | PK |
+| exec_substate | TEXT | FR-021: none/queued/blocked_conflict/preparing/running/awaiting_permission/failed/interrupted |
+| board_order | REAL | fractional ordering |
+| rejected_branches | TEXT (JSON array) | branches marked rejected |
 | merged_at | TEXT NULL | detected via `git merge-base --is-ancestor` (FR-115) |
 | authorised_at | TEXT NULL | last human move to In Progress |
-Index: `(project_id, board_status, board_order)` — board rendering.
+| correction_feedback | TEXT NULL | review feedback of requested corrections (US-059); cleared when the correction run ends |
+| correction_fresh | INTEGER (bool) NULL | the correction starts a fresh agent session on the same branch (session not resumable, FR-045) |
 
 **epic** (extends element)
 | Column | Type | Notes |
@@ -286,11 +299,10 @@ Index: `(project_id, board_status, board_order)` — board rendering.
 | approval_state | TEXT | from file |
 | review_outcome | TEXT NULL | from file (`confirmed` / `skipped`) |
 | review_decided_at | TEXT NULL | |
-| review_checklist | TEXT (JSON) NULL | DB-only, ticked epic acceptance criteria at confirmation |
-| review_ai_check_run_id | TEXT FK→run NULL | DB-only, last AI completeness check |
 | feature_id | TEXT NULL | from file (Release 2) |
-| lane_order | REAL | DB-only |
-| colour | TEXT | DB-only, auto-assigned |
+
+**epic_layout** (DB-only, survives "Rebuild index"): `project_id, epic_id` (PK), `lane_order REAL`, `colour TEXT` (auto-assigned). The epic review checklist and AI-check run are stored with the review decision (DB-only) when the epic review is implemented.
+
 View `v_epic_status` computes derived status and progress from `story` (counts per board_status, size-weighted, merged flags). Index on `story(project_id, epic_id, board_status)` — lane rendering and epic progress.
 
 **story_dependency**
@@ -314,6 +326,8 @@ PK `(project_id, from_story, to_story, type)`; Index `(project_id, to_story)` �
 | project_id | TEXT FK | |
 | story_id | TEXT NULL | NULL for specification runs |
 | kind | TEXT | clarify/generate/refine/quality_check/feature_review/impact/decision_options/analyze/chat/connection_test/implement/correct (identical to domain Run.kind) |
+| start_kind | TEXT NULL | implement / correct / retry / resume for scheduler-launched runs |
+| created_at | TEXT | row creation (queue → run); `started_at` is set when the agent starts |
 | feature_id | TEXT NULL | feature runs (Release 2) |
 | chat_thread_id | TEXT FK→chat_thread NULL | chat runs |
 | parent_run_id | TEXT FK→run NULL | correction/resume chain |
@@ -365,7 +379,7 @@ Indexed by PK; full-text search via FTS5 virtual table `run_event_fts(payload)` 
 | outside_workspace | INTEGER | |
 | requested_at | TEXT | |
 | decision | TEXT NULL | |
-| decided_by | TEXT | `user` / `rule:<id>` / `default_deny` |
+| decided_by | TEXT | `user` / `rule:<id>` / `built_in` (built-in deny, ADR-013) / `default_deny` |
 | decided_at | TEXT | |
 | message | TEXT | |
 Index: `(decision) WHERE decision IS NULL` (partial) — pending prompts; `(run_id)`. Rows are immutable after decision (enforced by trigger).
@@ -401,6 +415,7 @@ Index: `(decision) WHERE decision IS NULL` (partial) — pending prompts; `(run_
 | queued_at | TEXT | |
 | priority | INTEGER | 0 = correction / resume, 1 = normal (incl. retry) |
 | start_kind | TEXT | implement / correct / retry / resume — all launched via the Scheduler (FR-027) |
+| parent_run_id | TEXT NULL | run being corrected / retried / resumed |
 | reason | TEXT | dependency / slot / workspace / conflict (`conflict` = *Blocked (conflict)*; `workspace` = non-git mode with a write-capable chat/spec run active, FR-116b) |
 | waiting_for | TEXT (JSON array) | |
 Index: `(project_id, priority, queued_at)` — scheduler FIFO.
@@ -484,6 +499,9 @@ Index: `(project_id, last_used_at DESC)`.
 | role | TEXT | user / agent |
 | text | TEXT | redacted |
 | run_id | TEXT FK→run NULL | agent messages reference their run (events, permissions, usage) |
+| tool_uses | TEXT (JSON) | tool calls of the agent turn, shown collapsed (US-062) |
+| recommendations | TEXT (JSON) | proposed story transitions / run starts, shown as recommendation cards only (US-062) |
+| error | INTEGER | the agent could not answer (message holds the reason) |
 | created_at | TEXT | |
 
 **chat_change**

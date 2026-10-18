@@ -1,0 +1,24 @@
+{
+  "name": "@specforge/workspace-fs",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Workspace file system adapter: artifact scanning, atomic writes with optimistic concurrency (ADR-004).",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@specforge/application": "workspace:*",
+    "chokidar": "^5.0.0",
+    "yaml": "^2.9.1"
+  }
+}

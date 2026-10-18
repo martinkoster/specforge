@@ -1,0 +1,59 @@
+{
+  "ac1_stream": {
+    "ok": true,
+    "sessionId": "8635cc90-b7e6-4b55-8c1e-4a16b855a1a8",
+    "executable": "C:\\Users\\martin.koster\\AppData\\Roaming\\npm\\node_modules\\@anthropic-ai\\claude-code\\bin\\claude.exe",
+    "events": [
+      "session",
+      "output",
+      "result"
+    ],
+    "costUsd": 0.028288599999999997,
+    "recordedAt": "2026-10-14T06:33:18.036Z"
+  },
+  "ac2_relay_allow_after_wait": {
+    "ok": true,
+    "waitedMs": 600002,
+    "toolName": "Write",
+    "recordedAt": "2026-10-14T06:48:30.484Z"
+  },
+  "ac2_relay_deny": {
+    "ok": true,
+    "recordedAt": "2026-10-14T06:34:02.486Z"
+  },
+  "ac3_abort": {
+    "ok": true,
+    "elapsedMs": 8496,
+    "before": [
+      "claude.exe",
+      "conhost.exe",
+      "cmd.exe",
+      "conhost.exe",
+      "powershell.exe",
+      "node.exe"
+    ],
+    "survivors": [],
+    "recordedAt": "2026-10-14T06:34:39.206Z"
+  },
+  "ac4_resume": {
+    "ok": true,
+    "sessionId": "6763623a-86ba-4508-b155-f1673849189e",
+    "resumedSessionId": "6763623a-86ba-4508-b155-f1673849189e",
+    "recordedAt": "2026-10-14T06:35:21.483Z"
+  },
+  "ac5_settings_bypass": {
+    "default (all sources)": {
+      "relayed": true,
+      "fileWritten": false
+    },
+    "project only": {
+      "relayed": true,
+      "fileWritten": false
+    },
+    "isolated []": {
+      "relayed": true,
+      "fileWritten": false
+    },
+    "recordedAt": "2026-10-14T06:36:47.621Z"
+  }
+}

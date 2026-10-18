@@ -8,6 +8,7 @@ import { MockAdapter } from '@specforge/agent-mock';
 import type { AgentAdapter } from '@specforge/application';
 import { connectClient, serveContract, type ContractClient, type PortLike } from '@specforge/ipc-contract';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { AgentRuntimeRepository, openDatabase } from '@specforge/sqlite';
 import { createCore } from '../src/index.js';
 
 vi.setConfig({ testTimeout: 120_000 });
@@ -102,5 +103,45 @@ describe('US-013 over IPC', () => {
     ).resolves.toMatchObject({
       ok: false,
     });
+  });
+});
+
+describe('US-045: the Claude Code adapter in the core', () => {
+  it('uses the verified Claude Code executable: without one AI is disabled, with one and a provider it is available', async () => {
+    const appDataDir = mkdtempSync(join(tmpdir(), 'sf-caps-claude-'));
+    const start = async () => {
+      const core = await createCore({
+        appDataDir,
+        platform: process.platform,
+        pid: process.pid,
+        testMode: false,
+        exit: () => undefined,
+        watch: false,
+        claudeCode: true,
+      });
+      open.push(core);
+      const { port1, port2 } = new MessageChannel();
+      serveContract(wrap(port2), core.handlers);
+      return { core, client: await connectClient(wrap(port1)) };
+    };
+    const first = await start();
+    expect(await first.client.query('capabilities.get', {})).toMatchObject({
+      agentAvailable: false,
+      missing: 'No agent runtime is available.',
+    });
+    await first.client.command('setup.saveProvider', { provider: { kind: 'bedrock', region: 'eu-central-1' } });
+    await first.core.close();
+
+    const db = openDatabase({ dir: appDataDir });
+    new AgentRuntimeRepository(db.sqlite).save({
+      adapterType: 'claude-code',
+      executablePath: process.execPath,
+      detectedVersion: '2.1.299',
+      verified: true,
+    });
+    db.close();
+
+    const second = await start();
+    expect(await second.client.query('capabilities.get', {})).toMatchObject({ agentAvailable: true, aiAvailable: true, missing: null });
   });
 });

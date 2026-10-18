@@ -50,7 +50,9 @@ const core = createCore({
   pid: process.pid,
   testMode: process.env.SPECFORGE_TEST === '1',
   exit: (code) => process.exit(code),
-  // US-063: the end-to-end suite drives a scripted agent (test mode only).
+  // US-045: runs use the user's verified Claude Code installation.
+  claudeCode: true,
+  // US-063: the end-to-end suite drives a scripted agent instead (test mode only).
   ...(process.env.SPECFORGE_TEST === '1' && process.env.SPECFORGE_MOCK_AGENT === '1' ? { agentAdapter: createTestAgent() } : {}),
   // US-057: main opens validated files with the OS default application.
   openPath: async (path) => parentPort.postMessage({ type: 'open-path', path }),

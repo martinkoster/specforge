@@ -81,7 +81,7 @@ Status values: `ready for development`, `in progress`, `blocked`, `done`.
 | ID | Title | Size | Status |
 |----|-------|------|--------|
 | [US-044](US-044-agent-adapter-port-and-mock.md) | Define AgentAdapter port and MockAdapter | M | done |
-| [US-045](US-045-claude-code-adapter.md) | Implement the Claude Code adapter | M | ready for development |
+| [US-045](US-045-claude-code-adapter.md) | Implement the Claude Code adapter | M | in progress |
 | [US-046](US-046-worktree-execution-spaces.md) | Prepare isolated worktree execution spaces | L | done |
 | [US-047](US-047-non-git-snapshots.md) | Snapshots for non-git workspaces | M | done |
 | [US-048](US-048-run-lifecycle-and-persistence.md) | Run lifecycle, streaming and persistence | M | done |

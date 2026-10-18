@@ -1,7 +1,7 @@
 ---
 id: US-045
 title: Implement the Claude Code adapter
-status: ready for development
+status: in progress
 size: M
 epic: Agent execution
 ---
@@ -13,9 +13,9 @@ Connects SpecForge to the user's Claude Code installation for real runs (FR-029)
 As a **SpecForge user**, I want **SpecForge to run Claude Code for my stories and spec generation** so that **I never have to invoke the CLI manually**.
 
 ## Acceptance Criteria
-- [ ] AC-1: Adapter maps Agent SDK messages to adapter events (session id, output, tool use/results, usage, final result) per the ADR-006 mapping.
-- [ ] AC-2: `canUseTool` routes to the PermissionBroker and awaits the decision without timeout; abort and resume work as specified.
-- [ ] AC-3: Provider credentials are injected only into the agent environment; `--bare`-like modes are not used.
+- [x] AC-1: Adapter maps Agent SDK messages to adapter events (session id, output, tool use/results, usage, final result) per the ADR-006 mapping.
+- [x] AC-2: `canUseTool` routes to the PermissionBroker and awaits the decision without timeout; abort and resume work as specified.
+- [x] AC-3: Provider credentials are injected only into the agent environment; `--bare`-like modes are not used.
 - [ ] AC-4: Contract test suite passes against the real adapter (opt-in, requires credentials) on all three OSes.
 
 ## Technical Notes
@@ -31,7 +31,18 @@ As a **SpecForge user**, I want **SpecForge to run Claude Code for my stories an
 - US-011 Store secrets in OS credential store and redact them
 
 ## Implementation Details
-<!-- Filled in by /implement-userstories after implementation -->
+Status **in progress**: AC-1–AC-3 implemented and unit-tested; AC-4 (live contract suite on all three OSes) is open — the first Windows live run hung and is being investigated; macOS/Linux follow in CI.
+
+Files created / modified:
+- `packages/adapters/agent-claude-code/src/adapter.ts` — `ClaudeCodeAdapter`: one Agent SDK `query()` per run with the user's verified executable (`pathToClaudeCodeExecutable`), `permissionMode: 'default'`, `settingSources: []`, preset system prompt + append, model/maxTurns/resume; SDK messages → adapter events; `canUseTool` → `onPermission` without timeout (abort denies); cancel via `AbortController`; own process spawn exposes the pid (tree-kill fallback); agent environment = core environment without provider/login variables + the configured provider variables
+- `packages/core/src/composition.ts`, `main.ts` — `claudeCode` option: the adapter runs with the executable verified in Settings → Agent runtime; AI is available once that executable and a provider are configured
+- `pnpm-workspace.yaml` — the SDK's per-platform packages (bundled Claude Code binary) are never installed (`ignoredOptionalDependencies`)
+- `packages/adapters/agent-claude-code/test/contract.live.test.ts` — opt-in live contract suite (`SPECFORGE_LIVE_CLAUDE=1`)
+
+Decisions / deviations:
+- Product-owner decision 2026-10-18: US-045 started before US-001 is done (S1 verified on Windows).
+- The SDK (`@anthropic-ai/claude-agent-sdk` ~0.3.302) is proprietary ("SEE LICENSE"): license check lists it for review; whether its JavaScript may be bundled into installers must be confirmed before US-009.
 
 ## Test Coverage
-<!-- Filled in by /implement-userstories after implementation -->
+- Unit tests: `packages/adapters/agent-claude-code/test/adapter.test.ts` (12, fake SDK `query()`; mutation check: 9/9 mutants killed), `packages/core/test/capabilities-ipc.test.ts` (1 new)
+- Live: `contract.live.test.ts` (6 contract tests, opt-in) — pending

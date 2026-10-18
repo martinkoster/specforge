@@ -7,3 +7,15 @@ allowBuilds:
   better-sqlite3: true
   electron: true
   esbuild: true
+
+# The Agent SDK's per-platform packages bundle the Claude Code binary. SpecForge uses the user's own installation
+# (ADR-006, CON-015) and must not ship or install it.
+ignoredOptionalDependencies:
+  - '@anthropic-ai/claude-agent-sdk-darwin-arm64'
+  - '@anthropic-ai/claude-agent-sdk-darwin-x64'
+  - '@anthropic-ai/claude-agent-sdk-linux-arm64'
+  - '@anthropic-ai/claude-agent-sdk-linux-arm64-musl'
+  - '@anthropic-ai/claude-agent-sdk-linux-x64'
+  - '@anthropic-ai/claude-agent-sdk-linux-x64-musl'
+  - '@anthropic-ai/claude-agent-sdk-win32-arm64'
+  - '@anthropic-ai/claude-agent-sdk-win32-x64'

@@ -6,8 +6,8 @@ _Last updated: 2026-10-18_
 
 | Status | Count |
 |--------|-------|
-| ready for development | 3 |
-| in progress | 2 |
+| ready for development | 2 |
+| in progress | 3 |
 | blocked | 1 |
 | done | 61 |
 | **Total** | **67** |
@@ -60,7 +60,7 @@ _Last updated: 2026-10-18_
 | US-042 | Scheduler: queue, slots and automatic start | Kanban & dependencies | L | done |
 | US-043 | Show queued stories and queue controls | Kanban & dependencies | S | done |
 | US-044 | Define AgentAdapter port and MockAdapter | Agent execution | M | done |
-| US-045 | Implement the Claude Code adapter | Agent execution | M | ready for development |
+| US-045 | Implement the Claude Code adapter | Agent execution | M | in progress |
 | US-046 | Prepare isolated worktree execution spaces | Agent execution | L | done |
 | US-047 | Snapshots for non-git workspaces | Agent execution | M | done |
 | US-048 | Run lifecycle, streaming and persistence | Agent execution | M | done |

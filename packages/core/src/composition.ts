@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { detectClaudeCode, systemEnvironment, verifyClaudeCode } from '@specforge/agent-claude-code';
+import { ClaudeCodeAdapter, detectClaudeCode, systemEnvironment, verifyClaudeCode } from '@specforge/agent-claude-code';
 import {
   ApprovalService,
   SPEC_TARGET_FOLDERS,
@@ -80,8 +80,10 @@ export interface CoreOptions {
   watch?: boolean;
   /** Secret storage of the main process (ADR-012); without it, storing secrets fails with an explanation. */
   secrets?: SecretStore;
-  /** Agent adapter for runs (connection test); the Claude Code adapter follows with US-045. */
+  /** Agent adapter for runs (tests: MockAdapter, scripted test agent); overrides `claudeCode`. */
   agentAdapter?: AgentAdapter;
+  /** Run agents with the user's verified Claude Code installation (US-045, ADR-006); the production setting. */
+  claudeCode?: boolean;
   /** Opens a (validated, absolute) file with the OS default application (main process, US-057). */
   openPath?(path: string): Promise<void>;
 }
@@ -265,6 +267,13 @@ export async function createCore(options: CoreOptions): Promise<Core> {
 
   const rules = new PermissionRuleRepository(database.sqlite);
   const runtimes = new AgentRuntimeRepository(database.sqlite);
+  // US-045: the verified Claude Code executable of the user (Settings → Agent runtime, US-010).
+  const claudeExecutable = (): string | undefined => {
+    const runtime = runtimes.get('claude-code');
+    return runtime?.verifiedAt ? runtime.executablePath : undefined;
+  };
+  const agentAdapter: AgentAdapter | undefined =
+    options.agentAdapter ?? (options.claudeCode ? new ClaudeCodeAdapter({ executable: claudeExecutable }) : undefined);
   const git = new GitClient();
   const spaceManager = new ExecutionSpaceManager(git);
   const setup = new SetupService({
@@ -285,13 +294,17 @@ export async function createCore(options: CoreOptions): Promise<Core> {
     },
     globalRuleCount: () => rules.globalRules().length,
     agent: async () => {
-      const adapter = options.agentAdapter;
-      return adapter ? { detect: () => adapter.detect(), requiresProvider: adapter.capabilities().requiresProvider ?? true } : undefined;
+      if (!agentAdapter) return undefined;
+      const requiresProvider = agentAdapter.capabilities().requiresProvider ?? true;
+      // Claude Code is available once its executable is verified, not merely found on the PATH.
+      if (agentAdapter instanceof ClaudeCodeAdapter)
+        return { detect: async () => ({ found: claudeExecutable() !== undefined }), requiresProvider };
+      return { detect: () => agentAdapter.detect(), requiresProvider };
     },
     execDefaultsSaved: () => settingsStore.hasExecDefaults(),
     connectionTest: async (env) =>
-      options.agentAdapter
-        ? runConnectionTest(options.agentAdapter, { cwd: options.appDataDir, env })
+      agentAdapter
+        ? runConnectionTest(agentAdapter, { cwd: options.appDataDir, env })
         : { ok: false, error: 'No agent adapter is available to run the connection test yet.' },
   });
   // US-048: run execution.
@@ -358,7 +371,7 @@ export async function createCore(options: CoreOptions): Promise<Core> {
       snapshots: (projectId) => new SnapshotStore(snapshotRoot(options.appDataDir, projectId)),
     }),
     prompts: new ContextPromptBuilder(workspaceOf, index, execution),
-    adapter: options.agentAdapter,
+    adapter: agentAdapter,
     env: runEnv,
     config: runConfig,
     permissions: broker,
@@ -426,7 +439,7 @@ export async function createCore(options: CoreOptions): Promise<Core> {
     },
     files: { read: async (projectId, path) => (await workspaceFiles(projectId).read(path))?.content ?? null },
     index: (projectId) => index.specIndexView(projectId),
-    adapter: options.agentAdapter,
+    adapter: agentAdapter,
     workspace: (projectId) => ({ root: specFolder(projectId, '.'), nonGit: vcsModes.get(projectId) === 'none' }),
     implementationActive: (projectId) => execution.activeImplementationRuns(projectId) > 0,
     epics: (projectId) => index.epics(projectId),
@@ -469,7 +482,7 @@ export async function createCore(options: CoreOptions): Promise<Core> {
   // US-029: AI quality checks (read-only runs) and their findings.
   const quality = new QualityService({
     store: execution,
-    adapter: options.agentAdapter,
+    adapter: agentAdapter,
     workspace: (projectId) => ({ root: specFolder(projectId, '.'), nonGit: vcsModes.get(projectId) === 'none' }),
     env: runEnv,
     config: runConfig,
@@ -492,7 +505,7 @@ export async function createCore(options: CoreOptions): Promise<Core> {
   // US-028: intent clarification dialogues.
   const clarifications = new ClarificationService({
     store: execution,
-    adapter: options.agentAdapter,
+    adapter: agentAdapter,
     workspace: (projectId) => ({ root: specFolder(projectId, '.'), nonGit: vcsModes.get(projectId) === 'none' }),
     env: runEnv,
     config: runConfig,
@@ -565,7 +578,7 @@ export async function createCore(options: CoreOptions): Promise<Core> {
   // US-062: read-only project chat.
   const chat = new ChatService({
     store: execution,
-    adapter: options.agentAdapter,
+    adapter: agentAdapter,
     workspace: (projectId) => ({ root: specFolder(projectId, '.'), nonGit: vcsModes.get(projectId) === 'none' }),
     env: runEnv,
     config: runConfig,
@@ -649,7 +662,7 @@ export async function createCore(options: CoreOptions): Promise<Core> {
 
   /** Why the agent session of a story's last run cannot be resumed for corrections (US-059), or null. */
   const correctionBlocker = (projectId: string, storyId: string): string | null => {
-    const adapter = options.agentAdapter;
+    const adapter = agentAdapter;
     if (!adapter) return 'No agent adapter is available.';
     if (!adapter.capabilities().resume) return 'The agent cannot resume sessions.';
     const runId = execution.lastRunId(projectId, storyId);
@@ -810,7 +823,7 @@ export async function createCore(options: CoreOptions): Promise<Core> {
       const space = lastRunId ? execution.executionSpace(lastRunId) : undefined;
       return {
         lastRunId,
-        resumable: Boolean(run?.agentSessionId) && (options.agentAdapter?.capabilities().resume ?? false),
+        resumable: Boolean(run?.agentSessionId) && (agentAdapter?.capabilities().resume ?? false),
         gitMode: vcsModes.get(projectId) === 'git',
         hasWorktree: Boolean(space?.mode === 'worktree' && space.worktreePath && existsSync(space.worktreePath)),
       };

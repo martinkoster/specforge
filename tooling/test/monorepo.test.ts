@@ -74,7 +74,8 @@ describe('US-004 AC-2: strict TypeScript, ESLint/Prettier via `pnpm lint`, Vites
     const rules = result!.messages.map((m) => m.ruleId);
     expect(rules).toContain('@typescript-eslint/no-explicit-any');
     expect(rules).toContain('@typescript-eslint/no-unused-vars');
-  });
+    // Type-aware linting loads the TypeScript program: slow while the parallel suite saturates the machine.
+  }, 300_000);
 
   it('configures Vitest coverage with the v8 provider and thresholds', () => {
     const config = readFileSync(join(ROOT, 'vitest.config.ts'), 'utf8');

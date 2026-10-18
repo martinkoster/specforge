@@ -69,8 +69,19 @@ export function parsePnpmLicenses(json: string): DependencyLicense[] {
   );
 }
 
+/**
+ * Accepted proprietary dependencies without an SPDX license (pnpm reports them as "Unknown"): always listed for review,
+ * never silently allowed. Each entry names the decision that accepted it.
+ */
+export const PROPRIETARY: Readonly<Record<string, string>> = {
+  '@anthropic-ai/claude-agent-sdk':
+    "Anthropic's terms (ADR-006, technical_decisions.md): installer bundling to be confirmed before US-009; its bundled Claude Code binary is never installed (pnpm-workspace.yaml).",
+};
+
+const classifyDependency = (d: DependencyLicense): LicenseClass => (d.name in PROPRIETARY ? 'review' : classifyLicense(d.license));
+
 export function evaluateLicenses(dependencies: DependencyLicense[]): LicenseReport {
-  const forbidden = dependencies.filter((d) => classifyLicense(d.license) === 'forbidden');
-  const review = dependencies.filter((d) => classifyLicense(d.license) === 'review');
+  const forbidden = dependencies.filter((d) => classifyDependency(d) === 'forbidden');
+  const review = dependencies.filter((d) => classifyDependency(d) === 'review');
   return { ok: forbidden.length === 0, forbidden, review };
 }

@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { parse } from 'yaml';
-import { classifyLicense, evaluateLicenses, parsePnpmLicenses } from '../src/licenses.js';
+import { PROPRIETARY, classifyLicense, evaluateLicenses, parsePnpmLicenses } from '../src/licenses.js';
 
 const ROOT = join(__dirname, '..', '..');
 const workflow = parse(readFileSync(join(ROOT, '.github', 'workflows', 'ci.yml'), 'utf8')) as {
@@ -80,6 +80,16 @@ describe('US-008 AC-3: license scan', () => {
     expect(report.ok).toBe(false);
     expect(report.forbidden).toEqual([{ name: 'b', version: '2.0.0', license: 'GPL-3.0' }]);
     expect(report.review).toEqual([{ name: 'c', version: '3.0.0', license: 'EPL-2.0' }]);
+  });
+
+  it('lists accepted proprietary dependencies without an SPDX license for review; other unknown licenses stay forbidden', () => {
+    const report = evaluateLicenses([
+      { name: '@anthropic-ai/claude-agent-sdk', version: '0.3.302', license: 'Unknown' },
+      { name: 'mystery', version: '1.0.0', license: 'Unknown' },
+    ]);
+    expect(report.review).toEqual([{ name: '@anthropic-ai/claude-agent-sdk', version: '0.3.302', license: 'Unknown' }]);
+    expect(report.forbidden).toEqual([{ name: 'mystery', version: '1.0.0', license: 'Unknown' }]);
+    expect(PROPRIETARY['@anthropic-ai/claude-agent-sdk']).toMatch(/ADR-006/);
   });
 
   it('runs the license check in CI', () => {

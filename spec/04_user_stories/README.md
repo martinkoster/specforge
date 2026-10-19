@@ -19,7 +19,7 @@ Status values: `ready for development`, `in progress`, `blocked`, `done`.
 | [US-005](US-005-electron-three-process-shell.md) | Create hardened Electron shell with three-process layout | M | done |
 | [US-006](US-006-typed-ipc-contract.md) | Implement typed, validated IPC contract | M | done |
 | [US-007](US-007-sqlite-persistence-foundation.md) | Set up SQLite persistence with migrations | M | done |
-| [US-008](US-008-ci-pipeline.md) | Set up CI pipeline on Windows, macOS and Linux | M | in progress |
+| [US-008](US-008-ci-pipeline.md) | Set up CI pipeline on Windows, macOS and Linux | M | done |
 | [US-009](US-009-installers-per-os.md) | Build unsigned installers for all three OSes | M | ready for development |
 
 ### Setup & configuration

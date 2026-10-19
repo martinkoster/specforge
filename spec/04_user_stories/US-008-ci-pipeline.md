@@ -1,7 +1,7 @@
 ---
 id: US-008
 title: Set up CI pipeline on Windows, macOS and Linux
-status: in progress
+status: done
 size: M
 epic: Foundation & spikes
 ---
@@ -13,7 +13,7 @@ Guarantees cross-platform parity and quality gates on every change (NFR-023, NFR
 As a **SpecForge developer**, I want **CI running lint, typecheck, tests, coverage and license checks on all three OSes** so that **regressions and incompatible licenses are caught automatically**.
 
 ## Acceptance Criteria
-- [x] AC-1: GitHub Actions matrix (windows-latest, macos-latest, ubuntu-latest) runs lint, typecheck, unit and integration tests. _(verified locally; first GitHub run pending)_
+- [x] AC-1: GitHub Actions matrix (windows-latest, macos-latest, ubuntu-latest) runs lint, typecheck, unit and integration tests. _(first green GitHub Actions run 2026-10-19, run 39218561415)_
 - [x] AC-2: Coverage thresholds (≥ 75 % overall, ≥ 90 % `domain`) fail the build when not met.
 - [x] AC-3: License scan fails on GPL/AGPL/unknown licenses in production dependencies and flags weak-copyleft/proprietary ones.
 - [x] AC-4: Dependency audit (`pnpm audit:deps`) runs in CI and fails on high/critical vulnerabilities in production dependencies.
@@ -29,7 +29,7 @@ As a **SpecForge developer**, I want **CI running lint, typecheck, tests, covera
 - US-004 Set up monorepo, tooling and layering rules
 
 ## Implementation Details
-Status **in progress**: everything is implemented and all workflow steps pass locally; the workflow itself has not run on GitHub yet because the repository has no remote. The story is done after the first green run on GitHub Actions.
+Done 2026-10-19: first green run on GitHub Actions (https://github.com/martinkoster/specforge, PR from `feature/us-001-spike-s1`). The first runs exposed and fixed: the Agent SDK reported as "Unknown" license (explicit, documented `PROPRIETARY` review list in `tooling/src/licenses.ts`); tests depending on a global Git identity, Windows-only paths, the macOS Electron app bundle layout (fuses), macOS watcher latency and Ctrl-only shortcuts (Cmd on macOS); an invalid expression in `spike-s1.yml`.
 
 Files created / modified:
 - `.github/workflows/ci.yml` — job `build` (matrix windows/macos/ubuntu: frozen install, lint, build incl. layering, SPDX, tests with coverage thresholds; Linux under `xvfb-run` for the Electron e2e) and job `supply-chain` (license scan, dependency audit)

@@ -1,6 +1,6 @@
 # SpecForge
 
-[![CI](../../actions/workflows/ci.yml/badge.svg)](../../actions/workflows/ci.yml)
+[![CI](https://github.com/martinkoster/specforge/actions/workflows/ci.yml/badge.svg)](https://github.com/martinkoster/specforge/actions/workflows/ci.yml)
 
 SpecForge is a local-first desktop application that turns natural-language intents into specifications (requirements, design, epics, user stories) and lets humans drive AI coding agents through a Kanban board. **Humans decide what to build and when; AI agents execute how it is built.**
 

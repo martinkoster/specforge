@@ -7,9 +7,9 @@ _Last updated: 2026-10-18_
 | Status | Count |
 |--------|-------|
 | ready for development | 2 |
-| in progress | 3 |
+| in progress | 2 |
 | blocked | 1 |
-| done | 61 |
+| done | 62 |
 | **Total** | **67** |
 
 ## Stories
@@ -23,7 +23,7 @@ _Last updated: 2026-10-18_
 | US-005 | Create hardened Electron shell with three-process layout | Foundation & spikes | M | done |
 | US-006 | Implement typed, validated IPC contract | Foundation & spikes | M | done |
 | US-007 | Set up SQLite persistence with migrations | Foundation & spikes | M | done |
-| US-008 | Set up CI pipeline on Windows, macOS and Linux | Foundation & spikes | M | in progress |
+| US-008 | Set up CI pipeline on Windows, macOS and Linux | Foundation & spikes | M | done |
 | US-009 | Build unsigned installers for all three OSes | Foundation & spikes | M | ready for development |
 | US-010 | Detect and verify the Claude Code runtime | Setup & configuration | S | done |
 | US-011 | Store secrets in OS credential store and redact them | Setup & configuration | M | done |

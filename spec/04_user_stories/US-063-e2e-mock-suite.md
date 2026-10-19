@@ -39,7 +39,7 @@ Files created / modified:
 - `.github/workflows/ci.yml` — `pnpm test:e2e` on Windows/macOS, `xvfb-run -a pnpm test:e2e` on Linux
 
 Decisions / deviations:
-- AC-3: the workflow runs the suite on all three OSes; the first GitHub Actions run is pending with US-008 (needs a remote).
+- AC-3: the suite runs in CI on Windows, macOS and Linux (xvfb) — green since 2026-10-19 (US-008).
 
 ## Test Coverage
 - Coverage: `test-agent.ts` 100 % lines; the E2E suite itself is not part of the coverage run (workspace total 95.4 % lines (950 tests passing))

@@ -568,6 +568,27 @@ describe('US-049 AC-3: process registry', () => {
 
     expect(s.processes).toEqual([{ runId: 'run-1', record: { pid: 777, startTime: 'st', commandLine: 'agent' } }]);
   });
+
+  it('US-045: a pid that is known only once the agent process runs is recorded when the session starts', async () => {
+    const adapter = new ScriptedAdapter();
+    const start = adapter.start.bind(adapter);
+    const agent: { pid?: number } = {};
+    adapter.start = (req, hooks) => ({ ...start(req, hooks), pid: () => agent.pid });
+    const s = setup({
+      adapter,
+      processes: { identify: async (p) => ({ pid: p, startTime: 'st', commandLine: 'claude' }), killTree: async () => undefined },
+    });
+
+    const done = s.service.launch(request);
+    await tick();
+    agent.pid = 778;
+    adapter.hooks.onEvent({ type: 'session', sessionId: 'session-1' });
+    await tick();
+    adapter.complete();
+    await done;
+
+    expect(s.processes).toEqual([{ runId: 'run-1', record: { pid: 778, startTime: 'st', commandLine: 'claude' } }]);
+  });
 });
 
 describe('US-055 AC-2: resume continues the agent session of the stopped run', () => {

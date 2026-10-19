@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describeAgentAdapterContract, type ContractScenario } from '@specforge/agent-adapter-contract';
 import type { RunRequest } from '@specforge/application';
+import { killTree, listDescendants } from '@specforge/process';
 import { beforeAll, describe, it } from 'vitest';
 import { ClaudeCodeAdapter } from '../src/adapter.js';
 import { detectClaudeCode, systemEnvironment } from '../src/runtime.js';
@@ -33,7 +34,11 @@ if (LIVE) {
 
   describeAgentAdapterContract({
     name: 'ClaudeCodeAdapter (live)',
-    create: () => new ClaudeCodeAdapter({ executable: () => executable }),
+    create: () =>
+      new ClaudeCodeAdapter({
+        executable: () => executable,
+        processTree: { descendants: async (pid) => (await listDescendants(pid)).map((p) => p.pid), kill: (pid) => killTree(pid) },
+      }),
     request: (scenario, overrides): RunRequest => ({
       runId: `live-${scenario}-${Date.now()}`,
       kind: 'implement',

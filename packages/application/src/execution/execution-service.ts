@@ -191,6 +191,8 @@ interface ActiveRun {
   request: LaunchRequest;
   stop?: (reason: string) => Promise<void>;
   pid?: number;
+  /** Registers the agent's pid once the adapter knows it (it may spawn the process after `start`). */
+  registerPid?: () => void;
   done: Promise<void>;
   /** The user cancelled: an outcome other than "completed" (e.g. the killed process failing) counts as cancelled. */
   cancelRequested?: boolean;
@@ -234,6 +236,7 @@ export class ExecutionService implements RunLauncher {
     entry.cancelRequested = true;
     void entry.stop?.('Cancelled by the user.').catch(() => undefined);
     if (await ended(CANCEL_GRACE_MS)) return true;
+    entry.registerPid?.();
     if (entry.pid !== undefined) await this.deps.processes?.killTree(entry.pid).catch(() => undefined);
     if (await ended(CANCEL_GRACE_MS)) return true;
     entry.forced = true;
@@ -323,7 +326,10 @@ export class ExecutionService implements RunLauncher {
       {
         onEvent: (event) => {
           timers.activity();
-          if (event.type === 'session') deps.store.setSessionId(request.runId, event.sessionId);
+          if (event.type === 'session') {
+            deps.store.setSessionId(request.runId, event.sessionId);
+            entry.registerPid?.();
+          }
           const redacted = redact(redactor, event);
           seq += 1;
           events.add({ seq, ts: deps.now(), type: event.type, payload: redacted });
@@ -344,14 +350,16 @@ export class ExecutionService implements RunLauncher {
     control.cancel = () => handle.cancel(timeoutReason);
     entry.stop = (reason) => handle.cancel(reason);
     if (timeoutReason) void control.cancel();
-    const pid = handle.pid?.();
-    if (pid !== undefined) {
+    entry.registerPid = () => {
+      const pid = handle.pid?.();
+      if (pid === undefined || entry.pid !== undefined) return;
       entry.pid = pid;
       void this.deps.processes
         ?.identify(pid)
         .then((identity) => identity && deps.store.recordProcess(request.runId, identity))
         .catch(() => undefined);
-    }
+    };
+    entry.registerPid();
 
     const outcome = await handle.done;
     timers.stop();

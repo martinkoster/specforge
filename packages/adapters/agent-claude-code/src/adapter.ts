@@ -37,6 +37,11 @@ export interface ClaudeCodeAdapterOptions {
   runtime?: RuntimeEnvironment;
   /** Spawns the agent process (default: `child_process.spawn`); the adapter records its pid. */
   spawnProcess?: typeof spawn;
+  /**
+   * Process-tree operations (FR-034): the agent's children (shell commands, its file search) outlive the aborted
+   * agent, so a cancel ends them too. Without them, only the agent process is stopped.
+   */
+  processTree?: { descendants(pid: number): Promise<number[]>; kill(pid: number): Promise<void> };
 }
 
 /**
@@ -226,8 +231,12 @@ export class ClaudeCodeAdapter implements AgentAdapter {
       sessionId,
       done,
       cancel: async () => {
+        // Children are found through their parent: take the snapshot while the agent still runs.
+        const tree = this.options.processTree;
+        const children = tree && pid !== undefined ? await tree.descendants(pid).catch(() => []) : [];
         abort.abort();
         await done;
+        for (const child of children) await tree?.kill(child).catch(() => undefined);
       },
       pid: () => pid,
     };

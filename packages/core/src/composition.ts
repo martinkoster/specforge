@@ -55,7 +55,7 @@ import {
   SettingsRepository,
   openDatabase,
 } from '@specforge/sqlite';
-import { identify, killOrphan, killTree } from '@specforge/process';
+import { identify, killOrphan, killTree, listDescendants } from '@specforge/process';
 import { SnapshotStore } from '@specforge/snapshot';
 import { ProjectFolderProbe, WorkspaceFiles } from '@specforge/workspace-fs';
 import { createDependencyHandlers } from './handlers/dependency-handlers.js';
@@ -273,7 +273,13 @@ export async function createCore(options: CoreOptions): Promise<Core> {
     return runtime?.verifiedAt ? runtime.executablePath : undefined;
   };
   const agentAdapter: AgentAdapter | undefined =
-    options.agentAdapter ?? (options.claudeCode ? new ClaudeCodeAdapter({ executable: claudeExecutable }) : undefined);
+    options.agentAdapter ??
+    (options.claudeCode
+      ? new ClaudeCodeAdapter({
+          executable: claudeExecutable,
+          processTree: { descendants: async (pid) => (await listDescendants(pid)).map((p) => p.pid), kill: (pid) => killTree(pid) },
+        })
+      : undefined);
   const git = new GitClient();
   const spaceManager = new ExecutionSpaceManager(git);
   const setup = new SetupService({

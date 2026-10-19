@@ -194,6 +194,47 @@ describe('US-045 AC-2: permissions, abort and resume', () => {
     expect(answer).toEqual({ behavior: 'deny', message: 'The run was stopped.' });
   });
 
+  it('cancel also ends the processes the agent started (they outlive the aborted agent)', async () => {
+    const child = Object.assign(new EventEmitter(), {
+      pid: 4242,
+      stdin: new PassThrough(),
+      stdout: new PassThrough(),
+      stderr: new PassThrough(),
+      killed: false,
+      exitCode: null,
+      kill: () => true,
+    });
+    const order: string[] = [];
+    const { query } = fakeQuery(async function* (options) {
+      (options.spawnClaudeCodeProcess as (o: object) => unknown)({
+        command: '/opt/claude',
+        args: [],
+        env: {},
+        signal: new AbortController().signal,
+      });
+      yield init;
+      const controller = options.abortController as AbortController;
+      await new Promise<void>((resolve) => controller.signal.addEventListener('abort', () => resolve(), { once: true }));
+      order.push('aborted');
+      throw new Error('Claude Code process aborted by user');
+    });
+    const claude = new ClaudeCodeAdapter({
+      executable: () => '/opt/claude',
+      query,
+      spawnProcess: (() => child) as never,
+      processTree: {
+        descendants: async (pid) => (order.push(`snapshot ${pid}`), [5001, 5002]),
+        kill: async (pid) => void order.push(`kill ${pid}`),
+      },
+    });
+    const run = claude.start(request(), hooks());
+    await run.sessionId;
+
+    await run.cancel('user');
+    await expect(run.done).resolves.toEqual({ status: 'cancelled' });
+    expect(order).toEqual(['snapshot 4242', 'aborted', 'kill 5001', 'kill 5002']);
+  });
+
   it('resumes the stored session', async () => {
     const { query, calls } = fakeQuery(async function* () {
       yield init;

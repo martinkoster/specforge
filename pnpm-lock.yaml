@@ -221,6 +221,9 @@ importers:
       '@specforge/agent-adapter-contract':
         specifier: workspace:*
         version: link:../../agent-adapter-contract
+      '@specforge/process':
+        specifier: workspace:*
+        version: link:../process
       '@types/node':
         specifier: ^26.6.5
         version: 26.6.5

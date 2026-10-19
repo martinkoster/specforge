@@ -1,0 +1,47 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "packages/domain"
+    },
+    {
+      "path": "packages/application"
+    },
+    {
+      "path": "packages/agent-adapter-contract"
+    },
+    {
+      "path": "packages/adapters/sqlite"
+    },
+    {
+      "path": "packages/adapters/snapshot"
+    },
+    {
+      "path": "packages/adapters/process"
+    },
+    {
+      "path": "packages/adapters/git"
+    },
+    {
+      "path": "packages/adapters/workspace-fs"
+    },
+    {
+      "path": "packages/ipc-contract"
+    },
+    {
+      "path": "packages/adapters/agent-mock"
+    },
+    {
+      "path": "packages/core"
+    },
+    {
+      "path": "packages/main"
+    },
+    {
+      "path": "packages/ui"
+    },
+    {
+      "path": "tooling"
+    }
+  ]
+}

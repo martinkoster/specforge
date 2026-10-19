@@ -1,0 +1,22 @@
+{
+  "name": "@specforge/process",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Process registry support: process-tree termination and orphan cleanup with identity check (FR-034, FR-041; spike S3).",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "devDependencies": {
+    "@types/node": "^26.6.5"
+  }
+}

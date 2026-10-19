@@ -1,0 +1,25 @@
+{
+  "name": "@specforge/git",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Git adapter: execution spaces (worktree per run, stacked branches), merge detection helpers (ADR-010).",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "@specforge/application": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5"
+  }
+}

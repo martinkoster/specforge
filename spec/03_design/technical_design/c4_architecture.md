@@ -73,7 +73,7 @@ SpecForge is a single installable Electron application made of three OS processe
 
 | Container | Technology | Responsibility | Rationale |
 |---|---|---|---|
-| Renderer | React 19, TypeScript, Vite, Tailwind + Radix UI, dnd-kit, React Flow, Monaco (diff), CodeMirror 6 (Markdown) | All UI; no Node access (sandboxed, `contextIsolation`) | Rich-client UX (§6), mature components for boards, graphs, diffs |
+| Renderer | React 19, TypeScript, Vite, Tailwind + Radix UI, dnd-kit, React Flow, CodeMirror 6 (Markdown editor, `@codemirror/merge` diffs) | All UI; no Node access (sandboxed, `contextIsolation`) | Rich-client UX (§6), mature components for boards, graphs, diffs |
 | Main process | Electron main (TypeScript) | Window/app lifecycle, IPC broker between renderer and core, OS notifications, `safeStorage` encryption, close-with-active-runs guard (FR-041) | Keep thin so it never blocks UI event delivery |
 | Core service | Electron `utilityProcess` running Node 22+/TypeScript | All business logic and I/O | Isolates CPU/IO from the UI and from window management (NFR-001); crash of core does not kill the UI (shows "reconnecting") |
 | SQLite DB | SQLite 3 via better-sqlite3, WAL, FTS5 | Registry, index, runs, events, permissions, queue | Embedded, zero-admin, transactional, crash-safe (NFR-015, CON-012) |
@@ -152,7 +152,7 @@ SpecForge is a single installable Electron application made of three OS processe
 | ADR-007 | API key / cloud provider auth only | Accepted |
 | ADR-008 | Adapter contract; fenced `specforge-result` JSON | Accepted |
 | ADR-009 | Single-writer scheduler; all implementation/correction/retry/resume starts via Scheduler; corrections jump queue; spec runs outside limit | Accepted |
-| ADR-010 | Worktree per run in app-data folder; stacked branches | Accepted, to be confirmed by spike S2 |
+| ADR-010 | Worktree per run in app-data folder; stacked branches; integration via merge-tree (Git ≥ 2.38) with scratch-worktree fallback | Accepted (confirmed by S2, amended 2026-10-15) |
 | ADR-011 | Content-addressed snapshots for non-git | Accepted |
 | ADR-012 | safeStorage; weak Linux backend → warn + acknowledgement | Accepted |
 | ADR-013 | SpecForge-owned permission policy; suggested rules, user enables | Accepted |
@@ -164,6 +164,7 @@ SpecForge is a single installable Electron application made of three OS processe
 | ADR-019 | Layered permission rules: live-inherited global defaults + project overrides | Accepted |
 | ADR-020 | Epics as planning artifacts with derived status; swimlanes; per-story merges | Accepted (from intent D21) |
 | ADR-021 | Feature intents as delta artifacts with change sets, impact analysis and rework stories (Release 2) | Accepted (from intent D22) |
+| ADR-022 | TypeScript pinned to 6.0.x (TS 7 lacks the compiler API needed by lint/layering tooling) | Accepted (2026-10-15) |
 
 ### ADR-001: Electron + TypeScript as desktop framework
 **Status**: Accepted (2026-10-13)
@@ -249,13 +250,14 @@ Structured results (FR-036) are part of the contract: the prompt instructs the a
 **Consequences**: (+) Deterministic, property-testable (fast-check). (+) Restart-safe: queue lives in DB. (−) Start latency bounded by event processing (target < 5 s, NFR-004).
 
 ### ADR-010: One Git worktree per run, stacked branches for blocking dependencies
-**Status**: Accepted, to be confirmed by spike S2 (2026-10-13) (implements D6, D11, FR-038, FR-067)
+**Status**: Accepted — confirmed by spike S2 (2026-10-14, `docs/spikes/S2-stacked-worktrees.md`); amended 2026-10-15 (integration via merge-tree) (implements D6, D11, FR-038, FR-067)
 **Context**: Parallel runs need isolated working copies; dependent stories need predecessors' unmerged code; SpecForge never merges into the base branch or the user's branches; it may only create temporary integration commits for stacked bases (D4, CON-008, FR-067).
 **Decision**:
 - Worktree root defaults to a short path under app data (`<appdata>/wt/<projectShortId>/<storyId>`) to avoid Windows path-length issues.
-- Base selection: predecessors merged into base branch (`git merge-base --is-ancestor`) are ignored; zero unmerged predecessors → base branch HEAD; one → its branch HEAD; several → a temporary integration commit created in a scratch worktree (`git merge --no-ff` of predecessor branches); conflict → `Blocked (conflict)`.
+- Base selection: predecessors merged into base branch (`git merge-base --is-ancestor`) are ignored; zero unmerged predecessors → base branch HEAD; one → its branch HEAD; several → a temporary integration commit built **without checkout** via `git merge-tree --write-tree` + `git commit-tree` (Git ≥ 2.38, default); on Git 2.30–2.37 SpecForge automatically falls back to merging in a scratch worktree (`git merge --no-ff`), which is always removed afterwards; conflict (files reported by merge-tree `--name-only`) → `Blocked (conflict)`.
 - Branch `specforge/<storyId>` (suffix `-2`, `-3` for retries from fresh base); the run's `base_ref` is recorded so diffs show only the story's own changes.
-- All git calls use `execFile` with argument arrays (NFR-011); minimum Git 2.30.
+- All git calls use `execFile` with argument arrays (NFR-011) and `-c core.longpaths=true` (paths > 260 characters on Windows). Minimum Git **2.30**; Git ≥ **2.38** recommended (setup shows an upgrade hint for 2.30–2.37).
+- Git invocations are a performance budget on Windows (≈ 0.3–0.5 s per call, S2): batch where possible (e.g. one `git branch --merged <base>` instead of one `merge-base` per predecessor) to keep run start within NFR-004.
 - If the main working copy has uncommitted changes when a run is started, the user is warned that these changes are not part of the run's base (FR-116c).
 - **Merge detection (FR-115)**: a story branch counts as merged when `git merge-base --is-ancestor <branch> <base>` succeeds; checked on project open, on window focus, after git operations SpecForge performs, periodically (default 60 s) and via manual *Refresh*. It sets the story's `mergedAt`, drives epic *Merged* status, the "merged" count and the "Merge n approved branches" next step, and switches later stacked bases to the base branch.
 **Consequences**: (+) Real isolation; reviewable branches; correct stacking. (−) Branch/worktree accumulation → cleanup command; disk usage per worktree. (−) User must merge in order (shown on approval).
@@ -264,7 +266,8 @@ Structured results (FR-036) are part of the contract: the prompt instructs the a
 **Status**: Accepted (2026-10-13) (implements D6, FR-039)
 **Context**: Non-git runs operate in place; review needs diffs; reject needs restore.
 **Decision**: Before the run, walk the workspace (respecting exclusions, `.gitignore`-style), hash files (xxhash/sha-256) and store new blobs in `<appdata>/snapshots/<project>/objects`. Manifest in DB. Diff = current tree vs. manifest; restore = rewrite changed/deleted files and delete added ones. Concurrency limit forced to 1 (D12). Because the working copy is shared (FR-116b), an implementation run does not start while a write-capable chat or spec run is active (queued, reason `workspace`, ADR-009), and chat/spec writes are denied while an implementation run is active (ADR-013).
-**Consequences**: (+) Works without Git. (−) Time/space for large workspaces; NFR-004 target applies up to 5,000 files / 500 MB; larger workspaces show a progress indicator and a suggestion to use Git.
+Snapshots are incremental: files whose size and modification time match the previous snapshot of the same workspace reuse its entry without being read (like Git's index). The initial snapshot is taken in the background when a non-git project is opened.
+**Consequences**: (+) Works without Git; pre-run snapshots of 5,000 files / 500 MB take ≈ 1.3 s (US-047). (−) The cold initial snapshot reads and copies every file once (≈ 7 s Linux, 10–13 s Windows with on-access antivirus for 500 MB); it shows progress and suggests using Git for large workspaces.
 
 ### ADR-012: Secrets in the OS credential store, redaction everywhere
 **Status**: Accepted (2026-10-13)
@@ -295,7 +298,7 @@ Run kind → `appliesTo` bucket:
 ### ADR-014: Specification generation as agent runs with validated file output
 **Status**: Accepted (2026-10-13) (implements D1, FR-006 – FR-011, FR-014)
 **Context**: No direct model-API calls (CON-004).
-**Decision**: Specification runs use the same adapter in the **main workspace** with write permission restricted (by PermissionPolicy) to the target `spec/` subfolder. Before the run, SpecForge snapshots the target folder; after it, it validates produced files (front-matter schema, unique IDs, link targets, acyclic dependencies) and shows a diff for Keep/Discard (Discard restores the snapshot). Clarification uses multi-turn sessions (`resume`) with the structured result carrying questions. In non-git mode, spec-run writes are denied while an implementation run is active, and an active write-capable spec run holds back implementation starts (FR-116b, ADR-009/011). The same snapshot mechanism provides the scratch copy for feature delta runs (ADR-021).
+**Decision**: Specification runs use the same adapter in the **main workspace** with write permission restricted (by PermissionPolicy) to the target `spec/` subfolder. Before the run, SpecForge snapshots the target folder; after it, it validates produced files (front-matter schema, unique IDs, link targets, dependency targets, acyclic dependencies, a rationale per proposed dependency, required sections and requirement links of epics and stories) and shows a diff for Keep/Discard (Discard restores the snapshot). Clarification uses multi-turn sessions (`resume`) with the structured result carrying questions. In non-git mode, spec-run writes are denied while an implementation run is active, and an active write-capable spec run holds back implementation starts (FR-116b, ADR-009/011). The same snapshot mechanism provides the scratch copy for feature delta runs (ADR-021).
 **Consequences**: (+) Same infrastructure, same permission model. (−) Generation latency is that of a full agent session.
 
 ### ADR-015: Typed IPC contract shared by UI and core
@@ -355,3 +358,9 @@ On capability loss while runs are active, SpecForge does not stop them: active r
 - **In-flight protection**: applying a change set first computes affected queued/running/in-review stories (via trace links and `file_touch`) and blocks until the user decides per story. *Apply in corrections* pre-fills correction feedback for stories in Review, and for running stories stores it as pending feedback pre-filled into *Request corrections* when the story reaches Review; the user always triggers the correction (no system-initiated Review → In Progress).
 - Ideas live in `spec/01_intent/ideas.md`; baselines are annotated Git tags indexed in DB.
 **Consequences**: (+) Focused reviews and full traceability per feature; approved work stays stable. (−) More artifacts and states (feature lifecycle, change sets); concurrent features touching the same elements can produce conflicting change sets — applied with optimistic concurrency (a stale change item must be regenerated).
+
+### ADR-022: TypeScript 6.0.x until the tooling supports TypeScript 7
+**Status**: Accepted (2026-10-15, product owner decision)
+**Context**: TypeScript 7 is the native (Go) compiler and does not expose the JavaScript compiler API. typescript-eslint (supports TypeScript < 6.1) and dependency-cruiser (TypeScript parsing for the layering rules, ADR-003) depend on that API; with TS 7 linting failed and the layering check found no dependencies (US-004).
+**Decision**: Pin `typescript` to `~6.0` for the whole workspace (build, type-check, lint, layering). Re-evaluate quarterly, or when typescript-eslint and dependency-cruiser support TypeScript 7; a mixed setup (TS 7 for builds, TS 6 for tooling) is not used, to avoid two compilers disagreeing.
+**Consequences**: (+) Working lint and enforced layering. (−) No speed-up from the native compiler for now; a later migration must re-run the full tooling checks.

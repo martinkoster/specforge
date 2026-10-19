@@ -1,0 +1,19 @@
+{
+  "name": "@specforge/spike-s3",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Spike S3 (US-003): validate process-tree termination per OS. Throwaway prototype, not production code.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "@vitest/coverage-v8": "^5.0.4",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.4"
+  }
+}

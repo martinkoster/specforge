@@ -1,0 +1,20 @@
+{
+  "name": "@specforge/spike-s2",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Spike S2 (US-002): validate stacked worktrees and integration merges. Throwaway prototype, not production code.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "@vitest/coverage-v8": "^5.0.4",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.4"
+  }
+}

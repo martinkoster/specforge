@@ -1,0 +1,29 @@
+{
+  "name": "@specforge/sqlite",
+  "version": "0.0.0",
+  "private": true,
+  "description": "SQLite persistence adapter: database lifecycle, migrations, repositories (ADR-005).",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "dependencies": {
+    "better-sqlite3": "^13.0.3",
+    "kysely": "^0.29.6",
+    "@specforge/application": "workspace:*",
+    "@specforge/domain": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^26.6.5"
+  }
+}

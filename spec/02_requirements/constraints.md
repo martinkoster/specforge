@@ -30,7 +30,7 @@
 
 ### CON-007: Git is optional (D6)
 **Description**: Workspaces may or may not be Git repositories. Git mode uses branch/worktree isolation; non-git mode runs directly in the workspace with snapshots.
-**Impact**: Two execution and diff strategies must be implemented and tested. Git (if used) is a locally installed external tool; minimum version must be defined (worktree support).
+**Impact**: Two execution and diff strategies must be implemented and tested. Git (if used) is a locally installed external tool; minimum version 2.30 (worktrees), 2.38 recommended (checkout-free integration commits via `merge-tree`, ADR-010).
 
 ### CON-008: SpecForge does not merge into user branches (D4)
 **Description**: Approved story branches are merged manually by the user. SpecForge never merges into the base branch or any user branch. It may create temporary integration commits in scratch worktrees to build the base of a stacked story branch (FR-067), and it detects merges made by the user (FR-115).

@@ -1,0 +1,13 @@
+{
+  "name": "@specforge/tooling",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Repository tooling: layering and SPDX header checks.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "dependency-cruiser": "^18.6.0",
+    "yaml": "^2.9.1"
+  }
+}

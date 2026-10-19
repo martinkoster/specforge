@@ -1,0 +1,42 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "tsBuildInfoFile": "dist/.tsbuildinfo",
+    "types": ["node"]
+  },
+  "include": ["src"],
+  "references": [
+    {
+      "path": "../domain"
+    },
+    {
+      "path": "../application"
+    },
+    {
+      "path": "../ipc-contract"
+    },
+    {
+      "path": "../adapters/agent-mock"
+    },
+    {
+      "path": "../adapters/sqlite"
+    },
+    {
+      "path": "../adapters/workspace-fs"
+    },
+    {
+      "path": "../adapters/git"
+    },
+    {
+      "path": "../adapters/agent-claude-code"
+    },
+    {
+      "path": "../adapters/snapshot"
+    },
+    {
+      "path": "../adapters/process"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "name": "@specforge/spike-s1",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Spike S1 (US-001): validate Claude Code integration via the Agent SDK. Throwaway prototype, not production code.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:live": "cross-env S1_LIVE=1 vitest run --testTimeout=900000",
+    "coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.3.299"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "@vitest/coverage-v8": "^5.0.4",
+    "cross-env": "^10.1.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.4"
+  }
+}

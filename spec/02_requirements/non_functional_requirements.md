@@ -31,7 +31,7 @@ Reference hardware for measures: a mid-range developer laptop (4+ cores, 16 GB R
 **Category**: Performance
 **Description**: The application starts and restores the last project quickly.
 **Source**: §6 "modern, responsive desktop application".
-**Measure**: Cold start to an interactive project screen in < 5 s for a project with 200 stories and 50 runs.
+**Measure**: Cold start to an interactive project screen in < 5 s for a project with 200 stories and 50 runs. Measured as SpecForge's share: main-process start → interactive project screen, minus the same span of a bare Electron window on the same machine and test driver (process-start overhead of the OS, on-access scanning and the test driver is excluded; product-owner decision 2026-10-18).
 **Priority**: Should Have
 **Release**: R1
 
@@ -39,7 +39,7 @@ Reference hardware for measures: a mid-range developer laptop (4+ cores, 16 GB R
 **Category**: Performance
 **Description**: Starting execution after the Ready → In Progress transition is fast, excluding agent-side model latency.
 **Source**: §5.4; FR-022.
-**Measure**: Branch/worktree creation (or snapshot for workspaces ≤ 5,000 files / 500 MB) and agent process launch complete in < 5 s.
+**Measure**: Branch/worktree creation (or the incremental pre-run snapshot for non-git workspaces ≤ 5,000 files / 500 MB) and agent process launch complete in < 5 s. The initial (cold) snapshot of a non-git workspace is a one-time background preparation when the project is opened, with progress and without a hard limit (product-owner decision 2026-10-15).
 **Priority**: Should Have
 **Release**: R1
 

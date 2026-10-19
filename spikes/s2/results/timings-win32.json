@@ -1,0 +1,42 @@
+{
+  "base": {
+    "medianMs": 1483,
+    "samplesMs": [
+      1603,
+      1407,
+      1775,
+      1483,
+      1334
+    ]
+  },
+  "single": {
+    "medianMs": 1750,
+    "samplesMs": [
+      1796,
+      1695,
+      1692,
+      1750,
+      1809
+    ]
+  },
+  "integration (worktree)": {
+    "medianMs": 3783,
+    "samplesMs": [
+      3535,
+      4001,
+      3740,
+      3783,
+      4252
+    ]
+  },
+  "integration (merge-tree)": {
+    "medianMs": 2799,
+    "samplesMs": [
+      2799,
+      2920,
+      2696,
+      5395,
+      2630
+    ]
+  }
+}

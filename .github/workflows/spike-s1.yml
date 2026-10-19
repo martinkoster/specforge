@@ -36,11 +36,13 @@ jobs:
       - name: Unit tests
         run: npx vitest run --exclude test/docs.test.ts
       - name: Live scenarios
+        shell: bash
         env:
           S1_LIVE: '1'
-          S1_WAIT_MS: ${{ fromJSON(inputs.wait_minutes) * 60000 }}
+          WAIT_MINUTES: ${{ inputs.wait_minutes }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: npx vitest run test/live.test.ts --testTimeout=1800000
+        # Expressions have no arithmetic: the wait is converted to milliseconds in the shell.
+        run: S1_WAIT_MS=$((WAIT_MINUTES * 60000)) npx vitest run test/live.test.ts --testTimeout=1800000
       - name: Upload results
         if: always()
         uses: actions/upload-artifact@v4

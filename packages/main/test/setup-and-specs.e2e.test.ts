@@ -56,10 +56,11 @@ describe('US-025 end-to-end: edit and save an artifact', () => {
     // CodeMirror's injected styles must survive the renderer CSP (style-src 'self').
     expect(await page.locator('.cm-editor').evaluate((el) => getComputedStyle(el).display)).toBe('flex');
     await editor.click();
-    await page.keyboard.press('Control+End');
+    // Cmd on macOS, Ctrl elsewhere (CodeMirror's `Mod` key and the editor's save shortcut).
+    await page.keyboard.press('ControlOrMeta+End');
     await page.keyboard.type('\n## Goals\n');
     await page.getByRole('region', { name: 'Preview' }).getByRole('heading', { name: 'Goals' }).waitFor();
-    await page.keyboard.press('Control+S');
+    await page.keyboard.press('ControlOrMeta+S');
     await page.getByText('Saved', { exact: true }).waitFor();
 
     expect(readFileSync(join(ws, 'spec', '01_intent', 'intent.md'), 'utf8')).toContain('## Goals');

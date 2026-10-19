@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { handleOpenPath } from '../src/open-path.js';
 
 describe('US-057 AC-3: Open in editor (core → main)', () => {
   it('opens absolute paths requested by the core with the OS default application', async () => {
     const open = vi.fn(async () => '');
-    expect(await handleOpenPath({ type: 'open-path', path: 'C:\\wt\\US-001\\src\\a.ts' }, open)).toBe(true);
-    expect(open).toHaveBeenCalledWith('C:\\wt\\US-001\\src\\a.ts');
+    const path = join(tmpdir(), 'wt', 'US-001', 'src', 'a.ts');
+    expect(await handleOpenPath({ type: 'open-path', path }, open)).toBe(true);
+    expect(open).toHaveBeenCalledWith(path);
   });
 
   it('ignores other messages and relative or malformed paths', async () => {

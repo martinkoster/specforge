@@ -42,6 +42,9 @@ describe('US-023 over IPC', () => {
       initGit: true,
     });
     const git = (...args: string[]) => execFileSync('git', args, { cwd: project.path, encoding: 'utf8' }).trim();
+    // Commits use the user's own Git identity; CI runners have none configured globally.
+    git('config', 'user.name', 'Spec Tester');
+    git('config', 'user.email', 'spec.tester@example.com');
     writeFileSync(join(project.path, 'spec', '02_requirements', 'fr.md'), '### FR-001: Login\n');
     writeFileSync(join(project.path, 'notes.txt'), 'not a spec file\n');
 

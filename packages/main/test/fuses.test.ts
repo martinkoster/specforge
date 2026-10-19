@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { copyFileSync, mkdtempSync } from 'node:fs';
+import { cpSync, mkdtempSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
@@ -17,9 +17,11 @@ describe('US-005 AC-4: Electron fuses for packaged builds', () => {
   });
 
   it('flips the fuses in an Electron binary', async () => {
-    const electronBinary = createRequire(import.meta.url)('electron') as unknown as string;
+    const executable = createRequire(import.meta.url)('electron') as unknown as string;
+    // macOS: the fuses live in the Electron Framework of the app bundle, not in the launcher executable.
+    const electronBinary = process.platform === 'darwin' ? executable.slice(0, executable.indexOf('.app') + 4) : executable;
     const copy = join(mkdtempSync(join(tmpdir(), 'sf-fuses-')), basename(electronBinary));
-    copyFileSync(electronBinary, copy);
+    cpSync(electronBinary, copy, { recursive: true, verbatimSymlinks: true });
 
     await applyFuses(copy);
 

@@ -17,7 +17,8 @@ afterEach(async () => {
 const story = (status: string, approval = 'approved') =>
   ['---', 'kind: story', 'id: US-001', 'title: Story one', `approval: ${approval}`, `status: ${status}`, '---', 'Body.', ''].join('\n');
 
-async function waitFor<T>(fn: () => T | undefined, timeoutMs = 3000): Promise<T> {
+// macOS FSEvents report changes later than inotify / ReadDirectoryChangesW.
+async function waitFor<T>(fn: () => T | undefined, timeoutMs = 10_000): Promise<T> {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
     const value = fn();

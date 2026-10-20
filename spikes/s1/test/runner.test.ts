@@ -60,7 +60,7 @@ describe('US-001 AC-1/AC-2/AC-4/AC-5 (support): runner passes the required Agent
     await expect(answer).resolves.toEqual({ behavior: 'allow', updatedInput: { file_path: 'x' } });
   });
 
-  it('aborts through the abort controller passed to the SDK', () => {
+  it('aborts through the abort controller passed to the SDK', async () => {
     script = [];
     const run = startRun({ ...base, broker: new DecisionBroker() });
     const controller = calls.at(-1)!.options.abortController as AbortController;
@@ -68,6 +68,7 @@ describe('US-001 AC-1/AC-2/AC-4/AC-5 (support): runner passes the required Agent
     run.abort();
 
     expect(controller.signal.aborted).toBe(true);
+    await expect(run.done).rejects.toThrow(/without a result/);
   });
 
   it('fails when the stream ends without a result message', async () => {

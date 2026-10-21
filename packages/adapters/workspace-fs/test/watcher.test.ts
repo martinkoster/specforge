@@ -28,8 +28,10 @@ describe('US-021 AC-1: workspace watcher', () => {
       batches.push(paths),
     );
     watchers.push(watcher);
-    // macOS file events can miss a change to a pre-existing file made right after 'ready'.
-    await new Promise((r) => setTimeout(r, 200));
+    // macOS (FSEvents) may replay the setup writes after 'ready' and miss changes made right after it: let the
+    // watcher settle, then discard what it replayed — the test is about changes made while watching.
+    await new Promise((r) => setTimeout(r, 500));
+    batches.length = 0;
 
     write(root, 'spec/a.md', 'changed');
     write(root, 'spec/b.md', 'new');

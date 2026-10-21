@@ -15,6 +15,7 @@ import {
   utilityProcess,
   type MessagePortMain,
 } from 'electron';
+import { appPaths } from './app-paths.js';
 import { CloseCoordinator } from './close-coordinator.js';
 import { CoreSupervisor } from './core-supervisor.js';
 import { notificationContent } from './notifications.js';
@@ -29,11 +30,7 @@ const TEST_MODE = process.env.SPECFORGE_TEST === '1';
 const STYLE_NONCE = createStyleNonce();
 // Tests run against an isolated profile.
 if (TEST_MODE && process.env.SPECFORGE_USER_DATA) app.setPath('userData', process.env.SPECFORGE_USER_DATA);
-const paths = {
-  preload: join(here, 'preload.cjs'),
-  core: join(here, '..', '..', 'core', 'dist', 'main.js'),
-  page: join(here, '..', '..', 'ui', 'dist', 'app', 'index.html'),
-};
+const paths = appPaths(here, app.isPackaged);
 
 function createWindow(): BrowserWindow {
   const window = new BrowserWindow({

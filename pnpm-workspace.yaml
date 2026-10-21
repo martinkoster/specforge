@@ -7,6 +7,8 @@ allowBuilds:
   better-sqlite3: true
   electron: true
   esbuild: true
+  # Squirrel.Windows support pulled in by electron-builder; SpecForge builds NSIS installers only (US-009).
+  electron-winstaller: false
 
 # The Agent SDK's per-platform packages bundle the Claude Code binary. SpecForge uses the user's own installation
 # (ADR-006, CON-015) and must not ship or install it.

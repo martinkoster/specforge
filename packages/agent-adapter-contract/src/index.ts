@@ -67,7 +67,7 @@ export function describeAgentAdapterContract(contract: AgentAdapterContract): vo
         const outcome = await run.done;
         const sessionId = await run.sessionId;
 
-        expect(outcome.status).toBe('completed');
+        expect(outcome.status, `outcome: ${JSON.stringify(outcome)}`).toBe('completed');
         if (outcome.status !== 'completed') return;
         expect(outcome.sessionId).toBe(sessionId);
         expect(rec.events[0]).toEqual({ type: 'session', sessionId });
@@ -87,10 +87,10 @@ export function describeAgentAdapterContract(contract: AgentAdapterContract): vo
 
         const outcome = await adapter.start(request, rec).done;
 
+        expect(outcome.status, `outcome: ${JSON.stringify(outcome)}`).toBe('completed');
         expect(rec.asks).toHaveLength(1);
         expect(rec.asks[0]!.toolName).toMatch(/\S/);
         expect(rec.asks[0]!.cwd).toBe(request.cwd);
-        expect(outcome.status).toBe('completed');
         const result = rec.events.find((e) => e.type === 'tool_result');
         expect(result).toMatchObject({ isError: false });
       },
@@ -106,9 +106,9 @@ export function describeAgentAdapterContract(contract: AgentAdapterContract): vo
 
         const outcome = await adapter.start(contract.request('permission'), rec).done;
 
+        expect(outcome.status, `outcome: ${JSON.stringify(outcome)}`).toBe('completed');
         expect(rec.asks).toHaveLength(1);
         expect(rec.events.find((e) => e.type === 'tool_result')).toMatchObject({ isError: true });
-        expect(outcome.status).toBe('completed');
       },
       timeout,
     );
@@ -143,7 +143,7 @@ export function describeAgentAdapterContract(contract: AgentAdapterContract): vo
         const second = adapter.start(contract.request('recall', { resumeSessionId: sessionId }), hooks());
         const outcome = await second.done;
 
-        expect(outcome.status).toBe('completed');
+        expect(outcome.status, `outcome: ${JSON.stringify(outcome)}`).toBe('completed');
         if (outcome.status === 'completed') expect(outcome.resultText).toContain('ZEBRA-42');
       },
       timeout * 2,

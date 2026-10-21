@@ -8,8 +8,9 @@ export default defineConfig({
     setupFiles: ['./vitest.setup.ts'],
     include: ['packages/**/test/**/*.test.{ts,tsx}', 'tooling/test/**/*.test.ts'],
     // Timing assertions and Electron end-to-end tests run separately and sequentially:
-    // `pnpm test:perf` (vitest.perf.config.ts) and `pnpm test:e2e` (vitest.e2e.config.ts).
-    exclude: ['**/node_modules/**', '**/dist/**', '**/*.perf.test.{ts,tsx}', '**/*.e2e.test.ts'],
+    // `pnpm test:perf` (vitest.perf.config.ts), `pnpm test:e2e` (vitest.e2e.config.ts); the packaged-app smoke test
+    // runs after `pnpm package` (`pnpm test:packaged`, vitest.packaged.config.ts).
+    exclude: ['**/node_modules/**', '**/dist/**', '**/*.perf.test.{ts,tsx}', '**/*.e2e.test.ts', '**/*.smoke.test.ts'],
     testTimeout: 30_000,
     // Integration tests spawn git, PowerShell and agent processes; one worker per core oversubscribes the machine.
     maxWorkers: '30%',

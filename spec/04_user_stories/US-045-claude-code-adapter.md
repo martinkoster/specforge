@@ -42,9 +42,9 @@ Files created / modified:
 
 Decisions / deviations:
 - Product-owner decision 2026-10-18: US-045 started before US-001 is done (S1 verified on Windows).
-- The SDK (`@anthropic-ai/claude-agent-sdk` ~0.3.302) is proprietary ("SEE LICENSE"): license check lists it for review; whether its JavaScript may be bundled into installers must be confirmed before US-009.
+- The SDK (`@anthropic-ai/claude-agent-sdk` ~0.3.302) is proprietary ("SEE LICENSE"): license check lists it for review; whether its JavaScript may be bundled into installers must be confirmed before US-009. Resolved by intent D23 (2026-10-21): bundled in the installers, legal confirmation before any public release.
 
 ## Test Coverage
 - Unit tests: `packages/adapters/agent-claude-code/test/adapter.test.ts` (12, fake SDK `query()`; mutation check: 9/9 mutants killed), `packages/core/test/capabilities-ipc.test.ts` (1 new)
-- Live: `contract.live.test.ts` (6 contract tests, opt-in) — Windows 6/6 passed (142 s); macOS/Linux pending
+- Live: `contract.live.test.ts` (6 contract tests, opt-in) — Windows 6/6 passed (142 s); macOS/Linux pending. CI attempt 2026-10-21 (Linux): every model call failed with "Credit balance is too low" (the account of the `ANTHROPIC_API_KEY` repository secret); macOS runners were not available on 2026-10-19.
 - `packages/application/test/execution-service.test.ts` (1 new: late pid), adapter cancel test (1 new)

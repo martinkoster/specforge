@@ -46,5 +46,5 @@ Decisions / deviations:
 
 ## Test Coverage
 - Unit tests: `packages/adapters/agent-claude-code/test/adapter.test.ts` (12, fake SDK `query()`; mutation check: 9/9 mutants killed), `packages/core/test/capabilities-ipc.test.ts` (1 new)
-- Live: `contract.live.test.ts` (6 contract tests, opt-in) — Windows 6/6 passed (142 s); macOS/Linux pending
+- Live: `contract.live.test.ts` (6 contract tests, opt-in) — Windows 6/6 passed (142 s); macOS/Linux pending. CI attempt 2026-10-21 (Linux): every model call failed with "Credit balance is too low" (the account of the `ANTHROPIC_API_KEY` repository secret); macOS runners were not available on 2026-10-19.
 - `packages/application/test/execution-service.test.ts` (1 new: late pid), adapter cancel test (1 new)

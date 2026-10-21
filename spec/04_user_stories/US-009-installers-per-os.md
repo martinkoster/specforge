@@ -13,10 +13,10 @@ Makes SpecForge installable as a desktop application (FR-058) and verifies the p
 As a **SpecForge user**, I want **to install SpecForge with a native installer on my OS** so that **I can run it like any desktop application**.
 
 ## Acceptance Criteria
-- [ ] AC-1: electron-builder produces a per-user NSIS installer (Windows), dmg (macOS) and AppImage + deb (Linux) in CI. _(CI steps added; first CI run pending — not pushed yet. Locally on Windows the unpacked app builds; the NSIS step is blocked on this machine because the 7-Zip electron-builder downloads to %LOCALAPPDATA% cannot start (AppLocker policy))_
+- [x] AC-1: electron-builder produces a per-user NSIS installer (Windows), dmg (macOS) and AppImage + deb (Linux) in CI. _(CI run 39654218835 on 2026-10-21: all three OSes green, installers uploaded as `installers-<os>` artifacts. Locally the NSIS step cannot run on the development machine: the 7-Zip electron-builder downloads to %LOCALAPPDATA% is blocked (AppLocker); use `pnpm package --dir`)_
 - [x] AC-2: Installers include `LICENSE`, `NOTICE` and a generated `THIRD_PARTY_NOTICES`. _(verified in the Windows package 2026-10-21)_
 - [x] AC-3: The Agent SDK's optional bundled Claude Code binary is excluded from the package. _(verified in the Windows package 2026-10-21; the packaging step fails if one is found)_
-- [ ] AC-4: On a clean VM per OS the installed app launches to the setup wizard (or empty shell until US-012 exists). _(packaged-app smoke test with a fresh profile passes on Windows 2026-10-21; CI on macOS/Linux and the manual clean-VM check per OS are open)_
+- [ ] AC-4: On a clean VM per OS the installed app launches to the setup wizard (or empty shell until US-012 exists). _(packaged-app smoke test with a fresh profile passes on Windows, macOS and Linux in CI, 2026-10-21; the manual clean-VM install per OS is open)_
 
 ## Technical Notes
 - Related design document: spec/03_design/technical_design/technical_decisions.md §6–7
@@ -37,7 +37,7 @@ Files created / modified:
 - `tooling/src/licenses.ts` — keeps package paths; SDK note updated (D23); `tooling/src/cli/pnpm.ts` — shared pnpm runner (also used by `check-licenses.ts`)
 - `packages/main/src/app-paths.ts`, `main.ts` — preload / core / page paths for the workspace and the packaged layout (`app.isPackaged`)
 - `packages/main/test/packaged.smoke.test.ts`, `vitest.packaged.config.ts`, `pnpm test:packaged` — starts the unpacked app with a fresh per-user profile and checks the setup wizard over the DevTools protocol (the fuses disable the Node inspector Playwright's Electron launcher needs)
-- `.github/workflows/ci.yml` — build job: package, packaged smoke test (xvfb on Linux), installers uploaded as `installers-<os>` artifacts (14 days); job timeout 45 min
+- `.github/workflows/ci.yml` — build job (first green run 39654218835, 2026-10-21): package, packaged smoke test (xvfb on Linux), installers uploaded as `installers-<os>` artifacts (14 days); job timeout 45 min
 - `tooling/package.json` (electron-builder, esbuild, @electron/asar, @electron/fuses, playwright-core), `pnpm-workspace.yaml` (electron-winstaller build script not allowed), `package.json` scripts, `vitest.config.ts` (smoke tests excluded), `eslint.config.js` (`build/`, `release/` ignored)
 
 Decisions / deviations:

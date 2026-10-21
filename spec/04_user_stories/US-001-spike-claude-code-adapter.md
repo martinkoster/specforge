@@ -18,7 +18,7 @@ As a **SpecForge developer**, I want **a throwaway prototype proving streaming, 
 - [x] AC-3: Aborting via `abortController` stops the agent and all child processes within 10 s. _(verified on Windows 2026-10-14; macOS/Linux pending CI)_
 - [x] AC-4: Resuming with the stored session id in the same cwd continues the conversation with prior context. _(verified on Windows 2026-10-14; macOS/Linux pending CI)_
 - [x] AC-5: Verified that user/project Claude settings with permissive allow rules cannot bypass the relay (or the required setting-source configuration is documented). _(verified on Windows 2026-10-14; macOS/Linux pending CI)_
-- [ ] AC-6: Results for Windows, macOS and Linux are documented in `docs/spikes/S1-claude-code-adapter.md` with a go/no-go recommendation for ADR-006 (fallback: CLI + PreToolUse hook).
+- [ ] AC-6: Results for Windows, macOS and Linux are documented in `docs/spikes/S1-claude-code-adapter.md` with a go/no-go recommendation for ADR-006 (fallback: CLI + PreToolUse hook). _(open: CI attempt 2026-10-21 (Linux): every model call failed with "Credit balance is too low" (the account of the `ANTHROPIC_API_KEY` repository secret); macOS runners were not available on 2026-10-19.)_
 
 ## Technical Notes
 - Related design document: `spec/03_design/technical_design/c4_architecture.md` — ADR-006

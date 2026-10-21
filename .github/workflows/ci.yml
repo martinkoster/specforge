@@ -22,7 +22,7 @@ jobs:
       matrix:
         os: [windows-latest, macos-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -48,6 +48,25 @@ jobs:
         run: xvfb-run -a pnpm test:e2e
       - name: Performance tests (sequential, NFR timing targets)
         run: pnpm test:perf
+      # US-009: unsigned installers (NSIS / dmg / AppImage + deb) and a launch of the packaged app.
+      - name: Package installers
+        run: pnpm package
+      - name: Packaged app smoke test (Windows/macOS)
+        if: runner.os != 'Linux'
+        run: pnpm test:packaged
+      - name: Packaged app smoke test (Linux, virtual display)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a pnpm test:packaged
+      - name: Keep the installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: installers-${{ matrix.os }}
+          path: |
+            release/*.exe
+            release/*.dmg
+            release/*.AppImage
+            release/*.deb
+          retention-days: 14
 
   supply-chain:
     runs-on: ubuntu-latest

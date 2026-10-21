@@ -19,6 +19,8 @@
     "coverage": "vitest run --coverage",
     "test:perf": "vitest run --config vitest.perf.config.ts",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
+    "package": "pnpm build && tsx tooling/src/cli/package-app.ts",
+    "test:packaged": "vitest run --config vitest.packaged.config.ts",
     "check:layering": "tsx tooling/src/cli/check-layering.ts",
     "check:spdx": "tsx tooling/src/cli/check-spdx.ts",
     "check:licenses": "tsx tooling/src/cli/check-licenses.ts",

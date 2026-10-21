@@ -2,7 +2,7 @@
 # SpecForge — Product Intent
 
 **Version:** 0.2  
-**Status:** Product intent incl. clarified decisions D1–D22  
+**Status:** Product intent incl. clarified decisions D1–D23  
 **Initial development tool:** Claude Code  
 **Product type:** Local-first, human-directed, multi-agent AI software engineering platform
 
@@ -275,7 +275,7 @@ SpecForge will be considered successful when it enables a user to:
 
 The following decisions resolve open questions in this intent. They are binding input for requirements and design.
 
-All decisions were made by the product owner on 2026-10-13.
+All decisions were made by the product owner on 2026-10-13 unless a date is given in the row.
 
 | # | Topic | Decision | Implications |
 |---|---|---|---|
@@ -301,3 +301,4 @@ All decisions were made by the product owner on 2026-10-13.
 | D20 | Usage & cost | Token usage and cost reported by the agent are shown per run, per phase and per project. | Depends on what the adapter reports. |
 | D21 | Epics | Epics group user stories that together form a bigger feature. An epic is a Markdown artifact with goal, business value, linked requirements and epic-level acceptance criteria; each story belongs to at most one epic. In the story phase the AI first proposes epics (user approves the structure), then generates stories per epic. Epic status is derived from its stories; epics are never executed by agents. The Kanban board shows swimlanes per epic (toggle to flat board). Story branches are still merged individually (D4 unchanged). When all stories of an epic are Done, an optional epic review (combined changes, epic acceptance criteria, AI completeness check) lets the user confirm the epic or add follow-up stories. | Traceability becomes requirement → epic → story → run → code. |
 | D22 | Adding features to an existing project | New features enter through **feature intents** (FI-xxx): delta intents stored as Markdown beside the main intent in `spec/01_intent/`. A prominent *Add feature* action on the dashboard opens a guided feature wizard: the user describes the idea, the AI reviews and enhances it, asks clarification questions and checks it against the existing specifications (overlaps, conflicts); the result is saved as a feature intent. The user is then guided through feature-scoped phases: impact analysis → delta requirements → delta design → epic & story breakdown → Kanban → epic review. Approved artifacts are changed only via reviewed diffs with stable IDs. Done stories are never reopened; affected implemented functionality gets new rework stories. Accepting deltas that affect queued, running or in-review stories requires an explicit per-story decision (in-flight protection). An idea inbox captures quick ideas for later triage; completing a feature offers a spec baseline (Git tag). Small corrections may still be edited directly in existing specs. | Traceability: feature intent → changed/new requirements → design → epic → stories → code. |
+| D23 | Agent SDK in the installers (2026-10-21) | The installers bundle the JavaScript of the Claude Agent SDK (`@anthropic-ai/claude-agent-sdk`, Anthropic's terms, no open-source license) so SpecForge runs without extra installation; its optional Claude Code binary is never bundled (the user's installation is used, ADR-006). THIRD_PARTY_NOTICES lists the SDK as proprietary and not covered by Apache-2.0. **Condition:** legal confirmation of Anthropic's terms is required before any public release (GitHub Releases, signed installers in US-067). | Unsigned R1 installers may be built and shared internally; public distribution is gated on the confirmation (CON-015). |

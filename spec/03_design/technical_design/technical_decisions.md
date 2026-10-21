@@ -89,7 +89,7 @@ Overall coverage target ≥ 75 % (NFR-023). TDD per story (stage 5 process).
 
 ## 6. Deployment approach
 
-- **Distribution**: GitHub Releases (or internal share) with installers per OS; code signing (Windows Authenticode, Apple Developer ID + notarisation); Linux AppImage + deb.
+- **Distribution**: GitHub Releases (or internal share) with installers per OS; code signing (Windows Authenticode, Apple Developer ID + notarisation); Linux AppImage + deb. R1 installers (US-009, electron-builder): per-user NSIS without elevation (Windows x64), dmg (macOS), AppImage + deb (Linux); asar with integrity validation and the US-005 fuses flipped after packing; unsigned until US-067. Public distribution requires the D23 legal confirmation.
 - **Updates**: Manual by default; optional opt-in update check (NFR-009).
 - **CI/CD**: GitHub Actions matrix `windows-latest`, `macos-latest`, `ubuntu-latest`: lint → typecheck → unit/integration → E2E (mock adapter, xvfb on Linux) → package → sign (release branches only).
 - **Runtime prerequisites**: Claude Code installed by the user (minimum version enforced), Git ≥ 2.30 (optional; ≥ 2.38 recommended), API key or cloud provider credentials (ADR-007).
@@ -103,7 +103,8 @@ SpecForge is licensed under **Apache License 2.0** (CON-015).
 - Packaging: generate `THIRD_PARTY_NOTICES` and include it in every installer.
 - Stack check (§1): all proposed libraries are MIT/Apache-2.0 except:
   - **elkjs** — EPL-2.0 OR GPL-3.0 (weak copyleft / copyleft): flagged by the licence check for review; **not used** — the graph view uses `@dagrejs/dagre` (MIT) for the layered layout (2026-10-16, US-041).
-  - **@anthropic-ai/claude-agent-sdk** — governed by Anthropic's terms, not an OSI license: verify that bundling it in installers is permitted; exclude its optional bundled Claude Code binary from packaging (SpecForge uses the user's installation, ADR-006).
+  - **@anthropic-ai/claude-agent-sdk** — governed by Anthropic's terms, not an OSI license: its JavaScript is bundled in the installers and listed in `THIRD_PARTY_NOTICES` as proprietary (D23, 2026-10-21); **legal confirmation of the terms is required before any public release**. Its optional bundled Claude Code binary is excluded from installation and packaging, and the packaging step fails if one is found (SpecForge uses the user's installation, ADR-006).
+- Packaging (US-009): `pnpm package` bundles main and core with esbuild, stages them with the renderer, better-sqlite3 (its prebuild for the target platform only) and the Agent SDK as a standalone app, generates `THIRD_PARTY_NOTICES` from the production dependencies (fails if a bundled package is missing) and adds `LICENSE`, `NOTICE` and `THIRD_PARTY_NOTICES` to every installer; Electron's own licenses ship beside the executable.
 
 ## 8. NFR coverage
 

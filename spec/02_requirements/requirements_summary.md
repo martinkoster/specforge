@@ -220,3 +220,4 @@ Priorities are MoSCoW within the release they belong to.
 | 2026-10-15 | Decisions after spikes S2 / US-004: CON-007 Git 2.30 minimum, 2.38 recommended (merge-tree, ADR-010 amended); TypeScript pinned to 6.0.x (ADR-022); dependency audit via pnpm in CI (US-008 AC-4). |
 | 2026-10-15 | NFR-004 / US-047 AC-4: snapshot target split — initial (cold) snapshot in background with progress, pre-run (incremental) snapshot < 5 s (product-owner decision after measurement). |
 | 2026-10-18 | NFR-003 / US-065 AC-2: cold start measured as SpecForge's share (bare-Electron baseline of the same machine and test driver subtracted; product-owner decision after measurement). |
+| 2026-10-21 | Intent D23 (US-009): CON-015 notes that the Agent SDK's JavaScript is bundled in the installers and that public releases require legal confirmation of Anthropic's terms. |

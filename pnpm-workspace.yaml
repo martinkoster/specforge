@@ -21,3 +21,12 @@ ignoredOptionalDependencies:
   - '@anthropic-ai/claude-agent-sdk-linux-x64-musl'
   - '@anthropic-ai/claude-agent-sdk-win32-arm64'
   - '@anthropic-ai/claude-agent-sdk-win32-x64'
+
+# Security floors for transitive dependencies (pnpm audit, 2026-11-08); drop each once upstream ships the fix.
+#  - body-parser: GHSA-27r3-jxmh-p828 (Agent SDK > MCP SDK > express)
+#  - happy-dom: GHSA-834v-8h66-3h79 (vitest, tests only)
+#  - undici 8: DoS / cache poisoning / TLS advisories fixed in 8.12.2 (vitest > jsdom, tests only)
+overrides:
+  'body-parser@>=2.0.0 <2.4.0': '^2.4.0'
+  'happy-dom@>=17.0.0 <21.0.4': '^21.0.4'
+  'undici@>=8.0.0 <8.12.2': '^8.12.2'

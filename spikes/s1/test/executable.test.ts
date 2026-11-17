@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
-import { mkdtempSync, mkdirSync, writeFileSync, symlinkSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, realpathSync, writeFileSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { resolveClaudeExecutable } from '../src/executable.js';
 
+// Real path: on macOS the temp dir lives under the /var -> /private/var symlink, which the resolver follows.
 function tempDir(): string {
-  return mkdtempSync(join(tmpdir(), 's1-exe-'));
+  return realpathSync(mkdtempSync(join(tmpdir(), 's1-exe-')));
 }
 
 describe('US-001 AC-1 (support): resolve the real Claude Code executable', () => {

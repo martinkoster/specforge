@@ -148,7 +148,7 @@ SpecForge is a single installable Electron application made of three OS processe
 | ADR-003 | Modular monolith, hexagonal, CI-enforced layering | Accepted |
 | ADR-004 | Workspace Markdown = source of truth; offer "Commit spec changes" | Accepted |
 | ADR-005 | SQLite via better-sqlite3 + Kysely | Accepted |
-| ADR-006 | Agent SDK with user's executable | Accepted, conditional on spike S1 |
+| ADR-006 | Agent SDK with user's executable | Accepted (confirmed by S1 on Windows, macOS and Linux, 2026-11-17) |
 | ADR-007 | API key / cloud provider auth only | Accepted |
 | ADR-008 | Adapter contract; fenced `specforge-result` JSON | Accepted |
 | ADR-009 | Single-writer scheduler; all implementation/correction/retry/resume starts via Scheduler; corrections jump queue; spec runs outside limit | Accepted |
@@ -203,7 +203,7 @@ SpecForge is a single installable Electron application made of three OS processe
 **Consequences**: (+) Single file, robust, fast. (−) Native module must be rebuilt per Electron version/platform (electron-builder handles it). Alternative: Node's built-in `node:sqlite` — reconsider when stable in Electron's Node.
 
 ### ADR-006: Claude Code integration via the Claude Agent SDK, pointing to the user's executable
-**Status**: Accepted, conditional on spike S1 (2026-10-13) — if S1 fails, fall back to the CLI + PreToolUse hook adapter
+**Status**: Accepted (2026-10-13); confirmed by spike S1 on Windows (2026-10-14), macOS and Linux (2026-11-17) — `docs/spikes/S1-claude-code-adapter.md`. The CLI + PreToolUse hook fallback is not needed. A completed live run with an API key or cloud provider (ADR-007) is checked in the manual MVP acceptance (US-066; product-owner decision 2026-11-18).
 **Context**: The adapter needs streaming events, live permission relay (D3), cancellation, session resume (D5) and per-run configuration. Options:
 (a) spawn `claude -p --output-format stream-json` and relay permissions via `--permission-prompt-tool` (MCP) — the flag is documented but its request/response payload is **not documented**;
 (b) spawn the CLI and relay via a `PreToolUse` hook that calls back into SpecForge — documented, but hook timeouts (600 s default, fail-open unless `onFailure: "block"`) complicate long human waits;
@@ -212,7 +212,7 @@ SpecForge is a single installable Electron application made of three OS processe
 **Consequences**:
 - (+) Fully documented, typed, no fragile output parsing; permission relay is first-class.
 - (+) One agent process per run → natural isolation for parallel runs (D10).
-- (−) Auto-approved calls (via Claude Code's own allow rules/settings) never reach `canUseTool`; SpecForge therefore passes no allow-lists to the agent and keeps all rules in its own PermissionPolicy (ADR-013). Spike S1 must verify that user/project Claude settings cannot auto-approve actions that bypass the relay, and configure setting sources accordingly.
+- (−) Auto-approved calls (via Claude Code's own allow rules/settings) never reach `canUseTool`; SpecForge therefore passes no allow-lists to the agent and keeps all rules in its own PermissionPolicy (ADR-013). Spike S1 verified that project allow rules did not bypass the relay; the adapter nevertheless passes `settingSources: []` (isolation) and supplies project instructions via the ContextAssembler.
 - (−) SDK version coupling; adapter pins a tested SDK range and checks the executable's version (minimum version recorded in settings).
 - Product must not be branded with "Claude Code" naming (Agent SDK terms).
 

@@ -1,0 +1,56 @@
+{
+  "ac1_stream": {
+    "ok": true,
+    "sessionId": "77314fb5-2cb1-41e6-8b0d-7aa2e6020aa9",
+    "executable": "/Users/runner/hostedtoolcache/node/24.22.2/arm64/lib/node_modules/@anthropic-ai/claude-code/bin/claude.exe",
+    "events": [
+      "session",
+      "output",
+      "result"
+    ],
+    "costUsd": 0.0674558,
+    "recordedAt": "2026-11-17T23:09:41.990Z"
+  },
+  "ac2_relay_allow_after_wait": {
+    "ok": true,
+    "waitedMs": 600037,
+    "toolName": "Write",
+    "recordedAt": "2026-11-17T23:19:45.560Z"
+  },
+  "ac2_relay_deny": {
+    "ok": true,
+    "recordedAt": "2026-11-17T23:19:48.828Z"
+  },
+  "ac3_abort": {
+    "ok": true,
+    "elapsedMs": 2378,
+    "before": [
+      "/Users/runner/hostedtoolcache/node/24.22.2/arm64/lib/node_modules/@anthropic-ai/claude-code/bin/claude.exe",
+      "/bin/bash",
+      "node"
+    ],
+    "survivors": [],
+    "recordedAt": "2026-11-17T23:19:53.421Z"
+  },
+  "ac4_resume": {
+    "ok": true,
+    "sessionId": "808cf3fd-532d-4093-915d-22a828574675",
+    "resumedSessionId": "808cf3fd-532d-4093-915d-22a828574675",
+    "recordedAt": "2026-11-17T23:19:56.657Z"
+  },
+  "ac5_settings_bypass": {
+    "default (all sources)": {
+      "relayed": true,
+      "fileWritten": false
+    },
+    "project only": {
+      "relayed": true,
+      "fileWritten": false
+    },
+    "isolated []": {
+      "relayed": true,
+      "fileWritten": false
+    },
+    "recordedAt": "2026-11-17T23:20:05.463Z"
+  }
+}

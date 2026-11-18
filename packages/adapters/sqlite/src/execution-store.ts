@@ -421,11 +421,13 @@ export class ExecutionStore implements SchedulerStore, ExecutionStorePort {
   }
 
   /** Sequence numbers of events matching an FTS5 query (NFR-005: < 2 s on 100 MB logs). */
+  // FTS rows of a run are inserted in seq order (appendEvents), so rowid order is seq order; ordering by rowid lets
+  // FTS5 stop after `limit` hits instead of sorting every match (NFR-005: common terms in a 100 MB log).
   searchEvents(runId: string, query: string, limit = 1000): number[] {
     const run = (q: string) =>
       (
         this.sqlite
-          .prepare('select seq from run_event_fts where run_event_fts match ? and run_id = ? order by seq limit ?')
+          .prepare('select seq from run_event_fts where run_event_fts match ? and run_id = ? order by rowid limit ?')
           .all(q, runId, limit) as { seq: number }[]
       ).map((r) => r.seq);
     try {

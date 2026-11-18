@@ -11,6 +11,7 @@ import {
   ProjectRepository,
   openDatabase,
   type OpenDatabase,
+  type RunEventRecord,
 } from '../src/index.js';
 
 const opened: OpenDatabase[] = [];
@@ -273,6 +274,20 @@ describe('US-054: run overview, paged events and full-text search', () => {
     expect(store.searchEvents(runId, 'nothing')).toEqual([]);
     // Unbalanced quotes from the search box do not break the query.
     expect(store.searchEvents(runId, 'tests "passed')).toEqual([3]);
+  });
+
+  it('returns the earliest matches of a run in seq order when runs write interleaved batches (NFR-005 limit)', async () => {
+    const { store } = await setup();
+    const a = store.createRun('p1', { storyId: 'US-001', kind: 'implement', startKind: 'implement', trigger: 't' });
+    const b = store.createRun('p1', { storyId: 'US-002', kind: 'implement', startKind: 'implement', trigger: 't' });
+    const out = (seq: number): RunEventRecord => ({ seq, ts: 't', type: 'output', payload: { type: 'output', text: `build step ${seq}` } });
+    for (let batch = 0; batch < 3; batch++) {
+      store.appendEvents(a, [out(batch * 2 + 1), out(batch * 2 + 2)]);
+      store.appendEvents(b, [out(batch * 2 + 1), out(batch * 2 + 2)]);
+    }
+
+    expect(store.searchEvents(a, 'build', 4)).toEqual([1, 2, 3, 4]);
+    expect(store.searchEvents(b, 'build')).toEqual([1, 2, 3, 4, 5, 6]);
   });
 
   it('lists runs and queued stories, running first, with touched files', async () => {

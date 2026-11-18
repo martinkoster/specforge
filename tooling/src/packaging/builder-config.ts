@@ -44,6 +44,15 @@ export function builderConfig(paths: BuilderPaths): Configuration {
     // Unsigned until US-067 (no Developer ID identity; arm64 builds get an ad-hoc signature).
     mac: { target: [{ target: 'dmg' }], category: 'public.app-category.developer-tools', identity: null },
     linux: { target: [{ target: 'AppImage' }, { target: 'deb' }], category: 'Development', maintainer: 'SpecForge contributors' },
+    // `depends` replaces electron-builder's defaults (first line); Electron also loads ALSA and GBM, which minimal systems
+    // lack (US-009 AC-4: "libasound.so.2: cannot open shared object file" in ubuntu:24.04). ALSA is libasound2t64 there.
+    deb: {
+      depends: [
+        ...['libgtk-3-0', 'libnotify4', 'libnss3', 'libxss1', 'libxtst6', 'xdg-utils', 'libatspi2.0-0', 'libuuid1', 'libsecret-1-0'],
+        'libasound2t64 | libasound2',
+        'libgbm1',
+      ],
+    },
     publish: null,
   };
 }

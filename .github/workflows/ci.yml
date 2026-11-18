@@ -121,6 +121,9 @@ jobs:
           deb=$(basename "$(ls installers/*.deb | head -1)")
           docker run -d --name sf --network host -v "$PWD/installers:/in:ro" ubuntu:24.04 sleep infinity
           docker exec -e DEBIAN_FRONTEND=noninteractive sf bash -c "apt-get update -qq && apt-get install -y -qq /in/$deb xvfb xauth >/dev/null"
+          # Every shared library the app loads must come from the package's declared dependencies.
+          missing=$(docker exec sf bash -c 'ldd /opt/SpecForge/specforge | grep "not found" || true')
+          if [ -n "$missing" ]; then echo "Undeclared shared libraries:"; echo "$missing"; docker rm -f sf; exit 1; fi
           docker exec -d sf bash -c 'xvfb-run -a "$(command -v specforge || echo /opt/SpecForge/specforge)" --no-sandbox --remote-debugging-port=9333 > /tmp/app.log 2>&1'
           rc=0; SPECFORGE_PACKAGED_EXTERNAL=1 pnpm test:packaged || rc=$?
           docker exec sf cat /tmp/app.log | tail -40

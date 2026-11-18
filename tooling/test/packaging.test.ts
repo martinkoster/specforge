@@ -61,6 +61,43 @@ describe('US-009 AC-1: electron-builder produces per-OS installers in CI', () =>
   });
 });
 
+describe('US-009 AC-4: the installed app starts on a clean machine', () => {
+  it('declares every shared library Electron loads in the deb, incl. ALSA (renamed libasound2t64 on Ubuntu 24.04) and GBM', () => {
+    const depends = config.deb?.depends ?? [];
+    // electron-builder's defaults are replaced, not extended, by `depends`: keep them.
+    for (const lib of [
+      'libgtk-3-0',
+      'libnotify4',
+      'libnss3',
+      'libxss1',
+      'libxtst6',
+      'xdg-utils',
+      'libatspi2.0-0',
+      'libuuid1',
+      'libsecret-1-0',
+    ]) {
+      expect(depends).toContain(lib);
+    }
+    expect(depends).toContain('libasound2t64 | libasound2');
+    expect(depends).toContain('libgbm1');
+  });
+
+  it('installs the installers on fresh runners and launches the installed app in CI', () => {
+    const workflow = parse(readFileSync(join(ROOT, '.github', 'workflows', 'ci.yml'), 'utf8')) as {
+      jobs: { installers: { needs: string; strategy: { matrix: { os: string[] } }; steps: Array<{ run?: string }> } };
+    };
+    const job = workflow.jobs.installers;
+    expect(job.needs).toBe('build');
+    expect(job.strategy.matrix.os).toEqual(['windows-latest', 'macos-latest', 'ubuntu-latest']);
+    const runs = job.steps.map((s) => s.run ?? '').join('\n');
+    expect(runs).toMatch(/ArgumentList '\/S'/);
+    expect(runs).toMatch(/hdiutil attach/);
+    expect(runs).toMatch(/ubuntu:24\.04/);
+    expect(runs).toMatch(/ldd /);
+    expect(runs).toMatch(/SPECFORGE_PACKAGED_SANDBOX=1/);
+  });
+});
+
 describe('US-009 AC-2: installers include LICENSE, NOTICE and THIRD_PARTY_NOTICES', () => {
   it('adds the three files as resources of every installer', () => {
     expect(config.extraResources).toEqual([

@@ -1,7 +1,7 @@
 ---
 id: US-009
 title: Build unsigned installers for all three OSes
-status: in progress
+status: done
 size: M
 epic: Foundation & spikes
 ---
@@ -16,7 +16,7 @@ As a **SpecForge user**, I want **to install SpecForge with a native installer o
 - [x] AC-1: electron-builder produces a per-user NSIS installer (Windows), dmg (macOS) and AppImage + deb (Linux) in CI. _(CI run 39654218835 on 2026-10-21: all three OSes green, installers uploaded as `installers-<os>` artifacts. Locally the NSIS step cannot run on the development machine: the 7-Zip electron-builder downloads to %LOCALAPPDATA% is blocked (AppLocker); use `pnpm package --dir`)_
 - [x] AC-2: Installers include `LICENSE`, `NOTICE` and a generated `THIRD_PARTY_NOTICES`. _(verified in the Windows package 2026-10-21)_
 - [x] AC-3: The Agent SDK's optional bundled Claude Code binary is excluded from the package. _(verified in the Windows package 2026-10-21; the packaging step fails if one is found)_
-- [ ] AC-4: On a clean VM per OS the installed app launches to the setup wizard (or empty shell until US-012 exists). _(packaged-app smoke test with a fresh profile passes on Windows, macOS and Linux in CI, 2026-10-21; the manual clean-VM install per OS is open)_
+- [x] AC-4: On a clean VM per OS the installed app launches to the setup wizard (or empty shell until US-012 exists). _(CI job `installers`, run 44265225034 on 2026-11-18: the installers are installed on fresh runners and the installed app shows the setup wizard with a fresh profile on Windows, macOS and Linux — Linux as .deb in a minimal ubuntu:24.04 container, .deb and AppImage on the runner with Chromium's sandbox on. Product-owner decision 2026-11-18: automated fresh-runner installs replace the manual clean-VM check)_
 
 ## Technical Notes
 - Related design document: spec/03_design/technical_design/technical_decisions.md §6–7
@@ -38,6 +38,9 @@ Files created / modified:
 - `packages/main/src/app-paths.ts`, `main.ts` — preload / core / page paths for the workspace and the packaged layout (`app.isPackaged`)
 - `packages/main/test/packaged.smoke.test.ts`, `vitest.packaged.config.ts`, `pnpm test:packaged` — starts the unpacked app with a fresh per-user profile and checks the setup wizard over the DevTools protocol (the fuses disable the Node inspector Playwright's Electron launcher needs)
 - `.github/workflows/ci.yml` — build job (first green run 39654218835, 2026-10-21): package, packaged smoke test (xvfb on Linux), installers uploaded as `installers-<os>` artifacts (14 days); job timeout 45 min
+- `.github/workflows/ci.yml` — job `installers` (AC-4, after `build`, on fresh runners): Windows NSIS silent per-user install (`/S`, lands in `%LOCALAPPDATA%\Programs\SpecForge`), macOS dmg copied to `/Applications`, Linux .deb in a minimal `ubuntu:24.04` container (`ldd` must resolve every shared library from the declared dependencies), .deb on the runner (`/opt/SpecForge/specforge`) and AppImage (`APPIMAGE_EXTRACT_AND_RUN`), both with Chromium's sandbox on; each launches the installed app into the setup wizard
+- `packages/main/test/packaged.smoke.test.ts` — `SPECFORGE_PACKAGED_EXECUTABLE` (installed executable), `SPECFORGE_PACKAGED_SANDBOX=1` (keep the sandbox on Linux), `SPECFORGE_PACKAGED_EXTERNAL=1` (connect to an app started elsewhere, e.g. in the container)
+- `tooling/src/packaging/builder-config.ts` — deb `depends`: electron-builder's defaults plus `libasound2t64 | libasound2` and `libgbm1` (the first container run failed with "libasound.so.2: cannot open shared object file")
 - `tooling/package.json` (electron-builder, esbuild, @electron/asar, @electron/fuses, playwright-core), `pnpm-workspace.yaml` (electron-winstaller build script not allowed), `package.json` scripts, `vitest.config.ts` (smoke tests excluded), `eslint.config.js` (`build/`, `release/` ignored)
 
 Decisions / deviations:
@@ -45,8 +48,9 @@ Decisions / deviations:
 - The staged app is a standalone npm project (`packageManager: npm`, the two external modules as dependencies): electron-builder's pnpm collector cannot read a folder inside the pnpm workspace, and electron-builder only packs `node_modules` its collector reports.
 - Version comes from the root `package.json` (currently 0.0.0); no application icon yet (Electron default).
 - Unsigned (US-067). `--dir` lets developers build the unpacked app where installer tools cannot run.
+- Product-owner decision 2026-11-18: AC-4 is verified by automated installs on fresh CI runners instead of manual clean VMs. Residual risk: Windows/macOS runners carry preinstalled software, and the Ubuntu runner's AppArmor user-namespace policy may differ from a desktop Ubuntu 24.04 — US-066 runs on real machines.
 
 ## Test Coverage
 - New / changed modules (`tooling/src/packaging/**`, `tooling/src/licenses.ts`, `packages/main/src/app-paths.ts`): 97.9 % statements, 92.1 % branches, 98.7 % lines; the CLI (`tooling/src/cli/**`) is excluded from coverage like the other CLIs and verified by running it
-- `tooling/test/packaging.test.ts` (17), `packages/main/test/app-paths.test.ts` (2), `packages/main/test/packaged.smoke.test.ts` (1, `pnpm test:packaged`, after `pnpm package`)
+- `tooling/test/packaging.test.ts` (19; new: deb dependencies, `installers` job), `packages/main/test/app-paths.test.ts` (2), `packages/main/test/packaged.smoke.test.ts` (1, `pnpm test:packaged`, after `pnpm package`)
 - Full suite: 981 passed; 3 failed only under load and pass in isolation (`approve-reject-ipc.test.ts` ×2, `watcher.test.ts` — still timing-sensitive)

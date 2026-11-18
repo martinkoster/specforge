@@ -30,3 +30,11 @@ overrides:
   'body-parser@>=2.0.0 <2.4.0': '^2.4.0'
   'happy-dom@>=17.0.0 <21.0.4': '^21.0.4'
   'undici@>=8.0.0 <8.12.2': '^8.12.2'
+
+# Audit advisories without a fixed version, accepted until upstream ships one (product-owner decision 2026-11-18).
+#  - picomatch <=4.0.7: GHSA-fc5q-39xc-vjpf (ReDoS with repeated extglobs). Reached via @specforge/snapshot (matches
+#    the user's own snapshot exclusion patterns from local project settings) and vitest (tests only).
+#    Remove once a patched picomatch exists and add a security floor under `overrides` instead.
+auditConfig:
+  ignoreGhsas:
+    - GHSA-fc5q-39xc-vjpf

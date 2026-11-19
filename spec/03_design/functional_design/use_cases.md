@@ -410,7 +410,7 @@
 2. User selects an option.
    - **A – Open existing**: user picks a folder; if `.specforge/project.yaml` exists, system registers/opens it (UC-002) and shows its dashboard (UC-034).
    - **B – Create new** (D24): user picks or creates an empty folder in the native folder picker; system shows the folder, the project name (pre-filled from the folder name, editable) and the Git checkbox (on); on *Create* the system runs `git init`, writes the SpecForge structure and an initial commit, registers the project and opens the guided process at Intent (UC-031).
-   - **C – Adopt existing code** (Release 2): see UC-030.
+   - **C – Adopt existing code** (Release 2): user picks a non-empty folder; see UC-030.
    - **Recent**: opens the project on its dashboard.
 **Alternative Flows**:
 - A-1a. Folder has no SpecForge metadata: if empty, system offers *Create new project here* (→ B with this folder); otherwise it offers *Adopt this folder* (→ C, Release 2; in Release 1 it explains that adopting existing code arrives in Release 2) or *Choose another*.
@@ -423,20 +423,25 @@
 
 ## UC-030: Brownfield onboarding (Release 2)
 **Actor(s)**: User, Agent
-**Trigger**: User chooses *Adopt existing code folder*.
-**Preconditions**: Folder contains files, no SpecForge metadata.
+**Trigger**: User chooses *Adopt existing code* on the start screen, or *Adopt this folder* after opening a non-empty folder without SpecForge metadata (UC-029 A-1a).
+**Preconditions**: Folder contains files, has no `.specforge/project.yaml` and is not registered.
 **Main Success Flow**:
-1. System registers the project, creates `.specforge/` and `spec/` (offers `git init` + initial commit if no Git).
-2. System asks "Analyse the codebase now?"; user confirms.
-3. System starts an `analyze` specification run (read-only: write requests are denied by policy except into `spec/`).
-4. Agent produces: current-state summary, draft intent (as-is + "Desired change" section to complete), draft current-state requirements and design.
-5. System validates and shows the drafts as a diff; user keeps or discards.
-6. System opens the guided process at Intent with the drafts (UC-031).
+1. System inspects the folder (`project.inspectFolder` → `notEmpty` with Git status and a suggested specification folder) and shows the adopt dialog: folder path, project name (pre-filled from the folder name, editable), specification folder (`spec/`, or `docs/spec/` when `spec/` exists, D27, editable), ☑ *Initialise Git repository* (only shown when no repository is detected) and ☑ *Analyse the codebase now*.
+2. User confirms. System writes `.specforge/project.yaml` (incl. `specRoot`) and the empty specification structure under the chosen folder and registers the project. With *Initialise Git* it runs `git init` and commits only the SpecForge files (existing files stay untracked for the user to commit); in an existing repository nothing is committed.
+3. With analysis requested, system starts an `analyze` specification run (ADR-014): the agent may read the whole workspace; writes are allowed only into the specification folder, which is snapshotted first.
+4. Agent drafts, all `approval: draft`: the intent (`01_intent/intent.md`: as-is description plus a "Desired change" section for the user), a current-state summary and design (`03_design/…`: architecture, components, technologies with versions) and current-state requirements (`02_requirements/…` with FR/NFR IDs).
+5. System validates the drafts and shows the Keep/Discard review used for specification runs.
+6. System opens the guided process at Intent (UC-031) with the drafts.
 **Alternative Flows**:
-- 2a. User declines: guided process starts with an empty intent.
-- 3a. Large codebase: agent summarises top-level structure first; user may limit analysis to folders.
-**Postconditions**: Draft current-state artifacts exist; no source files modified.
-**Related Requirements**: FR-079, FR-007, FR-008, ADR-014
+- 1a. Folder is a subfolder of a Git repository: system explains that adoption needs the repository root (or a folder without version control) and offers *Choose another*.
+- 1b. Chosen specification folder is not empty, lies outside the workspace or inside `.specforge/`: validation message at the field; *Adopt* stays disabled.
+- 1c. Folder holds `.specforge/project.yaml` after all (e.g. created meanwhile): system opens it as an existing project (UC-002).
+- 3a. User unchecked analysis: the guided process starts with the intent template; *Analyse codebase* stays available on the Intent screen.
+- 3b. Large codebase: the agent summarises the top-level structure first; the user can limit the analysis to folders (passed in the run context). Normal timeouts and *Cancel* apply.
+- 5a. User discards: the specification folder is restored to its snapshot; analysis can be re-run from the Intent screen.
+- 5b. The run's computed changes include paths outside the specification folder (should be impossible under the policy): the run fails with the list of paths and the files are restored.
+**Postconditions**: Project registered with its specification folder; Draft current-state artifacts exist if analysed; no source file modified.
+**Related Requirements**: FR-079, FR-077, FR-007, FR-008, ADR-014, ADR-024
 
 ## UC-031: Guided phase process
 **Actor(s)**: User, Agent

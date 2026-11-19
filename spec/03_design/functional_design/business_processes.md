@@ -124,10 +124,10 @@ Stories can be started individually or per epic (*Start epic*, Release 2, moves 
 **Purpose**: Bring an existing codebase under specification-driven development.  
 **Trigger**: User selects *Adopt existing code folder*.
 
-1. [User] Selects the folder.
-2. [SpecForge] Registers the project, creates `.specforge/` and `spec/`; if no Git then offers `git init` + initial commit.
+1. [User] Selects the folder. If it is a subfolder of a Git repository then [SpecForge] explains that the repository root is needed → end.
+2. [User] Confirms name and specification folder (default `spec/`, `docs/spec/` when `spec/` is taken, D27). [SpecForge] Registers the project, creates `.specforge/` and the specification folder; if no Git then offers `git init` with a commit of the SpecForge files only.
 3. [User] Confirms codebase analysis (or skips → BP-01 with empty intent).
-4. [Agent] Reads the codebase (writes allowed only into `spec/`) and drafts current-state summary, intent (as-is + desired change placeholder), current-state requirements and design.
+4. [Agent] Reads the codebase (writes allowed only into the specification folder) and drafts current-state summary, intent (as-is + desired change placeholder), current-state requirements and design.
 5. [SpecForge] Validates the drafts and shows them as a diff; [User] keeps or discards.
 6. [User] Completes the "Desired change" section of the intent → BP-01 from step 2 (quality check / clarification).
 

@@ -54,12 +54,14 @@ Persistence column: **WS** = stored in workspace Markdown/YAML (source of truth,
 
 ## Project
 **Description**: A software project managed by SpecForge, bound to one local workspace folder.
-**Key Attributes**: id (UUID), name (string), workspacePath (path), vcsMode (`git` | `none`), baseBranch (string, git), createdAt, lastOpenedAt.
-**Persistence**: DB (registry) + WS `.specforge/project.yaml` (id, name, conventions version).
+**Key Attributes**: id (UUID), name (string), workspacePath (path), specRoot (relative path, default `spec`, D27), vcsMode (`git` | `none`), baseBranch (string, git), createdAt, lastOpenedAt.
+**Persistence**: DB (registry) + WS `.specforge/project.yaml` (id, name, conventions version, specRoot).
 **Business Rules**:
 - A workspace path belongs to at most one registered project.
 - vcsMode is re-detected on every open; switching to `none` forces concurrency limit 1 (D12).
 - Removing a project never deletes workspace files.
+- specRoot is set at creation (default `spec`; chosen during adoption, FR-079) and fixed afterwards; it is relative, inside the workspace and outside `.specforge/`. All artifact paths are relative to it.
+- (Release 2) An adopted workspace is a repository root or not under version control.
 **Relationships**: Has one ProjectSettings; has many Artifacts, Stories, Runs.
 
 ## ProjectSettings
@@ -95,10 +97,10 @@ Persistence column: **WS** = stored in workspace Markdown/YAML (source of truth,
 ## ArtifactElement
 **Description**: An identified element within an artifact: requirement, NFR, constraint, use case, component, ADR, test scenario.
 **Key Attributes**: elementId (string, e.g. `FR-012`; unique per project), type, title, artifactPath, anchor, impactFlag (bool), impactSource?.
-**Persistence**: WS → DB index.
+**Persistence**: WS → DB index; impactFlag / impactSource in DB workflow state (`impact_flag`, ADR-025), not in the index.
 **Business Rules**:
 - elementId is stable; renumbering is not allowed (deprecate instead).
-- impactFlag is set when an upstream linked element changes; cleared only by User.
+- impactFlag is set when an upstream linked element changes; cleared only by User; it survives edits of the element's file and *Rebuild index*.
 **Relationships**: Belongs to Artifact; participates in many TraceLinks.
 
 ## Story
@@ -127,7 +129,7 @@ Persistence column: **WS** = stored in workspace Markdown/YAML (source of truth,
 ## FeatureIntent (Release 2)
 **Description**: A delta intent describing a new feature or change for an existing project (D22), stored beside the main intent.
 **Key Attributes**: featureId (`FI-xxx`), title, problem, goal, scopeIn[], scopeOut[], successCriteria[], constraints[], assumptions[], clarifiedDecisions[], relatedEpics[], relatedRequirements[], priority?, status (`draft` | `approved` | `in_delivery` | `done` | `withdrawn`), sourceIdeaId?, impactList (confirmed ImpactItems), baselineTag?.
-**Persistence**: WS (`spec/01_intent/FI-xxx-<slug>.md`) → DB index; wizard draft state and impact list in DB.
+**Persistence**: WS (`spec/01_intent/FI-xxx-<slug>.md`) → DB index; wizard draft (`feature_wizard`, exists before the file) and impact list in DB (ADR-025).
 **Business Rules**:
 - `in_delivery` once any delta change or story linked to it exists; `done` when all stories linked to it (`feature: FI-xxx`) are Done; `withdrawn` only by the user and terminal.
 - On withdraw: open ChangeSets are discarded; already-applied delta changes stay (the user may deprecate them manually); linked not-started stories are flagged for a user decision (keep / delete).

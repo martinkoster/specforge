@@ -35,10 +35,10 @@ The Scheduler calls back into execution through a `RunLauncher` port implemented
 
 ## ProjectService
 **Purpose**: Create, open, adopt, list, rename, remove projects; detect their VCS mode; detect merged story branches.
-**Public Interface**: `project.create({name, path, initGit?})` (path = picked empty or new folder, D24), `project.inspectFolder(path)` (project / empty / notEmpty, US-068), `project.open(id)`, `project.adopt(path)` (brownfield registration; the UI then offers `spec.analyze`, FR-079, Release 2), `project.list()`, `project.rename`, `project.remove(id)`, `merge.refresh(projectId)` (manual *Refresh*, FR-115); events `ProjectOpened`, `VcsModeChanged`, `StoryMerged`.
+**Public Interface**: `project.create({name, path, initGit?})` (path = picked empty or new folder, D24), `project.inspectFolder(path)` (project / empty / notEmpty, US-068; Release 2 adds `git: none | root | subfolder` and `suggestedSpecRoot`), `project.open(id)`, `project.adopt({path, name, specRoot, initGit})` (brownfield registration, FR-079, ADR-024, Release 2: validates the folder and `specRoot`, writes `.specforge/` + the empty specification structure, optional `git init` committing only SpecForge files; the UI then starts `spec.analyze({projectId, limitTo?})`), `project.list()`, `project.rename`, `project.remove(id)`, `merge.refresh(projectId)` (manual *Refresh*, FR-115); events `ProjectOpened`, `VcsModeChanged`, `StoryMerged`.
 **Merge detection (FR-115)**: for every approved story with an unmerged branch, calls `ExecutionSpaceManager.isMerged(branch, base)` (`git merge-base --is-ancestor`) on project open, on window focus, after git operations SpecForge performs, every `merge_check_interval_s` (default 60 s) and on `merge.refresh`; sets `story.merged_at`, emits `StoryMerged` (→ epic *Merged* status, "merged" count, "Merge n approved branches" next step; later stacked bases use the base branch).
 **Dependencies**: WorkspaceIndexer, ExecutionSpaceManager (merge detection), Git port, Persistence, ExecutionService (startup recovery).
-**Data Owned**: `project`, `.specforge/project.yaml`, `story.merged_at`.
+**Data Owned**: `project`, `.specforge/project.yaml` (incl. `specRoot`), `story.merged_at`.
 **Scalability Notes**: ≥ 20 projects; only the open project is watched/indexed.
 **Resilience Notes**: Missing folder → "Locate / Remove" flow; removal blocked while runs are active.
 
@@ -55,13 +55,14 @@ The Scheduler calls back into execution through a `RunLauncher` port implemented
 **Dependencies**: FileSystem port (chokidar, fs), Markdown parser (unified/remark, gray-matter), Persistence.
 **Data Owned**: `artifact`, `element`, `trace_link`, `story`, `story_dependency`, `epic` (index columns), `feature_intent` and `idea` (index columns, Release 2), `artifact_revision` (non-git, Release 2).
 **Scalability Notes**: Incremental per-file re-index, debounced 200 ms; full index of 1,000 stories < 2 s.
+**Specification root (ADR-024)**: all artifact paths are resolved against the project's `specRoot`; the watcher, indexer, spec-run write scopes, built-in permission denies and spec commits receive it from the open project instead of a literal `spec/`.
 **Resilience Notes**: Self-writes identified by content hash (no echo); parse errors keep last valid state; optimistic concurrency on writes (`expectedHash`) → conflict error to UI. Indexes only the main workspace; run worktrees are never indexed (FR-116a).
 
 ## SpecService
 **Purpose**: Intent/spec editing, approval, AI generation/refinement/clarification, impact flags.
 **Public Interface**: `spec.save(path, content)`, `spec.approve(path)`, `spec.generate({target: requirements|design|epics|stories|test_concepts, epicIds?})` (stories generated per epic), `epic.create/update/merge/split/delete`, `epic.coverage(projectId)` (requirements not covered by any epic), `spec.refine({path, section?, instruction})`, `spec.clarify.start(intentPath)`, `spec.clarify.answer(runId, answers)`, `spec.applyProposal(runId, keep|discard)`, `impact.clear(ref)`, `spec.commitChanges({message})` (FR-072: commits only `spec/` and `.specforge/` on the current branch of the main workspace), `spec.history(path)` / `spec.compare(path, revA, revB)` (FR-015, Release 2; git log or `artifact_revision`), `spec.analyze(projectId, {folders?})` (`analyze` run, FR-079, Release 2), direct-edit new-scope hint on `spec.save` of approved specs ("create a feature intent instead?", FR-114, Release 3).
 **Dependencies**: WorkspaceIndexer, ExecutionService (`startSpecRun`), ContextAssembler, DependencyGraph (validation of proposed dependencies), SnapshotStore (target-folder snapshot), Git port (commit, history).
-**Data Owned**: approval state (via front-matter), impact flags.
+**Data Owned**: approval state (via front-matter), impact flags (`impact_flag`, ADR-025: set when an approved upstream element changes or a story with dependents changes, FR-017/FR-071; cleared only by the user).
 **Resilience Notes**: Discard restores the pre-run snapshot of the target folder; validation issues listed with "Ask agent to fix". In non-git mode, write-capable spec runs are denied writes while an implementation run is active (FR-116b, PermissionBroker).
 
 ## BoardService
@@ -175,7 +176,8 @@ The Scheduler calls back into execution through a `RunLauncher` port implemented
 ## ChatService
 **Purpose**: Manage chat threads, run chat messages through the agent, track and revert changes (ADR-016).
 **Public Interface**: `chat.threads(projectId)`, `chat.create(projectId, title?)`, `chat.rename/archive(threadId)`, `chat.send(threadId, text)` → streams like a run, `chat.changes(runId)` and `chat.revert(runId | changeId)` (Release 2, FR-091 — Release 1 chat is read-only, FR-089); events `ChatMessageAdded`, `ChatChangeRecorded`.
-**Dependencies**: ExecutionService (`chat` runs, session resume), ContextAssembler (project context: intent summary, artifact index, board state, instructions), PermissionBroker (chat policy), ExecutionSpaceManager / SnapshotStore (before-content), WorkspaceIndexer (spec changes → Draft, impact).
+**Dependencies**: ExecutionService (`chat` runs, session resume), ContextAssembler (project context: intent summary, artifact index, board state, instructions), PermissionBroker (chat policy), Git port / SnapshotStore (per-message baseline, ADR-026), WorkspaceIndexer (spec changes → Draft, impact).
+**Change capture (Release 2, ADR-026)**: before each agent turn that may write, ChatService records a baseline of the workspace (git: `git add -A` into a temporary index + `write-tree`, respecting `.gitignore`; non-git: incremental SnapshotStore snapshot with the snapshot exclusions); after the turn it diffs the workspace against the baseline and writes one `chat_change` per changed path — also for files changed by approved shell commands, not only by write tools. *Revert* restores the baseline content of the selected paths.
 **Data Owned**: `chat_thread`, `chat_message`, `chat_change`.
 **Resilience Notes**: Session not resumable (expired) → new session seeded with thread summary; revert conflicts (file changed since) → show 3-way diff and require confirmation.
 
@@ -183,7 +185,7 @@ The Scheduler calls back into execution through a `RunLauncher` port implemented
 **Purpose**: Manage feature intents end-to-end: wizard, lifecycle, feature-scoped phases, ideas and baselines.
 **Public Interface**: `feature.wizard.start({text, details})`, `feature.wizard.review(wizardId)` (`feature_review` run), `feature.wizard.answer(wizardId, answers)` (resume), `feature.wizard.save(wizardId, {approve})`, `feature.list(projectId)`, `feature.get(featureId)` (stepper, impact, change sets, epics), `feature.withdraw(featureId)`, `feature.generateDelta(featureId, phase)` (`generate` run scoped by impact list), `changeSet.accept/discard(itemIds)` → in-flight check, `idea.capture/list/turnIntoFeature/merge/dismiss`, `baseline.offer/create(featureId?)`; events `FeatureStatusChanged`, `IdeaCaptured`.
 **Dependencies**: ExecutionService (runs), ContextAssembler (main intent, requirement/epic index, ADR titles, impact scope), ImpactService, SpecService (writes, approvals), BoardService (in-flight decisions → cancel/dequeue), ReviewService (apply in corrections), Git port (tags), WorkspaceIndexer.
-**Data Owned**: `feature_intent.wizard_state` (index columns of `feature_intent` / `idea` are owned by WorkspaceIndexer), `change_set`, `change_item`, `baseline`.
+**Data Owned**: `feature_wizard` (ADR-025; index columns of `feature_intent` / `idea` are owned by WorkspaceIndexer), `change_set`, `change_item`, `baseline`.
 **Resilience Notes**: Wizard state persisted after each step (resume after restart); change sets produced from a scratch copy of the target folder and applied atomically per accepted subset with optimistic concurrency on files (ADR-021). `feature.withdraw` discards open change sets, keeps applied changes and flags linked not-started stories for keep/delete; adding stories to a reviewed epic clears its `epic_review` outcome.
 
 ## ImpactService (Release 2)

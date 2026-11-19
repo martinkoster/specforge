@@ -16,9 +16,9 @@ SpecForge has two persistence layers (D2, ADR-004):
 ```
 <workspace>/
 ├── .specforge/
-│   ├── project.yaml          # id, name, schemaVersion
+│   ├── project.yaml          # id, name, schemaVersion, specRoot (default `spec`, D27)
 │   └── instructions.md       # project instructions & conventions (FR-050)
-└── spec/
+└── spec/                     # = specRoot; e.g. docs/spec/ for an adopted repository (ADR-024)
     ├── 01_intent/intent.md            # main intent
     ├── 01_intent/FI-xxx-<slug>.md     # feature intents (beside the main intent)
     ├── 01_intent/ideas.md             # idea inbox
@@ -152,6 +152,7 @@ Conventions: `TEXT` UUIDs, timestamps as ISO-8601 `TEXT` (UTC), JSON columns as 
 | id | TEXT PK | = `.specforge/project.yaml` id |
 | name | TEXT NOT NULL | |
 | workspace_path | TEXT NOT NULL UNIQUE | normalised absolute path |
+| spec_root | TEXT NOT NULL DEFAULT 'spec' | cached from `project.yaml` on open (Release 2, ADR-024) |
 | vcs_mode | TEXT NOT NULL | `git` / `none` (last detected) |
 | base_branch | TEXT | |
 | created_at, last_opened_at | TEXT | |
@@ -251,9 +252,7 @@ Run kind → `applies_to` bucket (ADR-013):
 | title | TEXT | |
 | artifact_path | TEXT | FK→artifact |
 | anchor | TEXT | heading anchor |
-| impact_flag | INTEGER (bool) | |
-| impact_source | TEXT | element id that changed |
-Index: `(project_id, artifact_path)` — re-index per file.
+Index: `(project_id, artifact_path)` — re-index per file. Impact flags are **not** index columns (they would be lost on re-index of the file or *Rebuild index*); they live in `impact_flag` (2.4, ADR-025).
 
 **trace_link**
 | Column | Type | Notes |
@@ -501,6 +500,7 @@ Index: `(project_id, last_used_at DESC)`.
 | role | TEXT | user / agent |
 | text | TEXT | redacted |
 | run_id | TEXT FK→run NULL | agent messages reference their run (events, permissions, usage) |
+| baseline_ref | TEXT NULL | (Release 2, ADR-026) workspace state before the agent turn: git — tree SHA written from a temporary index; non-git — snapshot id |
 | tool_uses | TEXT (JSON) | tool calls of the agent turn, shown collapsed (US-062) |
 | recommendations | TEXT (JSON) | proposed story transitions / run starts, shown as recommendation cards only (US-062) |
 | error | INTEGER | the agent could not answer (message holds the reason) |
@@ -518,6 +518,15 @@ Index: `(project_id, last_used_at DESC)`.
 | after_hash | TEXT | |
 | is_spec | INTEGER | |
 | reverted_at | TEXT NULL | |
+
+**impact_flag** (Release 2, FR-017/FR-071, ADR-025 — persistent workflow state, survives re-index and *Rebuild index*)
+| Column | Type | Notes |
+|---|---|---|
+| project_id, element_id | TEXT | PK; element or story id |
+| source_ref | TEXT | element / story / feature that changed |
+| reason | TEXT | e.g. "acceptance criteria of US-002 changed" |
+| flagged_at | TEXT | |
+Row deleted when the user clears the flag; flags of IDs that no longer exist are shown as orphaned and can be cleared.
 
 **activity** (append-only feed for the dashboard)
 | Column | Type | Notes |
@@ -541,9 +550,21 @@ Usage (FR-090) is stored in `run_result.usage` (JSON: input/output/cache tokens,
 | title | TEXT | |
 | approval_state | TEXT | from file |
 | status | TEXT | lifecycle (from file, SpecForge-managed) |
-| wizard_state | TEXT (JSON) | resumable wizard draft (step, draft text, open questions, session id) |
 | source_idea | TEXT NULL | |
 | baseline_tag | TEXT NULL | |
+
+**feature_wizard** (resumable wizard drafts, ADR-025 — not an index table; the feature intent file exists only after *Save*)
+| Column | Type | Notes |
+|---|---|---|
+| id | TEXT PK | |
+| project_id | TEXT FK→project | |
+| step | TEXT | describe / review / clarify / save |
+| draft | TEXT (JSON) | entered text, details, enhanced draft, overlaps, conflicts, open questions, answers |
+| session_id | TEXT NULL | `feature_review` session for multi-turn clarification |
+| source_idea | TEXT NULL | |
+| feature_id | TEXT NULL | set on save; row deleted when the feature intent is approved or withdrawn |
+| updated_at | TEXT | |
+Index `(project_id, updated_at DESC)`.
 
 **impact_item**
 | Column | Type | Notes |
@@ -650,7 +671,8 @@ app_setup (1 row) · permission_rule (global | project) ──n project_rule_ove
 | DecisionItem | decision_item (decisions written back to WS) | DB / WS |
 | ChatThread, ChatChange | chat_thread, chat_message, chat_change | DB |
 | UsageRecord | run_result.usage, `v_usage_by_phase` | DB |
-| FeatureIntent | feature_intent (+ FI file) | WS (DB = index + wizard state) |
+| FeatureIntent | feature_intent (+ FI file), feature_wizard (draft before save) | WS (DB = index); wizard draft DB |
+| ArtifactElement.impactFlag | impact_flag | DB (workflow state, ADR-025) |
 | ImpactItem, InFlightDecision | impact_item, in_flight_decision | DB |
 | ChangeSet, ChangeItem | change_set, change_item (accepted items applied to WS files) | DB → WS |
 | Idea | idea (+ `ideas.md`) | WS → DB |
@@ -659,3 +681,5 @@ app_setup (1 row) · permission_rule (global | project) ──n project_rule_ove
 ## 5. Migration notes
 
 No predecessor system — no data migration. Schema evolution via numbered SQL migrations run at startup inside a transaction; the workspace index tables can be dropped and rebuilt at any time (`Rebuild index` command). Front-matter carries `specforge: <schemaVersion>`; older files are upgraded lazily on write.
+
+**Release 2 migrations** (R1 databases upgrade in place): add `project.spec_root` (default `spec`; `project.yaml` without `specRoot` means `spec`); drop the index columns `element.impact_flag` / `impact_source` (R1 never set them persistently — flags start empty); create `impact_flag`, `feature_wizard`, `chat_change`, `chat_message.baseline_ref`, `impact_item`, `change_set`, `change_item`, `in_flight_decision`, `baseline`, `artifact_revision` and the index tables `feature_intent` / `idea`; add `feature_id` / `reworks` to the index tables (filled by the next indexing). Workflow-state tables (`impact_flag`, `feature_wizard`, `impact_item`, `change_*`, `in_flight_decision`) are never touched by *Rebuild index*.

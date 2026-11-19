@@ -140,7 +140,7 @@ SpecForge is licensed under **Apache License 2.0** (CON-015).
 | NFR-028 Graph performance | In-memory DependencyGraph with incremental updates |
 | NFR-029 Time to first use | Setup wizard (UF-01), start wizard, phase stepper, next-step engine (ADR-017) |
 | NFR-030 Dashboard freshness | Event-driven dashboard read model, indexed aggregates (DashboardService) |
-| NFR-031 Chat change traceability (Release 2) | `chat_change` with before-content, revert (ADR-016) |
+| NFR-031 Chat change traceability (Release 2) | `chat_change` per path from a per-message workspace baseline, revert (ADR-016, ADR-026) |
 | NFR-032 Feature capture effort (Release 2) | Add-feature split button + shortcuts, resumable wizard, trace-first impact (ADR-021) |
 | NFR-033 Consistent modern visual design | Design tokens + component layer (ADR-023, `ui_design_concept.md`), token-literal lint check, contrast check in both themes |
 

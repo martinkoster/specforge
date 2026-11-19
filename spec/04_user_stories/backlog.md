@@ -1,16 +1,16 @@
 # Product Backlog
 
-_Last updated: 2026-11-18_
+_Last updated: 2026-11-19_
 
 ## Summary
 
 | Status | Count |
 |--------|-------|
-| ready for development | 1 |
+| ready for development | 38 |
 | in progress | 0 |
 | blocked | 1 |
 | done | 75 |
-| **Total** | **77** |
+| **Total** | **114** |
 
 ## Stories
 
@@ -93,3 +93,40 @@ _Last updated: 2026-11-18_
 | US-075 | Redesign intent, specifications, editor and review screens | UI design system | M | done |
 | US-076 | Redesign executions, logs, pending decisions, chat and settings | UI design system | M | done |
 | US-077 | Choose the colour theme (System / Light / Dark) | UI design system | S | done |
+| US-078 | Per-project specification root | Brownfield onboarding | M | ready for development |
+| US-079 | Adopt an existing code folder | Brownfield onboarding | M | ready for development |
+| US-080 | Analyse an adopted codebase into draft specifications | Brownfield onboarding | M | ready for development |
+| US-081 | Feature intent artifact, index and lifecycle | Feature workflow | M | ready for development |
+| US-082 | Add feature: entry points and wizard (describe, save, resume) | Feature workflow | M | ready for development |
+| US-083 | Feature wizard: AI review and clarification | Feature workflow | M | ready for development |
+| US-084 | Feature page with feature-scoped phase stepper | Feature workflow | M | ready for development |
+| US-085 | Active features on the dashboard | Feature workflow | S | ready for development |
+| US-086 | Potentially impacted flags | Change awareness | M | ready for development |
+| US-087 | Feature impact: trace-based analysis and confirmation | Feature workflow | M | ready for development |
+| US-088 | Feature impact: AI analysis of specs and code | Feature workflow | S | ready for development |
+| US-089 | Delta generation as reviewable change sets | Feature workflow | M | ready for development |
+| US-090 | Apply accepted changes with stable IDs and feature links | Feature workflow | M | ready for development |
+| US-091 | In-flight protection when applying changes | Feature workflow | M | ready for development |
+| US-092 | Rework stories for Done functionality | Feature workflow | S | ready for development |
+| US-093 | Feature epic and story breakdown | Feature workflow | M | ready for development |
+| US-094 | Feature completion and withdrawal | Feature workflow | S | ready for development |
+| US-095 | Idea inbox | Feature workflow | M | ready for development |
+| US-096 | Spec baselines | Feature workflow | M | ready for development |
+| US-097 | Chat may write through the permission relay | Chat changes | M | ready for development |
+| US-098 | Track chat changes per message | Chat changes | M | ready for development |
+| US-099 | Revert chat changes | Chat changes | S | ready for development |
+| US-100 | Turn chat conversations into features and ideas | Chat changes | S | ready for development |
+| US-101 | Derived epic dependencies | Epics & planning | S | ready for development |
+| US-102 | Start an epic | Epics & planning | S | ready for development |
+| US-103 | Implementation plan view | Epics & planning | M | ready for development |
+| US-104 | Epic review | Epics & planning | M | ready for development |
+| US-105 | AI completeness check in the epic review | Epics & planning | S | ready for development |
+| US-106 | Artifact history and revision compare | Change awareness | M | ready for development |
+| US-107 | Overlap warnings between parallel runs | Change awareness | S | ready for development |
+| US-108 | Show execution boundaries and model per run | Transparency & environment | S | ready for development |
+| US-109 | Usage and cost overview | Transparency & environment | M | ready for development |
+| US-110 | Environment status and re-run setup | Transparency & environment | S | ready for development |
+| US-111 | Collect open decision items | Decision review | M | ready for development |
+| US-112 | Decision review walkthrough and write-back | Decision review | M | ready for development |
+| US-113 | Generate test concepts | Specification phases | M | ready for development |
+| US-114 | Release 2 end-to-end scenarios and capture-effort checks | Quality & release readiness | M | ready for development |

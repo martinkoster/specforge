@@ -26,7 +26,7 @@ spec/
                                       # domain_model, user_flows (UF-xx)
     technical_design/                 # c4_architecture (incl. ADR-001…ADR-026 + decision log),
                                       # service_design, data_model, technical_decisions
-  04_user_stories/                    # US-xxx story files (R1: US-001…US-077), README.md index, backlog.md
+  04_user_stories/                    # US-xxx story files (R1: US-001…US-077, R2: US-078…US-114), README.md index, backlog.md
 .claude/skills/                       # spec-driven workflow skills (see below)
 LICENSE, NOTICE                       # Apache-2.0
 ```

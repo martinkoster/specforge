@@ -1,8 +1,8 @@
 # User Stories — SpecForge
 
-_Last updated: 2026-11-18_
+_Last updated: 2026-11-19_
 
-Scope: **Release 1 (MVP)** per `spec/02_requirements/requirements_summary.md`. Release 2 stories will be generated in a later run.
+Scope: **Release 1 (MVP)** (US-001 – US-077) and **Release 2** (US-078 – US-114, intent D26: all R2 requirements; delivery order brownfield onboarding → feature workflow → chat changes → remaining Should-haves) per `spec/02_requirements/requirements_summary.md`.
 
 Status values: `ready for development`, `in progress`, `blocked`, `done`.
 
@@ -137,6 +137,92 @@ Visual concept: `spec/03_design/functional_design/ui_design_concept.md` (intent 
 | [US-076](US-076-executions-settings-decisions-redesign.md) | Redesign executions, logs, pending decisions, chat and settings | M | done |
 | [US-077](US-077-theme-setting.md) | Choose the colour theme (System / Light / Dark) | S | done |
 
+## Release 2 index by epic
+
+Design refresh for Release 2: intent D26/D27, ADR-024 – ADR-026 (`spec/03_design/technical_design/c4_architecture.md`).
+
+### Brownfield onboarding (Release 2)
+
+| ID | Title | Size | Status |
+|----|-------|------|--------|
+| [US-078](US-078-specification-root.md) | Per-project specification root | M | ready for development |
+| [US-079](US-079-adopt-existing-folder.md) | Adopt an existing code folder | M | ready for development |
+| [US-080](US-080-codebase-analysis-run.md) | Analyse an adopted codebase into draft specifications | M | ready for development |
+
+### Feature workflow (Release 2)
+
+| ID | Title | Size | Status |
+|----|-------|------|--------|
+| [US-081](US-081-feature-intent-artifact.md) | Feature intent artifact, index and lifecycle | M | ready for development |
+| [US-082](US-082-feature-wizard-describe-save.md) | Add feature: entry points and wizard (describe, save, resume) | M | ready for development |
+| [US-083](US-083-feature-wizard-ai-review.md) | Feature wizard: AI review and clarification | M | ready for development |
+| [US-084](US-084-feature-page-stepper.md) | Feature page with feature-scoped phase stepper | M | ready for development |
+| [US-085](US-085-active-features-dashboard.md) | Active features on the dashboard | S | ready for development |
+| [US-087](US-087-feature-trace-impact.md) | Feature impact: trace-based analysis and confirmation | M | ready for development |
+| [US-088](US-088-feature-ai-impact.md) | Feature impact: AI analysis of specs and code | S | ready for development |
+| [US-089](US-089-delta-change-sets.md) | Delta generation as reviewable change sets | M | ready for development |
+| [US-090](US-090-apply-change-sets.md) | Apply accepted changes with stable IDs and feature links | M | ready for development |
+| [US-091](US-091-in-flight-protection.md) | In-flight protection when applying changes | M | ready for development |
+| [US-092](US-092-rework-stories.md) | Rework stories for Done functionality | S | ready for development |
+| [US-093](US-093-feature-epic-stories.md) | Feature epic and story breakdown | M | ready for development |
+| [US-094](US-094-feature-completion-withdrawal.md) | Feature completion and withdrawal | S | ready for development |
+| [US-095](US-095-idea-inbox.md) | Idea inbox | M | ready for development |
+| [US-096](US-096-spec-baselines.md) | Spec baselines | M | ready for development |
+
+### Change awareness (Release 2)
+
+| ID | Title | Size | Status |
+|----|-------|------|--------|
+| [US-086](US-086-potentially-impacted-flags.md) | Potentially impacted flags | M | ready for development |
+| [US-106](US-106-artifact-history.md) | Artifact history and revision compare | M | ready for development |
+| [US-107](US-107-overlap-detection.md) | Overlap warnings between parallel runs | S | ready for development |
+
+### Chat changes (Release 2)
+
+| ID | Title | Size | Status |
+|----|-------|------|--------|
+| [US-097](US-097-chat-write-permissions.md) | Chat may write through the permission relay | M | ready for development |
+| [US-098](US-098-chat-change-tracking.md) | Track chat changes per message | M | ready for development |
+| [US-099](US-099-chat-change-revert.md) | Revert chat changes | S | ready for development |
+| [US-100](US-100-chat-feature-suggestions.md) | Turn chat conversations into features and ideas | S | ready for development |
+
+### Epics & planning (Release 2)
+
+| ID | Title | Size | Status |
+|----|-------|------|--------|
+| [US-101](US-101-derived-epic-dependencies.md) | Derived epic dependencies | S | ready for development |
+| [US-102](US-102-start-epic.md) | Start an epic | S | ready for development |
+| [US-103](US-103-implementation-plan-view.md) | Implementation plan view | M | ready for development |
+| [US-104](US-104-epic-review.md) | Epic review | M | ready for development |
+| [US-105](US-105-epic-ai-completeness-check.md) | AI completeness check in the epic review | S | ready for development |
+
+### Transparency & environment (Release 2)
+
+| ID | Title | Size | Status |
+|----|-------|------|--------|
+| [US-108](US-108-execution-boundaries.md) | Show execution boundaries and model per run | S | ready for development |
+| [US-109](US-109-usage-cost-overview.md) | Usage and cost overview | M | ready for development |
+| [US-110](US-110-environment-status.md) | Environment status and re-run setup | S | ready for development |
+
+### Decision review (Release 2)
+
+| ID | Title | Size | Status |
+|----|-------|------|--------|
+| [US-111](US-111-decision-items.md) | Collect open decision items | M | ready for development |
+| [US-112](US-112-decision-review-walkthrough.md) | Decision review walkthrough and write-back | M | ready for development |
+
+### Specification phases (Release 2)
+
+| ID | Title | Size | Status |
+|----|-------|------|--------|
+| [US-113](US-113-test-concepts.md) | Generate test concepts | M | ready for development |
+
+### Quality & release readiness (Release 2)
+
+| ID | Title | Size | Status |
+|----|-------|------|--------|
+| [US-114](US-114-r2-e2e-suite.md) | Release 2 end-to-end scenarios and capture-effort checks | M | ready for development |
+
 ## Dependency summary
 
 | Story | Depends on |
@@ -214,7 +300,39 @@ Visual concept: `spec/03_design/functional_design/ui_design_concept.md` (intent 
 | US-076 Redesign executions, logs, pending decisions, chat and settings | US-072, US-077 |
 | US-077 Choose the colour theme (System / Light / Dark) | US-069 |
 
+| US-079 Adopt an existing code folder | US-078 |
+| US-080 Analyse an adopted codebase into draft specifications | US-079 |
+| US-081 Feature intent artifact, index and lifecycle | US-078 |
+| US-082 Add feature: entry points and wizard (describe, save, resume) | US-081 |
+| US-083 Feature wizard: AI review and clarification | US-082 |
+| US-084 Feature page with feature-scoped phase stepper | US-081 |
+| US-085 Active features on the dashboard | US-084 |
+| US-086 Potentially impacted flags | US-078 |
+| US-087 Feature impact: trace-based analysis and confirmation | US-084 |
+| US-088 Feature impact: AI analysis of specs and code | US-087 |
+| US-089 Delta generation as reviewable change sets | US-087 |
+| US-090 Apply accepted changes with stable IDs and feature links | US-089, US-086 |
+| US-091 In-flight protection when applying changes | US-090 |
+| US-092 Rework stories for Done functionality | US-081 |
+| US-093 Feature epic and story breakdown | US-090, US-092 |
+| US-094 Feature completion and withdrawal | US-090 |
+| US-095 Idea inbox | US-082 |
+| US-096 Spec baselines | US-094 |
+| US-097 Chat may write through the permission relay | US-078 |
+| US-098 Track chat changes per message | US-097, US-086 |
+| US-099 Revert chat changes | US-098 |
+| US-100 Turn chat conversations into features and ideas | US-082, US-095 |
+| US-103 Implementation plan view | US-101, US-102 |
+| US-105 AI completeness check in the epic review | US-104 |
+| US-106 Artifact history and revision compare | US-078 |
+| US-111 Collect open decision items | US-078 |
+| US-112 Decision review walkthrough and write-back | US-111 |
+| US-113 Generate test concepts | US-078 |
+| US-114 Release 2 end-to-end scenarios and capture-effort checks | US-080, US-094, US-099, US-095 |
+
 **Longest dependency chain (critical path, 11 stories):** US-004 → US-005 → US-006 → US-014 → US-052 → US-027 → US-035 → US-039 → US-061 → US-063 → US-066
+
+**Release 2 longest chain (8 stories):** US-078 → US-081 → US-084 → US-087 → US-089 → US-090 → US-094 → US-096
 
 ## Implementation waves (by dependency depth)
 
@@ -232,24 +350,72 @@ Visual concept: `spec/03_design/functional_design/ui_design_concept.md` (intent 
 | 10 | US-062, US-063, US-065 |
 | 11 | US-066 |
 
+## Release 2 delivery order (intent D26)
+
+| Wave | Theme | Stories |
+|---|---|---|
+| R2-1 | Brownfield onboarding | US-078 → US-079 → US-080 |
+| R2-2 | Feature workflow (incl. impact flags, idea inbox, baselines) | US-081, US-082, US-083, US-084, US-085, US-086, US-087, US-088, US-089, US-090, US-091, US-092, US-093, US-094, US-095, US-096 |
+| R2-3 | Chat changes | US-097, US-098, US-099, US-100 |
+| R2-4 | Remaining Should-haves | US-101 – US-113 |
+| R2-5 | Release 2 end-to-end checks | US-114 |
+
+US-086 (*Potentially impacted* flags, FR-017/FR-071) is a Should-have of wave 4 by D26 but is pulled into wave 2 because delta application (FR-107) and in-flight protection (FR-110) set these flags. Within a wave, respect the dependency summary; stories without dependencies in wave 4 can run in parallel.
+
 ## Totals
 
 | Size | Count |
 |---|---|
 | XS | 0 |
-| S | 23 |
-| M | 49 |
+| S | 35 |
+| M | 74 |
 | L | 5 |
 | XL | 0 |
-| **Total** | **77** |
+| **Total** | **114** |
 
 | Status | Count |
 |---|---|
 | blocked | 1 |
 | done | 75 |
 | in progress | 0 |
-| ready for development | 1 |
+| ready for development | 38 |
 
 ## Requirement coverage (Release 1)
 
 All 86 Release 1 functional requirements are referenced by at least one story (FR-117 by US-077; NFR-033 by US-069 – US-076).
+
+## Requirement coverage (Release 2)
+
+All 27 Release 2 functional requirements and both Release 2 NFRs are referenced by at least one story.
+
+| Requirement | Stories |
+|---|---|
+| FR-011 | US-113 |
+| FR-015 | US-106 |
+| FR-017 | US-086, US-090 |
+| FR-057 | US-108 |
+| FR-070 | US-107 |
+| FR-071 | US-086 |
+| FR-075 | US-110 |
+| FR-079 | US-078, US-079, US-080, US-114 |
+| FR-083 | US-111, US-112 |
+| FR-084 | US-103 |
+| FR-090 | US-109 |
+| FR-091 | US-097, US-098, US-099, US-114 |
+| FR-097 | US-101 |
+| FR-098 | US-102 |
+| FR-100 | US-104, US-105 |
+| FR-102 | US-082, US-100 |
+| FR-103 | US-082, US-083, US-114 |
+| FR-104 | US-081, US-090, US-094 |
+| FR-105 | US-084 |
+| FR-106 | US-087, US-088 |
+| FR-107 | US-089, US-090 |
+| FR-108 | US-093 |
+| FR-109 | US-092 |
+| FR-110 | US-091 |
+| FR-111 | US-095, US-100 |
+| FR-112 | US-096 |
+| FR-113 | US-085 |
+| NFR-031 | US-098, US-099, US-114 |
+| NFR-032 | US-082, US-087, US-095, US-114 |

@@ -1,0 +1,86 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Base element styles (US-069, ui_design_concept.md §2.2, §7): typography, colours, focus, motion, forced colours. */
+@layer base {
+  html {
+    font-size: var(--font-size-root);
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    min-height: 100vh;
+    font-family: var(--font-sans);
+    font-size: var(--text-md);
+    line-height: var(--leading-md);
+    background: var(--bg);
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1 {
+    font-size: var(--text-xl);
+    line-height: var(--leading-xl);
+    font-weight: var(--weight-semibold);
+  }
+
+  h2 {
+    font-size: var(--text-lg);
+    line-height: var(--leading-lg);
+    font-weight: var(--weight-semibold);
+  }
+
+  h3,
+  h4 {
+    font-size: var(--text-md);
+    line-height: var(--leading-md);
+    font-weight: var(--weight-semibold);
+  }
+
+  p,
+  ul,
+  ol {
+    margin-block: 0 var(--space-3);
+  }
+
+  a {
+    color: var(--accent-text);
+    text-underline-offset: 2px;
+  }
+
+  code,
+  pre,
+  kbd,
+  samp {
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+  }
+
+  small {
+    font-size: var(--text-sm);
+  }
+
+  ::selection {
+    background: var(--accent-subtle);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0s !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0s !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  @media (forced-colors: active) {
+    :focus-visible {
+      outline: 2px solid CanvasText;
+    }
+  }
+}

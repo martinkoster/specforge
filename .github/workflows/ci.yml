@@ -22,7 +22,7 @@ jobs:
       matrix:
         os: [windows-latest, macos-latest, ubuntu-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -48,6 +48,103 @@ jobs:
         run: xvfb-run -a pnpm test:e2e
       - name: Performance tests (sequential, NFR timing targets)
         run: pnpm test:perf
+      # US-009: unsigned installers (NSIS / dmg / AppImage + deb) and a launch of the packaged app.
+      - name: Package installers
+        run: pnpm package
+      - name: Packaged app smoke test (Windows/macOS)
+        if: runner.os != 'Linux'
+        run: pnpm test:packaged
+      - name: Packaged app smoke test (Linux, virtual display)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a pnpm test:packaged
+      - name: Keep the installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: installers-${{ matrix.os }}
+          path: |
+            release/*.exe
+            release/*.dmg
+            release/*.AppImage
+            release/*.deb
+          retention-days: 14
+
+  # US-009 AC-4: install the built installers on fresh runners (a machine that never built SpecForge) and launch the
+  # installed app with a fresh profile into the setup wizard. Linux also installs the .deb into a minimal container,
+  # which checks the package's declared dependencies.
+  installers:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Enable corepack (pnpm from packageManager)
+        run: corepack enable
+      - name: Install dependencies (test runner only)
+        run: pnpm install --frozen-lockfile
+      - uses: actions/download-artifact@v4
+        with:
+          name: installers-${{ matrix.os }}
+          path: installers
+
+      - name: Install (Windows, NSIS per-user, silent)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem installers -Filter '*.exe' | Select-Object -First 1
+          Start-Process -FilePath $setup.FullName -ArgumentList '/S' -Wait
+          $exe = Get-ChildItem "$env:LOCALAPPDATA\Programs" -Recurse -Filter 'SpecForge.exe' -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $exe) { throw 'SpecForge.exe not found under %LOCALAPPDATA%\Programs after the silent install' }
+          Write-Host "Installed: $($exe.FullName)"
+          "SPECFORGE_PACKAGED_EXECUTABLE=$($exe.FullName)" | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+      - name: Install (macOS, dmg to /Applications)
+        if: runner.os == 'macOS'
+        run: |
+          dmg=$(ls installers/*.dmg | head -1)
+          mnt=$(hdiutil attach "$dmg" -nobrowse -readonly | tail -1 | awk -F'\t' '{print $NF}')
+          cp -R "$mnt/SpecForge.app" /Applications/
+          hdiutil detach "$mnt"
+          echo "SPECFORGE_PACKAGED_EXECUTABLE=/Applications/SpecForge.app/Contents/MacOS/SpecForge" >> "$GITHUB_ENV"
+      - name: Launch the installed app (Windows/macOS)
+        if: runner.os != 'Linux'
+        run: pnpm test:packaged
+
+      - name: deb in a minimal ubuntu:24.04 container (declared dependencies)
+        if: runner.os == 'Linux'
+        run: |
+          deb=$(basename "$(ls installers/*.deb | head -1)")
+          docker run -d --name sf --network host -v "$PWD/installers:/in:ro" ubuntu:24.04 sleep infinity
+          docker exec -e DEBIAN_FRONTEND=noninteractive sf bash -c "apt-get update -qq && apt-get install -y -qq /in/$deb xvfb xauth >/dev/null"
+          # Every shared library the app loads must come from the package's declared dependencies.
+          missing=$(docker exec sf bash -c 'ldd /opt/SpecForge/specforge | grep "not found" || true')
+          if [ -n "$missing" ]; then echo "Undeclared shared libraries:"; echo "$missing"; docker rm -f sf; exit 1; fi
+          docker exec -d sf bash -c 'xvfb-run -a "$(command -v specforge || echo /opt/SpecForge/specforge)" --no-sandbox --remote-debugging-port=9333 > /tmp/app.log 2>&1'
+          rc=0; SPECFORGE_PACKAGED_EXTERNAL=1 pnpm test:packaged || rc=$?
+          docker exec sf cat /tmp/app.log | tail -40
+          docker rm -f sf
+          exit $rc
+      - name: deb on the runner (Chromium sandbox on)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get install -y -qq "./$(ls installers/*.deb | head -1)" >/dev/null
+          exe=$(readlink -f "$(command -v specforge || echo /opt/SpecForge/specforge)")
+          echo "Installed: $exe"
+          SPECFORGE_PACKAGED_EXECUTABLE="$exe" SPECFORGE_PACKAGED_SANDBOX=1 xvfb-run -a pnpm test:packaged
+      - name: AppImage on the runner (Chromium sandbox on)
+        if: runner.os == 'Linux'
+        env:
+          # The runner has no FUSE 2; users without it run AppImages the same way.
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+        run: |
+          app=$(ls installers/*.AppImage | head -1)
+          chmod +x "$app"
+          SPECFORGE_PACKAGED_EXECUTABLE="$PWD/$app" SPECFORGE_PACKAGED_SANDBOX=1 xvfb-run -a pnpm test:packaged
 
   supply-chain:
     runs-on: ubuntu-latest

@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { ElectronApplication, Page } from 'playwright-core';
 import { afterAll, describe, expect, it } from 'vitest';
-import { allowPending, columnOf, createProject, launch, moveTo, tempProfile, waitForColumn } from './e2e-support.js';
+import { allowPending, closePendingPanel, columnOf, createProject, launch, moveTo, tempProfile, waitForColumn } from './e2e-support.js';
 
 let app: ElectronApplication | undefined;
 afterAll(async () => {
@@ -18,6 +18,7 @@ async function keepReview(page: Page, target: string): Promise<void> {
   await dialog.waitFor({ timeout: 60_000 });
   await dialog.getByRole('button', { name: 'Keep' }).click();
   await dialog.waitFor({ state: 'detached' });
+  await closePendingPanel(page);
 }
 
 async function approveArtifact(page: Page, fileName: string): Promise<void> {
@@ -33,7 +34,8 @@ async function generate(page: Page, target: string, folder: string, firstOfKind:
   await page.getByRole('button', { name: 'Generate', exact: true }).click();
   const draftConfirm = page.getByRole('button', { name: 'Continue anyway' });
   if (await draftConfirm.isVisible().catch(() => false)) await draftConfirm.click();
-  if (firstOfKind) await allowPending(page);
+  // The review of the finished run opens as a modal right after the answer; keepReview closes the panel.
+  if (firstOfKind) await allowPending(page, { close: false });
   await keepReview(page, folder);
 }
 
@@ -103,8 +105,9 @@ async function flow(page: Page, parent: string): Promise<void> {
   await page.getByRole('region', { name: 'Review of US-001' }).getByText('US-001 implemented.').waitFor({ timeout: 30_000 });
   await page.getByRole('region', { name: 'Decision' }).getByRole('button', { name: 'Approve', exact: true }).click();
   await page.getByRole('region', { name: 'Merge instructions' }).waitFor();
+  // Esc closes the story drawer (US-071 AC-4).
   await page.keyboard.press('Escape');
-  await page.getByRole('button', { name: 'Close', exact: true }).first().click();
+  await page.getByRole('dialog', { name: /^US-001 / }).waitFor({ state: 'detached' });
   await waitForColumn(page, 'US-002', 'Review', 90_000);
   expect(await columnOf(page, 'US-001')).toContain('Done');
   if (existsSync(join(workspace, '.git')))

@@ -44,8 +44,7 @@ describe('US-016 over IPC', () => {
     const first = await boot(appData);
     const project = await first.client.command('projects.create', {
       name: 'Settings',
-      parentDir: parent,
-      folderName: 'settings',
+      path: join(parent, 'settings'),
       initGit: true,
     });
     const git = (...args: string[]) => execFileSync('git', args, { cwd: project.path, encoding: 'utf8' }).trim();
@@ -103,8 +102,7 @@ describe('US-016 over IPC', () => {
     const { client } = await boot(mkdtempSync(join(tmpdir(), 'sf-ps-app-')));
     const project = await client.command('projects.create', {
       name: 'Plain',
-      parentDir: mkdtempSync(join(tmpdir(), 'sf-ps-parent-')),
-      folderName: 'plain',
+      path: join(mkdtempSync(join(tmpdir(), 'sf-ps-parent-')), 'plain'),
       initGit: false,
     });
 

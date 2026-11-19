@@ -57,8 +57,7 @@ describe('US-062 over IPC', () => {
     const first = await boot();
     const project = await first.client.command('projects.create', {
       name: 'Chat',
-      parentDir: mkdtempSync(join(tmpdir(), 'sf-chat-ws-')),
-      folderName: 'chat',
+      path: join(mkdtempSync(join(tmpdir(), 'sf-chat-ws-')), 'chat'),
       initGit: false,
     });
     await first.client.command('projects.openById', { projectId: project.id });

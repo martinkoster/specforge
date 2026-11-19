@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 // @vitest-environment happy-dom
 import { EditorView } from '@codemirror/view';
-import { act, cleanup, render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanupChecked } from './styled-controls.js';
 import { ArtifactEditor } from '../src/specs/ArtifactEditor.js';
 import { ArtifactList } from '../src/specs/ArtifactList.js';
 
-afterEach(cleanup);
+afterEach(cleanupChecked);
 
 const doc = { content: '---\nkind: intent\napproval: draft\n---\n# Task Manager\n\nA **small** app.\n', hash: 'h1' };
 

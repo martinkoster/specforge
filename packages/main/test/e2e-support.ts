@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Shared helpers for the Electron end-to-end tests (Playwright for Electron).
-import { mkdtempSync } from 'node:fs';
+import { mkdirSync, mkdtempSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -8,6 +8,7 @@ import { _electron as electron, type ElectronApplication, type Page } from 'play
 
 export const ROOT = join(__dirname, '..', '..', '..');
 const ELECTRON = createRequire(import.meta.url)('electron') as unknown as string;
+const AXE = (createRequire(import.meta.url)('axe-core') as { source: string }).source;
 
 /** A fresh, isolated SpecForge profile (database, secrets) per test file. */
 export function tempProfile(): string {
@@ -58,7 +59,10 @@ export async function stubFolderPicker(app: ElectronApplication, folder: string)
   }, folder);
 }
 
-/** Creates a project through the start wizard in `parent` (Git optional) and waits for the Intent phase. */
+/**
+ * Creates a project through the start wizard (Git optional) and waits for the Intent phase. The project folder is
+ * `parent/<name in lower case, words joined by "-">`, picked folder-first (US-068).
+ */
 export async function createProject(
   app: ElectronApplication,
   page: Page,
@@ -66,10 +70,11 @@ export async function createProject(
   name: string,
   options: { git?: boolean } = {},
 ): Promise<void> {
-  await stubFolderPicker(app, parent);
+  const folder = join(parent, name.toLowerCase().replace(/[^a-z0-9]+/g, '-'));
+  mkdirSync(folder, { recursive: true });
+  await stubFolderPicker(app, folder);
   await page.getByRole('button', { name: 'Create new project' }).click();
   await page.getByRole('textbox', { name: 'Project name' }).fill(name);
-  await page.getByRole('button', { name: 'Choose location…' }).click();
   const git = page.getByRole('checkbox', { name: /Initialise Git repository/ });
   if (options.git === false && (await git.isChecked())) await git.uncheck();
   await page.getByRole('button', { name: 'Create', exact: true }).click();
@@ -77,7 +82,11 @@ export async function createProject(
 }
 
 /** Answers every relayed permission request of the open project with "Always allow for this project". */
-export async function allowPending(page: Page): Promise<void> {
+/**
+ * `close: false` leaves the panel open — for callers that expect a modal (e.g. the review of a specification run) to
+ * open right after the answer and close the panel themselves (closePendingPanel).
+ */
+export async function allowPending(page: Page, options: { close?: boolean } = {}): Promise<void> {
   const counter = page.getByRole('button', { name: /pending decisions?$/ });
   await page.waitForFunction(
     () => /^[1-9]\d* pending decision/.test(document.querySelector('.pending-decisions')?.textContent ?? ''),
@@ -96,7 +105,13 @@ export async function allowPending(page: Page): Promise<void> {
       { timeout: 30_000 },
     );
   }
-  await panel.getByRole('button', { name: 'Close' }).click();
+  if (options.close ?? true) await closePendingPanel(page);
+}
+
+/** Closes the pending-decisions panel if it is open. */
+export async function closePendingPanel(page: Page): Promise<void> {
+  const panel = page.getByRole('dialog', { name: /^Pending decisions/ });
+  if ((await panel.count()) > 0) await panel.getByRole('button', { name: 'Close' }).click();
 }
 
 /** Moves a story with the keyboard-accessible "Move to" control and waits until it left its column. */
@@ -136,4 +151,21 @@ export function columnOf(page: Page, storyId: string): Promise<string | null> {
 /** An approved Backlog story file (written into the workspace like a user would). */
 export function storyFile(id: string, title: string): string {
   return `---\nkind: story\nid: ${id}\ntitle: ${title}\nstatus: backlog\napproval: approved\nsize: S\nrequirements: [FR-001]\n---\n## Description\nAs a user I want ${title.toLowerCase()}.\n## Acceptance criteria\n- [ ] ${title} works.\n`;
+}
+
+/** WCAG 2.1 AA colour-contrast violations of the current page (axe-core, NFR-020). */
+export async function contrastViolations(page: Page): Promise<string[]> {
+  // Evaluated through the DevTools protocol, so the renderer CSP does not apply.
+  await page.evaluate(AXE);
+  return page.evaluate(async () => {
+    const axe = (
+      window as unknown as {
+        axe: {
+          run(context: Document, options: object): Promise<{ violations: { nodes: { target: string[]; failureSummary?: string }[] }[] }>;
+        };
+      }
+    ).axe;
+    const result = await axe.run(document, { runOnly: { type: 'rule', values: ['color-contrast'] }, resultTypes: ['violations'] });
+    return result.violations.flatMap((v) => v.nodes.map((n) => `${n.target.join(' ')}: ${n.failureSummary ?? ''}`));
+  });
 }

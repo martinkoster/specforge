@@ -1,0 +1,246 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Kanban board, dependency highlighting and epic swimlanes (UF-03, UF-15, US-074, ui_design_concept.md §4.2). */
+@layer areas {
+  .kanban {
+    position: relative;
+  }
+
+  .kanban-columns {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(14rem, 1fr));
+    gap: var(--space-3);
+    align-items: start;
+  }
+
+  .column {
+    min-height: 12rem;
+    padding: var(--space-2);
+    border: 1px solid transparent;
+    border-radius: var(--radius-lg);
+    background: var(--bg-subtle);
+    transition:
+      background var(--duration-fast) var(--ease-standard),
+      border-color var(--duration-fast) var(--ease-standard);
+  }
+
+  .column-over {
+    border-color: var(--accent);
+    background: var(--accent-subtle);
+  }
+
+  .column h2 {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin: var(--space-1) var(--space-1) var(--space-3);
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-semibold);
+  }
+
+  /* Story card */
+  .card {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+    padding: var(--space-2) var(--space-3) var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+    transition:
+      box-shadow var(--duration-fast) var(--ease-standard),
+      border-color var(--duration-fast) var(--ease-standard);
+  }
+
+  .card:hover {
+    border-color: var(--border-strong);
+  }
+
+  .card-dragging {
+    box-shadow: var(--shadow-md);
+    scale: 1.02;
+    opacity: 0.95;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .card-dragging {
+      scale: none;
+    }
+  }
+
+  .card header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
+  }
+
+  .drag-handle {
+    display: inline-flex;
+    margin-left: calc(-1 * var(--space-1));
+    padding: 2px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--text-subtle);
+    cursor: grab;
+  }
+
+  .drag-handle:hover {
+    background: var(--surface-hover);
+    color: var(--text);
+  }
+
+  .card-id {
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+    font-weight: var(--weight-medium);
+  }
+
+  .card-status {
+    display: inline-flex;
+    margin-left: auto;
+    color: var(--text-subtle);
+  }
+
+  .card-title {
+    margin: 0;
+    color: var(--text);
+    font-weight: var(--weight-medium);
+    line-height: var(--leading-sm);
+  }
+
+  .card-execution,
+  .card-notice {
+    margin: 0;
+    font-size: var(--text-sm);
+  }
+
+  .card-execution {
+    color: var(--text-muted);
+  }
+
+  .card-notice {
+    color: var(--warning);
+  }
+
+  .card-badges {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1);
+  }
+
+  .card .select {
+    min-height: var(--control-sm);
+    font-size: var(--text-sm);
+  }
+
+  /* Dependency highlighting */
+  .connectors {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+  }
+
+  .connector {
+    stroke-width: 2;
+  }
+
+  .connector-predecessor {
+    stroke: var(--warning);
+  }
+
+  .connector-successor {
+    stroke: var(--accent);
+  }
+
+  .connector-related {
+    stroke: var(--text-subtle);
+    stroke-dasharray: 4 4;
+  }
+
+  .card-selected {
+    outline: 2px solid var(--accent);
+  }
+
+  .card-predecessor {
+    outline: 2px solid var(--warning);
+  }
+
+  .card-successor {
+    outline: 2px solid var(--accent);
+  }
+
+  .card-related {
+    outline: 2px dashed var(--text-subtle);
+  }
+
+  .card-dimmed {
+    opacity: 0.4;
+  }
+
+  /* Epic swimlanes */
+  .lane {
+    margin-bottom: var(--space-4);
+    padding-left: var(--space-3);
+    border-left: 3px solid var(--epic, var(--border));
+  }
+
+  .lane-header {
+    position: sticky;
+    top: calc(-1 * var(--space-5));
+    z-index: var(--z-sticky);
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+    padding: var(--space-2) 0;
+    background: var(--bg);
+  }
+
+  .lane-header progress {
+    width: 8rem;
+    accent-color: var(--success);
+  }
+
+  /* Categorical epic colours: lanes use them for their left border, tags for a marker. */
+  .epic-colour-0 {
+    --epic: var(--epic-0);
+  }
+
+  .epic-colour-1 {
+    --epic: var(--epic-1);
+  }
+
+  .epic-colour-2 {
+    --epic: var(--epic-2);
+  }
+
+  .epic-colour-3 {
+    --epic: var(--epic-3);
+  }
+
+  .epic-colour-4 {
+    --epic: var(--epic-4);
+  }
+
+  .epic-colour-5 {
+    --epic: var(--epic-5);
+  }
+
+  .epic-colour-6 {
+    --epic: var(--epic-6);
+  }
+
+  .epic-colour-7 {
+    --epic: var(--epic-7);
+  }
+
+  .tag[class*='epic-colour-'] {
+    border-left-color: var(--epic);
+  }
+}

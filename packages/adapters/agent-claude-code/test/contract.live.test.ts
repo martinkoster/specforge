@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // US-045 AC-4: the shared AgentAdapter contract suite against the real Claude Code (opt-in, costs tokens).
 // Run with SPECFORGE_LIVE_CLAUDE=1; optional SPECFORGE_CLAUDE_PATH (else detected), SPECFORGE_LIVE_MODEL and
-// ANTHROPIC_API_KEY (passed into the agent environment like a configured provider).
+// ANTHROPIC_API_KEY (passed into the agent environment like a configured provider) or, for developer test runs only,
+// CLAUDE_CODE_OAUTH_TOKEN (a subscription token from `claude setup-token`; the product never passes one, ADR-007).
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -23,6 +24,14 @@ const PROMPTS: Record<ContractScenario, string> = {
 };
 
 let executable: string | undefined = process.env.SPECFORGE_CLAUDE_PATH;
+
+/** The test credential for the agent: an API key, else a developer subscription token; none → the local login. */
+function liveCredentials(): { env?: Record<string, string> } {
+  const { ANTHROPIC_API_KEY: key, CLAUDE_CODE_OAUTH_TOKEN: token } = process.env;
+  if (key) return { env: { ANTHROPIC_API_KEY: key } };
+  if (token) return { env: { CLAUDE_CODE_OAUTH_TOKEN: token } };
+  return {};
+}
 
 if (LIVE) {
   beforeAll(async () => {
@@ -47,7 +56,7 @@ if (LIVE) {
       config: {
         maxTurns: 6,
         ...(process.env.SPECFORGE_LIVE_MODEL ? { model: process.env.SPECFORGE_LIVE_MODEL } : {}),
-        ...(process.env.ANTHROPIC_API_KEY ? { env: { ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY } } : {}),
+        ...liveCredentials(),
       },
       ...overrides,
     }),

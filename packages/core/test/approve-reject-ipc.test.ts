@@ -50,8 +50,7 @@ async function boot(initGit: boolean) {
   );
   const project = await client.command('projects.create', {
     name: 'A',
-    parentDir: mkdtempSync(join(tmpdir(), 'sf-approve-ws-')),
-    folderName: 'a',
+    path: join(mkdtempSync(join(tmpdir(), 'sf-approve-ws-')), 'a'),
     initGit,
   });
   writeFileSync(join(project.path, 'src.txt'), '');

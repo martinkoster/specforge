@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Artifact split view: CodeMirror editor and rendered preview; atomic save with conflict handling (US-025, US-021).
+import { StatusBadge } from '../components/index.js';
 import { useEffect, useState } from 'react';
 import type { CommandOutput } from '@specforge/ipc-contract';
 import { ConflictDialog } from '../documents/ConflictDialog.js';
@@ -79,13 +80,10 @@ export function ArtifactEditor({
     <div className="artifact-editor">
       <div className="artifact-toolbar">
         <span className="path">{path}</span>
-        {approval && (
-          <span className={approval === 'approved' ? 'badge' : 'badge badge-warning'}>
-            {approval === 'approved' ? 'Approved' : 'Draft'}
-          </span>
-        )}
+        {approval && <StatusBadge status={approval} label={approval === 'approved' ? 'Approved' : 'Draft'} />}
         {approval === 'draft' && onApprove && (
           <button
+            className="btn btn-primary"
             type="button"
             disabled={dirty}
             title={dirty ? 'Save your changes before approving.' : undefined}
@@ -95,9 +93,9 @@ export function ArtifactEditor({
           </button>
         )}
         {openFindings > 0 && (
-          <span className="badge badge-warning">{openFindings === 1 ? '1 open finding' : `${openFindings} open findings`}</span>
+          <StatusBadge status="warning" label={openFindings === 1 ? '1 open finding' : `${openFindings} open findings`} />
         )}
-        <button type="button" disabled={!dirty || status === 'saving'} onClick={() => void save(base.hash)}>
+        <button className="btn btn-secondary" type="button" disabled={!dirty || status === 'saving'} onClick={() => void save(base.hash)}>
           Save
         </button>
         <span aria-live="polite">{dirty ? 'Unsaved changes' : status === 'saved' ? 'Saved' : ''}</span>

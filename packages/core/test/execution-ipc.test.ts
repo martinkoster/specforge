@@ -65,8 +65,7 @@ async function waitFor<T>(fn: () => Promise<T | undefined>, timeoutMs = 60_000):
 async function createProject(client: ContractClient, initGit: boolean) {
   const project = await client.command('projects.create', {
     name: 'Exec',
-    parentDir: mkdtempSync(join(tmpdir(), 'sf-exec-ws-')),
-    folderName: 'exec',
+    path: join(mkdtempSync(join(tmpdir(), 'sf-exec-ws-')), 'exec'),
     initGit,
   });
   writeFileSync(join(project.path, 'spec', '04_user_stories', 'US-001.md'), story('US-001'));

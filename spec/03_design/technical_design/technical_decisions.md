@@ -1,7 +1,7 @@
 # SpecForge — Technical Decisions
 
-**Last updated:** 2026-10-14  
-See `c4_architecture.md` for ADR-001 – ADR-022.
+**Last updated:** 2026-11-18  
+See `c4_architecture.md` for ADR-001 – ADR-023.
 
 ## 1. Technology stack
 
@@ -10,7 +10,7 @@ See `c4_architecture.md` for ADR-001 – ADR-022.
 | Language | TypeScript 6.0.x (strict) everywhere | One language across UI, core and adapter; Agent SDK is TS (ADR-001/006); 6.0 pinned because TS 7 lacks the compiler API needed by lint/layering tooling (ADR-022) |
 | Desktop shell | Electron (current stable), `utilityProcess` for core | Cross-platform parity (CON-009), process isolation (ADR-002) |
 | UI framework | React 19 + Vite | Ecosystem for rich clients |
-| UI components | Radix UI primitives + Tailwind CSS | Accessible primitives (NFR-020), consistent styling |
+| UI components & styling | Design tokens (CSS custom properties) + plain CSS in cascade layers; Radix UI primitives for dialogs, menus, popovers, tooltips; Lucide icons (ISC) | Modern developer-tool look with light/dark themes under a strict CSP (D25, ADR-023, `ui_design_concept.md`); accessible primitives (NFR-020); Tailwind not adopted — 2026-11-18 |
 | Kanban DnD | dnd-kit | Accessible drag & drop incl. keyboard (NFR-020) |
 | Dependency graph | React Flow (xyflow) + dagre layout | Interactive graph view (FR-064); dagre (MIT) instead of elkjs (EPL-2.0 OR GPL-3.0, flagged for licence review) — 2026-10-16, US-041 |
 | Markdown edit / render | CodeMirror 6 / unified (remark + rehype) | Fast editor; same parser as indexer |
@@ -89,7 +89,7 @@ Overall coverage target ≥ 75 % (NFR-023). TDD per story (stage 5 process).
 
 ## 6. Deployment approach
 
-- **Distribution**: GitHub Releases (or internal share) with installers per OS; code signing (Windows Authenticode, Apple Developer ID + notarisation); Linux AppImage + deb.
+- **Distribution**: GitHub Releases (or internal share) with installers per OS; code signing (Windows Authenticode, Apple Developer ID + notarisation); Linux AppImage + deb. R1 installers (US-009, electron-builder): per-user NSIS without elevation (Windows x64), dmg (macOS), AppImage + deb (Linux); asar with integrity validation and the US-005 fuses flipped after packing; unsigned until US-067. Public distribution requires the D23 legal confirmation.
 - **Updates**: Manual by default; optional opt-in update check (NFR-009).
 - **CI/CD**: GitHub Actions matrix `windows-latest`, `macos-latest`, `ubuntu-latest`: lint → typecheck → unit/integration → E2E (mock adapter, xvfb on Linux) → package → sign (release branches only).
 - **Runtime prerequisites**: Claude Code installed by the user (minimum version enforced), Git ≥ 2.30 (optional; ≥ 2.38 recommended), API key or cloud provider credentials (ADR-007).
@@ -103,7 +103,8 @@ SpecForge is licensed under **Apache License 2.0** (CON-015).
 - Packaging: generate `THIRD_PARTY_NOTICES` and include it in every installer.
 - Stack check (§1): all proposed libraries are MIT/Apache-2.0 except:
   - **elkjs** — EPL-2.0 OR GPL-3.0 (weak copyleft / copyleft): flagged by the licence check for review; **not used** — the graph view uses `@dagrejs/dagre` (MIT) for the layered layout (2026-10-16, US-041).
-  - **@anthropic-ai/claude-agent-sdk** — governed by Anthropic's terms, not an OSI license: verify that bundling it in installers is permitted; exclude its optional bundled Claude Code binary from packaging (SpecForge uses the user's installation, ADR-006).
+  - **@anthropic-ai/claude-agent-sdk** — governed by Anthropic's terms, not an OSI license: its JavaScript is bundled in the installers and listed in `THIRD_PARTY_NOTICES` as proprietary (D23, 2026-10-21); **legal confirmation of the terms is required before any public release**. Its optional bundled Claude Code binary is excluded from installation and packaging, and the packaging step fails if one is found (SpecForge uses the user's installation, ADR-006).
+- Packaging (US-009): `pnpm package` bundles main and core with esbuild, stages them with the renderer, better-sqlite3 (its prebuild for the target platform only) and the Agent SDK as a standalone app, generates `THIRD_PARTY_NOTICES` from the production dependencies (fails if a bundled package is missing) and adds `LICENSE`, `NOTICE` and `THIRD_PARTY_NOTICES` to every installer; Electron's own licenses ship beside the executable.
 
 ## 8. NFR coverage
 
@@ -128,7 +129,7 @@ SpecForge is licensed under **Apache License 2.0** (CON-015).
 | NFR-017 Graceful degradation | Adapter error mapping, core restart by main |
 | NFR-018 Discoverability | Guided empty states, next-step buttons (user_flows) |
 | NFR-019 Transparency | Draft badges, run references, diffs |
-| NFR-020 Accessibility | Radix, dnd-kit keyboard support, contrast checks |
+| NFR-020 Accessibility | Radix, dnd-kit keyboard support, contrast checks in light and dark theme |
 | NFR-021 Modularity | ADR-003, dependency-cruiser |
 | NFR-022 Extensible adapters | ADR-008, MockAdapter contract tests |
 | NFR-023 Tests | §5 |
@@ -141,6 +142,7 @@ SpecForge is licensed under **Apache License 2.0** (CON-015).
 | NFR-030 Dashboard freshness | Event-driven dashboard read model, indexed aggregates (DashboardService) |
 | NFR-031 Chat change traceability (Release 2) | `chat_change` with before-content, revert (ADR-016) |
 | NFR-032 Feature capture effort (Release 2) | Add-feature split button + shortcuts, resumable wizard, trace-first impact (ADR-021) |
+| NFR-033 Consistent modern visual design | Design tokens + component layer (ADR-023, `ui_design_concept.md`), token-literal lint check, contrast check in both themes |
 
 ## 9. Technical spikes (to run first)
 

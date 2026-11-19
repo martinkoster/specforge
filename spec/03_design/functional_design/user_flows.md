@@ -4,6 +4,8 @@
 
 ## UF-00: Application shell (always visible)
 
+Visual layout, components, icons and themes: `ui_design_concept.md` (D25).
+
 - **Left navigation**: Dashboard · Projects · Intent · Specifications · Kanban (disabled until stories exist) · Executions · Settings (FR-054).
 - **Top bar**: project switcher, git/non-git badge (with isolation warning in non-git mode), **run indicator** ("2 running · 1 queued"), **pending-decisions bell** with counter (FR-033), "n spec files changed → Commit" indicator (git, FR-072).
 - **Limited-mode banner** (when setup incomplete): "AI functions are disabled — Complete setup" (FR-074).
@@ -27,8 +29,8 @@ Full-window wizard with a step list on the left (✓ / ⚠ / ✗ per step) and *
 ## UF-01b: Start wizard
 
 Centered start screen with three large cards and a recent-projects list:
-- **Open existing project** → folder picker → project dashboard. If the folder isn't a SpecForge project: "This folder has no SpecForge metadata. *Adopt this folder* / *Choose another*".
-- **Create new project** → dialog: *Project name*, *Location* (parent folder), *Folder name* (auto from name), ☑ *Initialise Git repository (recommended — enables parallel runs)* → *Create* → Intent phase of the guided process.
+- **Open existing project** → folder picker → project dashboard. If the folder isn't a SpecForge project: empty folder → "This folder is empty. *Create new project here* / *Choose another*"; non-empty folder → "This folder has no SpecForge metadata. *Adopt this folder* (Release 2; R1: note that adopting existing code arrives in Release 2) / *Choose another*".
+- **Create new project** (D24) → native folder picker (pick an empty folder or create one with the picker's *New folder*) → small dialog: folder path (with *Change…*), *Project name* (pre-filled from the folder name, editable), ☑ *Initialise Git repository (recommended — enables parallel runs)* → *Create* → Intent phase of the guided process. A folder with SpecForge metadata is opened instead; a non-empty folder is rejected ("Choose an empty folder — adopting existing code arrives in Release 2").
 - **Adopt existing code** (Release 2) → folder picker → "Analyse the codebase to draft the intent and current-state specs?" *Analyse* / *Start empty* → progress → diff of drafts → Intent phase.
 - **Recent projects**: name, path, phase chip ("Design · awaiting approval"), last opened; *⋯* → remove from list.
 
@@ -112,7 +114,8 @@ Centered start screen with three large cards and a recent-projects list:
 1. **Environment status**: runtime, provider (configured / not configured), Git, health check *Re-run*, *Open setup wizard* (FR-075).
 2. **Agent runtimes**: detected path/version, *Verify*, default model, effort, timeouts, environment variables (secret toggle → stored in OS keychain, displayed as ••••), boundary notice.
 3. **Default approval rules** (global): table (effect, tool, pattern, applies to, created from) — inherited by all projects.
-4. **Project**: instructions & conventions editor, base branch, branch pattern, worktree folder, snapshot exclusions, parallel runs (1–N, locked to 1 in non-git with explanation), log retention, effective approval rules (global rules with per-project *disable*, plus project rules; origin column).
+4. **Appearance**: theme *System* (default, follows the OS) / *Light* / *Dark* as a segmented control with live preview; applied immediately and kept across restarts (FR-117, D25).
+5. **Project**: instructions & conventions editor, base branch, branch pattern, worktree folder, snapshot exclusions, parallel runs (1–N, locked to 1 in non-git with explanation), log retention, effective approval rules (global rules with per-project *disable*, plus project rules; origin column).
 
 ## UF-09: Guided phases
 

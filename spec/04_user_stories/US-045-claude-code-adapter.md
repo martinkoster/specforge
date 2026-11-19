@@ -1,7 +1,7 @@
 ---
 id: US-045
 title: Implement the Claude Code adapter
-status: in progress
+status: done
 size: M
 epic: Agent execution
 ---
@@ -16,7 +16,7 @@ As a **SpecForge user**, I want **SpecForge to run Claude Code for my stories an
 - [x] AC-1: Adapter maps Agent SDK messages to adapter events (session id, output, tool use/results, usage, final result) per the ADR-006 mapping.
 - [x] AC-2: `canUseTool` routes to the PermissionBroker and awaits the decision without timeout; abort and resume work as specified.
 - [x] AC-3: Provider credentials are injected only into the agent environment; `--bare`-like modes are not used.
-- [ ] AC-4: Contract test suite passes against the real adapter (opt-in, requires credentials) on all three OSes.
+- [x] AC-4: Contract test suite passes against the real adapter (opt-in, requires credentials) on all three OSes. _(Windows 2026-10-19; macOS and Linux 2026-11-17)_
 
 ## Technical Notes
 - Related design document: `spec/03_design/technical_design/service_design.md` — agentadapter-claudecodeadapter
@@ -31,7 +31,7 @@ As a **SpecForge user**, I want **SpecForge to run Claude Code for my stories an
 - US-011 Store secrets in OS credential store and redact them
 
 ## Implementation Details
-Status **in progress**: AC-1–AC-3 implemented and tested; AC-4: the live contract suite passes on Windows (6/6, 2026-10-19); macOS/Linux run via the manual workflow `claude-adapter-live` (needs the `ANTHROPIC_API_KEY` secret).
+Status **done**: AC-1–AC-3 implemented and tested; AC-4: the live contract suite passes on Windows (6/6, 2026-10-19, local login) and on macOS and Linux (6/6 each, 2026-11-17, workflow `claude-adapter-live` run 44193578012, developer subscription token).
 
 Files created / modified:
 - `packages/adapters/agent-claude-code/src/adapter.ts` — `ClaudeCodeAdapter`: one Agent SDK `query()` per run with the user's verified executable (`pathToClaudeCodeExecutable`), `permissionMode: 'default'`, `settingSources: []`, preset system prompt + append, model/maxTurns/resume; SDK messages → adapter events; `canUseTool` → `onPermission` without timeout (abort denies); cancel via `AbortController`; own process spawn exposes the pid (tree-kill fallback); agent environment = core environment without provider/login variables + the configured provider variables
@@ -42,9 +42,10 @@ Files created / modified:
 
 Decisions / deviations:
 - Product-owner decision 2026-10-18: US-045 started before US-001 is done (S1 verified on Windows).
-- The SDK (`@anthropic-ai/claude-agent-sdk` ~0.3.302) is proprietary ("SEE LICENSE"): license check lists it for review; whether its JavaScript may be bundled into installers must be confirmed before US-009.
+- Product-owner decision 2026-11-17: live test runs may authenticate with the developer's Claude subscription token instead of API credit (test-only; repository secret `CLAUDE_CODE_OAUTH_TOKEN` from `claude setup-token`, workflow input `auth`, default `subscription`). Only one credential is passed per run because Claude Code prefers an API key. The product adapter still strips subscription tokens (ADR-007).
+- The SDK (`@anthropic-ai/claude-agent-sdk` ~0.3.302) is proprietary ("SEE LICENSE"): license check lists it for review; whether its JavaScript may be bundled into installers must be confirmed before US-009. Resolved by intent D23 (2026-10-21): bundled in the installers, legal confirmation before any public release.
 
 ## Test Coverage
 - Unit tests: `packages/adapters/agent-claude-code/test/adapter.test.ts` (12, fake SDK `query()`; mutation check: 9/9 mutants killed), `packages/core/test/capabilities-ipc.test.ts` (1 new)
-- Live: `contract.live.test.ts` (6 contract tests, opt-in) — Windows 6/6 passed (142 s); macOS/Linux pending
+- Live: `contract.live.test.ts` (6 contract tests, opt-in) — Windows 6/6 passed (142 s, 2026-10-19); macOS 6/6 (18 s) and Linux 6/6 (12 s) on 2026-11-17. Earlier CI attempt 2026-10-21 (Linux, API key): every model call failed with "Credit balance is too low".
 - `packages/application/test/execution-service.test.ts` (1 new: late pid), adapter cancel test (1 new)

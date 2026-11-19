@@ -53,6 +53,22 @@ async function setup(initial = story('backlog')) {
     await watcher.close();
     await Promise.allSettled([...running]);
   });
+  // macOS (FSEvents) can miss changes made right after 'ready' and replay the setup writes: write a probe file
+  // until the watcher reports it, then discard everything seen so far — the tests are about changes made while watching.
+  const probe = join(root, 'spec', 'probe.md');
+  let lastProbe = 0;
+  await waitFor(() => {
+    if (batches.some((b) => b.includes('spec/probe.md'))) return true;
+    // Re-probe less often than the debounce, or the batch would never be flushed.
+    if (Date.now() - lastProbe > 500) {
+      lastProbe = Date.now();
+      writeFileSync(probe, `probe ${lastProbe}\n`);
+    }
+    return undefined;
+  });
+  while (running.size > 0) await Promise.allSettled([...running]);
+  batches.length = 0;
+  events.length = 0;
   const path = join(root, 'spec', '04_user_stories', 'US-001.md');
   const status = () =>
     (db.sqlite.prepare('select board_status from story where story_id = ?').get('US-001') as { board_status: string }).board_status;

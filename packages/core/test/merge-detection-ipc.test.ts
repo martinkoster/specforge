@@ -43,8 +43,7 @@ describe('US-024 over IPC', () => {
 
     const project = await client.command('projects.create', {
       name: 'Merge',
-      parentDir: mkdtempSync(join(tmpdir(), 'sf-merge-ws-')),
-      folderName: 'merge',
+      path: join(mkdtempSync(join(tmpdir(), 'sf-merge-ws-')), 'merge'),
       initGit: true,
     });
     const git = (...args: string[]) =>

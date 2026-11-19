@@ -38,6 +38,11 @@ describe('US-005 end-to-end: Electron shell', () => {
     expect(await page.evaluate(() => typeof (globalThis as { process?: unknown }).process)).toBe('undefined');
   });
 
+  it('US-072 AC-5: the window keeps a minimum size of 1024 × 640', async () => {
+    const size = await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0]!.getMinimumSize());
+    expect(size).toEqual([1024, 640]);
+  });
+
   it('US-005 AC-2: renderer and core exchange ping/pong over a MessagePort brokered by main', async () => {
     const mainPid = await app.evaluate(() => process.pid);
 

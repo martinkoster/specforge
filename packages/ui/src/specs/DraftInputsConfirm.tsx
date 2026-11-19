@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Confirmation before generating from Draft inputs (US-026 AC-3, FR-013); used by the Generate actions (US-027).
+import { Dialog } from '../components/index.js';
 import { useEffect, useRef } from 'react';
 import type { QueryOutput } from '@specforge/ipc-contract';
 
@@ -21,20 +22,21 @@ export function DraftInputsConfirm({ check, onConfirm, onCancel }: DraftInputsCo
   }, [confirmed, onConfirm]);
   if (confirmed) return null;
   return (
-    <div role="alertdialog" aria-modal="true" aria-labelledby="draft-inputs-title" className="dialog">
-      <h2 id="draft-inputs-title">Inputs are still Draft</h2>
+    <Dialog role="alertdialog" title={<>Inputs are still Draft</>} onClose={onCancel}>
       <p>{check.warning}</p>
       <ul>
         {check.drafts.map((d) => (
           <li key={d}>{d}</li>
         ))}
       </ul>
-      <button type="button" onClick={onConfirm}>
-        Continue anyway
-      </button>
-      <button type="button" onClick={onCancel}>
-        Cancel
-      </button>
-    </div>
+      <div className="dialog-footer">
+        <button className="btn btn-secondary" type="button" onClick={onCancel}>
+          Cancel
+        </button>
+        <button className="btn btn-primary" type="button" onClick={onConfirm}>
+          Continue anyway
+        </button>
+      </div>
+    </Dialog>
   );
 }

@@ -44,23 +44,23 @@ export function ExecDefaultsForm({ defaults, onSave }: ExecDefaultsFormProps) {
       <p className="hint">Changes apply to the next run.</p>
       <label>
         Max run duration (minutes)
-        <input type="number" min={1} value={durationMin} onChange={(e) => setDurationMin(e.target.value)} />
+        <input className="input" type="number" min={1} value={durationMin} onChange={(e) => setDurationMin(e.target.value)} />
       </label>
       <label>
         Idle timeout (minutes)
-        <input type="number" min={1} value={idleMin} onChange={(e) => setIdleMin(e.target.value)} />
+        <input className="input" type="number" min={1} value={idleMin} onChange={(e) => setIdleMin(e.target.value)} />
       </label>
       <label>
-        <input type="checkbox" checked={notifications} onChange={(e) => setNotifications(e.target.checked)} />
+        <input className="checkbox" type="checkbox" checked={notifications} onChange={(e) => setNotifications(e.target.checked)} />
         Notifications
       </label>
       <label>
         Keep logs (days)
-        <input type="number" min={1} value={retention} onChange={(e) => setRetention(e.target.value)} />
+        <input className="input" type="number" min={1} value={retention} onChange={(e) => setRetention(e.target.value)} />
       </label>
       <label>
         Log verbosity
-        <select value={logLevel} onChange={(e) => setLogLevel(e.target.value as ExecDefaults['logLevel'])}>
+        <select className="select" value={logLevel} onChange={(e) => setLogLevel(e.target.value as ExecDefaults['logLevel'])}>
           {LEVELS.map((l) => (
             <option key={l} value={l}>
               {l}
@@ -70,7 +70,7 @@ export function ExecDefaultsForm({ defaults, onSave }: ExecDefaultsFormProps) {
       </label>
       <label>
         Check for merged branches every (seconds)
-        <input type="number" min={10} value={mergeCheck} onChange={(e) => setMergeCheck(e.target.value)} />
+        <input className="input" type="number" min={10} value={mergeCheck} onChange={(e) => setMergeCheck(e.target.value)} />
       </label>
       {errors.length > 0 && (
         <div role="alert">
@@ -79,7 +79,9 @@ export function ExecDefaultsForm({ defaults, onSave }: ExecDefaultsFormProps) {
           ))}
         </div>
       )}
-      <button type="submit">Save execution defaults</button>
+      <button className="btn btn-secondary" type="submit">
+        Save execution defaults
+      </button>
       {saved && <span aria-live="polite">Saved</span>}
     </form>
   );

@@ -1,22 +1,22 @@
 # Product Backlog
 
-_Last updated: 2026-10-18_
+_Last updated: 2026-11-18_
 
 ## Summary
 
 | Status | Count |
 |--------|-------|
-| ready for development | 2 |
-| in progress | 2 |
+| ready for development | 1 |
+| in progress | 0 |
 | blocked | 1 |
-| done | 62 |
-| **Total** | **67** |
+| done | 75 |
+| **Total** | **77** |
 
 ## Stories
 
 | ID | Title | Epic | Size | Status |
 |----|-------|------|------|--------|
-| US-001 | Spike S1: validate Claude Code integration via Agent SDK | Foundation & spikes | L | in progress |
+| US-001 | Spike S1: validate Claude Code integration via Agent SDK | Foundation & spikes | L | done |
 | US-002 | Spike S2: validate stacked worktrees and integration merges | Foundation & spikes | M | done |
 | US-003 | Spike S3: validate process-tree termination per OS | Foundation & spikes | S | done |
 | US-004 | Set up monorepo, tooling and layering rules | Foundation & spikes | M | done |
@@ -24,7 +24,7 @@ _Last updated: 2026-10-18_
 | US-006 | Implement typed, validated IPC contract | Foundation & spikes | M | done |
 | US-007 | Set up SQLite persistence with migrations | Foundation & spikes | M | done |
 | US-008 | Set up CI pipeline on Windows, macOS and Linux | Foundation & spikes | M | done |
-| US-009 | Build unsigned installers for all three OSes | Foundation & spikes | M | ready for development |
+| US-009 | Build unsigned installers for all three OSes | Foundation & spikes | M | done |
 | US-010 | Detect and verify the Claude Code runtime | Setup & configuration | S | done |
 | US-011 | Store secrets in OS credential store and redact them | Setup & configuration | M | done |
 | US-012 | First-start setup wizard | Setup & configuration | M | done |
@@ -60,7 +60,7 @@ _Last updated: 2026-10-18_
 | US-042 | Scheduler: queue, slots and automatic start | Kanban & dependencies | L | done |
 | US-043 | Show queued stories and queue controls | Kanban & dependencies | S | done |
 | US-044 | Define AgentAdapter port and MockAdapter | Agent execution | M | done |
-| US-045 | Implement the Claude Code adapter | Agent execution | M | in progress |
+| US-045 | Implement the Claude Code adapter | Agent execution | M | done |
 | US-046 | Prepare isolated worktree execution spaces | Agent execution | L | done |
 | US-047 | Snapshots for non-git workspaces | Agent execution | M | done |
 | US-048 | Run lifecycle, streaming and persistence | Agent execution | M | done |
@@ -83,3 +83,13 @@ _Last updated: 2026-10-18_
 | US-065 | Performance and accessibility verification | Quality & release readiness | M | done |
 | US-066 | Manual MVP acceptance test with real Claude Code | Quality & release readiness | M | ready for development |
 | US-067 | Sign and notarise installers | Quality & release readiness | S | blocked |
+| US-068 | Folder-first project creation | Projects & workspace | S | done |
+| US-069 | Design tokens, CSS architecture and light/dark foundation | UI design system | M | done |
+| US-070 | Core controls, status badges, callouts and icons | UI design system | M | done |
+| US-071 | Dialogs, menus, tooltips, toasts and drawers | UI design system | M | done |
+| US-072 | Redesign the application shell (sidebar, top bar, page header, phase stepper) | UI design system | M | done |
+| US-073 | Redesign start wizard, setup wizard, empty and loading states | UI design system | M | done |
+| US-074 | Redesign dashboard, Kanban board and dependency graph | UI design system | M | done |
+| US-075 | Redesign intent, specifications, editor and review screens | UI design system | M | done |
+| US-076 | Redesign executions, logs, pending decisions, chat and settings | UI design system | M | done |
+| US-077 | Choose the colour theme (System / Light / Dark) | UI design system | S | done |

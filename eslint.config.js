@@ -6,7 +6,7 @@ import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
   {
-    ignores: ['**/node_modules/**', '**/dist/**', '**/coverage/**', 'spikes/**', 'tooling/test/fixtures/**'],
+    ignores: ['**/node_modules/**', '**/dist/**', 'build/**', 'release/**', '**/coverage/**', 'spikes/**', 'tooling/test/fixtures/**'],
   },
   js.configs.recommended,
   ...tseslint.configs.recommended,

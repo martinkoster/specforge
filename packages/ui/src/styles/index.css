@@ -1,0 +1,28 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Renderer stylesheet entry (US-069, ADR-023, ui_design_concept.md §6). The layer order keeps specificity flat: later
+   layers win regardless of selector weight. Static CSS only (renderer CSP: style-src 'self'). */
+@layer reset, tokens, base, components, areas, utilities;
+
+@import './reset.css';
+@import './tokens.css';
+@import './base.css';
+@import './components/button.css';
+@import './components/field.css';
+@import './components/badge.css';
+@import './components/callout.css';
+@import './components/overlay.css';
+@import './components/empty.css';
+@import './components/segmented.css';
+@import './components/gallery.css';
+@import './areas/shell.css';
+@import './areas/start.css';
+@import './areas/overlays.css';
+@import './areas/dashboard.css';
+@import './areas/kanban.css';
+@import './areas/graph.css';
+@import './areas/specs.css';
+@import './areas/review.css';
+@import './areas/setup.css';
+@import './areas/executions.css';
+@import './areas/settings.css';
+@import './utilities.css';

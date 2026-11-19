@@ -1,0 +1,202 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Executions: run list, run panels with tabs, live log with ANSI colours, context and result (UF-05, US-076,
+   ui_design_concept.md §4.2). */
+@layer areas {
+  .executions-area > label {
+    margin-bottom: var(--space-3);
+  }
+
+  .run-list {
+    width: 100%;
+    margin-bottom: var(--space-5);
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    font-size: var(--text-sm);
+  }
+
+  .run-list th {
+    background: var(--bg-subtle);
+    color: var(--text-muted);
+    font-weight: var(--weight-medium);
+    text-align: left;
+  }
+
+  .run-list th,
+  .run-list td {
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .run-list tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  .run-list tbody tr:hover {
+    background: var(--surface-hover);
+  }
+
+  .run-list tr[aria-selected='true'] {
+    background: var(--surface-selected);
+  }
+
+  .run-list td:nth-child(3),
+  .run-list td:nth-child(4),
+  .run-list td:nth-child(5) {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .run-tiles-tiled {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(24rem, 1fr));
+    gap: var(--space-4);
+  }
+
+  .run-panel {
+    padding: var(--space-4);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .run-panel > header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    margin-bottom: var(--space-3);
+  }
+
+  .run-panel h2 {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin: 0;
+    font-size: var(--text-md);
+  }
+
+  /* Tabs (segmented look) */
+  .tabs {
+    display: inline-flex;
+    gap: 2px;
+    padding: 2px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--bg-subtle);
+  }
+
+  .tab {
+    min-height: calc(var(--control-sm) - 4px);
+    padding: 0 var(--space-3);
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+    cursor: pointer;
+  }
+
+  .tab:hover {
+    color: var(--text);
+  }
+
+  .tab:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 1px;
+  }
+
+  .tab[aria-selected='true'] {
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: var(--shadow-sm);
+  }
+
+  /* Live log */
+  .run-log-search {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-2);
+  }
+
+  .run-log-search .input {
+    width: auto;
+    flex: 1;
+    min-width: 12rem;
+  }
+
+  .run-log-viewport {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--bg-subtle);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+  }
+
+  .run-log-line {
+    overflow: hidden;
+    padding: 0 var(--space-2);
+    text-overflow: ellipsis;
+    white-space: pre;
+  }
+
+  .run-log-error {
+    color: var(--danger);
+  }
+
+  .run-log-match {
+    background: var(--highlight);
+  }
+
+  .run-log-line[aria-current='true'] {
+    background: var(--highlight-strong);
+  }
+
+  .ansi-bold {
+    font-weight: var(--weight-semibold);
+  }
+
+  .ansi-red {
+    color: var(--ansi-red);
+  }
+
+  .ansi-green {
+    color: var(--ansi-green);
+  }
+
+  .ansi-yellow {
+    color: var(--ansi-yellow);
+  }
+
+  .ansi-blue {
+    color: var(--ansi-blue);
+  }
+
+  .ansi-magenta {
+    color: var(--ansi-magenta);
+  }
+
+  .ansi-cyan {
+    color: var(--ansi-cyan);
+  }
+
+  .ansi-black,
+  .ansi-white {
+    color: var(--text);
+  }
+
+  .run-context {
+    max-height: 32rem;
+    overflow: auto;
+    padding: var(--space-3);
+    border-radius: var(--radius-md);
+    background: var(--bg-subtle);
+    white-space: pre-wrap;
+  }
+}

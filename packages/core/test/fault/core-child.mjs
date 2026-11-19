@@ -44,7 +44,7 @@ let projectId;
 if (existsSync(idFile)) {
   projectId = readFileSync(idFile, 'utf8');
 } else {
-  const project = await client.command('projects.create', { name: 'Crash', parentDir: workspaceParent, folderName: 'crash', initGit: false });
+  const project = await client.command('projects.create', { name: 'Crash', path: join(workspaceParent, 'crash'), initGit: false });
   projectId = project.id;
   // The artifacts the harness saves; indexed when the project is opened.
   for (let i = 0; i < 5; i++) writeFileSync(join(project.path, 'spec', '02_requirements', `file-${i}.md`), version('initial'));

@@ -7,6 +7,8 @@ allowBuilds:
   better-sqlite3: true
   electron: true
   esbuild: true
+  # Squirrel.Windows support pulled in by electron-builder; SpecForge builds NSIS installers only (US-009).
+  electron-winstaller: false
 
 # The Agent SDK's per-platform packages bundle the Claude Code binary. SpecForge uses the user's own installation
 # (ADR-006, CON-015) and must not ship or install it.
@@ -19,3 +21,20 @@ ignoredOptionalDependencies:
   - '@anthropic-ai/claude-agent-sdk-linux-x64-musl'
   - '@anthropic-ai/claude-agent-sdk-win32-arm64'
   - '@anthropic-ai/claude-agent-sdk-win32-x64'
+
+# Security floors for transitive dependencies (pnpm audit, 2026-11-08); drop each once upstream ships the fix.
+#  - body-parser: GHSA-27r3-jxmh-p828 (Agent SDK > MCP SDK > express)
+#  - happy-dom: GHSA-834v-8h66-3h79 (vitest, tests only)
+#  - undici 8: DoS / cache poisoning / TLS advisories fixed in 8.12.2 (vitest > jsdom, tests only)
+overrides:
+  'body-parser@>=2.0.0 <2.4.0': '^2.4.0'
+  'happy-dom@>=17.0.0 <21.0.4': '^21.0.4'
+  'undici@>=8.0.0 <8.12.2': '^8.12.2'
+
+# Audit advisories without a fixed version, accepted until upstream ships one (product-owner decision 2026-11-18).
+#  - picomatch <=4.0.7: GHSA-fc5q-39xc-vjpf (ReDoS with repeated extglobs). Reached via @specforge/snapshot (matches
+#    the user's own snapshot exclusion patterns from local project settings) and vitest (tests only).
+#    Remove once a patched picomatch exists and add a security floor under `overrides` instead.
+auditConfig:
+  ignoreGhsas:
+    - GHSA-fc5q-39xc-vjpf

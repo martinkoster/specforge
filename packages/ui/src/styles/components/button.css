@@ -1,0 +1,158 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Buttons (US-070 AC-1, ui_design_concept.md §5): primary (max one per view), secondary, ghost, danger; sm / md / lg;
+   icon-only; loading via aria-busy (spinner, width kept). */
+@layer components {
+  .btn {
+    --btn-bg: var(--surface);
+    --btn-bg-hover: var(--surface-hover);
+    --btn-fg: var(--text);
+    --btn-border: var(--border-strong);
+
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    min-height: var(--control-md);
+    padding: 0 var(--space-3);
+    border: 1px solid var(--btn-border);
+    border-radius: var(--radius-md);
+    background: var(--btn-bg);
+    color: var(--btn-fg);
+    font-size: var(--text-md);
+    font-weight: var(--weight-medium);
+    line-height: 1;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+    transition:
+      background var(--duration-fast) var(--ease-standard),
+      border-color var(--duration-fast) var(--ease-standard),
+      color var(--duration-fast) var(--ease-standard);
+  }
+
+  .btn:hover {
+    background: var(--btn-bg-hover);
+  }
+
+  .btn:active {
+    transform: translateY(1px);
+  }
+
+  .btn:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  .btn:disabled,
+  .btn[aria-disabled='true'] {
+    cursor: not-allowed;
+    background: var(--bg-subtle);
+    border-color: var(--border);
+    color: var(--text-subtle);
+    transform: none;
+  }
+
+  .btn-primary {
+    --btn-bg: var(--accent);
+    --btn-bg-hover: var(--accent-hover);
+    --btn-fg: var(--on-accent);
+    --btn-border: var(--accent);
+  }
+
+  .btn-secondary {
+    --btn-bg: var(--surface);
+    --btn-fg: var(--text);
+  }
+
+  .btn-ghost {
+    --btn-bg: transparent;
+    --btn-bg-hover: var(--surface-hover);
+    --btn-border: transparent;
+    --btn-fg: var(--text-muted);
+  }
+
+  .btn-ghost:hover {
+    color: var(--text);
+  }
+
+  .btn-danger {
+    --btn-bg: var(--danger-subtle);
+    --btn-bg-hover: var(--danger-subtle);
+    --btn-fg: var(--danger);
+    --btn-border: var(--danger);
+  }
+
+  .btn-danger:hover {
+    border-width: 2px;
+    padding: 0 calc(var(--space-3) - 1px);
+  }
+
+  .btn-sm {
+    min-height: var(--control-sm);
+    padding: 0 var(--space-2);
+    font-size: var(--text-sm);
+  }
+
+  .btn-lg {
+    min-height: var(--control-lg);
+    padding: 0 var(--space-4);
+  }
+
+  .btn-icon {
+    width: var(--control-md);
+    padding: 0;
+  }
+
+  .btn-icon.btn-sm {
+    width: var(--control-sm);
+  }
+
+  /* Loading: the label stays (keeps the width) but is hidden behind a spinner. */
+  .btn[aria-busy='true'] {
+    color: transparent;
+    pointer-events: none;
+  }
+
+  .btn[aria-busy='true']::after {
+    content: '';
+    position: absolute;
+    width: 1em;
+    height: 1em;
+    border: 2px solid var(--btn-fg);
+    border-right-color: transparent;
+    border-radius: var(--radius-full);
+    animation: spin 0.7s linear infinite;
+  }
+
+  /* Text-like button (inline links, e.g. "Open US-001"). */
+  .link {
+    display: inline;
+    padding: 0;
+    border: none;
+    background: none;
+    color: var(--accent-text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .link:hover {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .icon {
+    flex: none;
+  }
+
+  .icon-spin {
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+}

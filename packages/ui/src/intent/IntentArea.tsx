@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Intent area (US-028, UC-004/UC-005): template for new projects, Markdown editor with approval, AI quality check and
 // refinement, and the clarification dialogue.
+import { PageHeader, Skeleton } from '../components/index.js';
 import { useCallback, useEffect, useState } from 'react';
 import type { CoreSession } from '../core/core-session.js';
 import { ArtifactAiPanel, headingLine } from '../specs/ArtifactAiPanel.js';
@@ -36,15 +37,16 @@ export function IntentArea({ session, projectId, aiDisabledReason = null }: Inte
     void load();
   }, [load]);
 
-  if (doc === undefined) return <p>Loading the intent…</p>;
+  if (doc === undefined) return <Skeleton label="Loading the intent" lines={6} />;
   return (
     <div className="intent-area">
-      <h1>Intent</h1>
+      <PageHeader title="Intent" description="What to build and why — the source of every specification." />
       {error && <p role="alert">{error}</p>}
       {doc === null ? (
         <section aria-label="No intent yet">
           <p>This project has no intent yet. Describe what should be built and why.</p>
           <button
+            className="btn btn-secondary"
             type="button"
             onClick={() =>
               void session

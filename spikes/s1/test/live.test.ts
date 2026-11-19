@@ -95,12 +95,17 @@ describe.skipIf(!LIVE)('US-001 live scenarios (real Claude Code)', () => {
     });
 
     // wait (time budget, process snapshots take seconds on Windows) until the long-running grandchild exists
+    // Linux: recent Node versions name their main thread `MainThread`, which `ps -o comm` then reports instead of `node`.
     let grandchildSeen = false;
+    let tree: Awaited<ReturnType<typeof listDescendants>> = [];
     const deadline = Date.now() + 150_000;
     while (!grandchildSeen && Date.now() < deadline) {
       await sleep(1000);
-      const tree = await listDescendants(process.pid);
-      grandchildSeen = tree.some((p) => /node/i.test(p.name) && tree.some((q) => q.pid === p.ppid));
+      tree = await listDescendants(process.pid);
+      grandchildSeen = tree.some((p) => /node|MainThread/i.test(p.name) && tree.some((q) => q.pid === p.ppid));
+    }
+    if (!grandchildSeen) {
+      recordResult('ac3_abort', { ok: false, reason: 'grandchild not seen', tree, events: run.events.map((e) => e.type) });
     }
     expect(grandchildSeen).toBe(true);
     const before = await listDescendants(process.pid);

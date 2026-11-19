@@ -1,7 +1,7 @@
 # SpecForge — Non-Functional Requirements
 
 **Source:** `spec/01_intent/intent.md` v0.2 incl. §13 Clarified decisions (D1–D22)  
-**Last updated:** 2026-10-13
+**Last updated:** 2026-11-18
 
 > The intent states quality goals qualitatively ("responsive", "reliably", "secure by default"). The quantitative **Measures** below are proposed targets derived by the analyst and should be confirmed by the product owner.
 
@@ -207,7 +207,7 @@ Reference hardware for measures: a mid-range developer laptop (4+ cores, 16 GB R
 **Category**: Usability
 **Description**: The application is operable by keyboard (including moving cards between columns), supports OS scaling, and meets WCAG 2.1 AA colour contrast; status is not conveyed by colour alone.
 **Source**: §6 "modern, responsive desktop application".
-**Measure**: All primary workflows completable with keyboard only; automated contrast check passes AA.
+**Measure**: All primary workflows completable with keyboard only; automated contrast check passes AA (in the light and the dark theme, D25).
 **Priority**: Should Have
 **Release**: R1
 
@@ -226,6 +226,14 @@ Reference hardware for measures: a mid-range developer laptop (4+ cores, 16 GB R
 **Measure**: Capturing an idea in the inbox takes ≤ 2 interactions from any screen; from *Add feature* to a saved Draft feature intent takes ≤ 5 min of user time for a typical idea (excluding agent time); trace-based part of the impact analysis is shown in < 2 s while the AI part continues in the background.
 **Priority**: Should Have
 **Release**: R2
+
+### NFR-033: Consistent modern visual design
+**Category**: Usability
+**Description**: The UI follows one visual design system — the UI design concept (D25, `ui_design_concept.md`): modern developer-tool style, design tokens for all colours, type sizes, spacing, radii and shadows, a shared component set (buttons, fields, badges, callouts, cards, dialogs, menus, toasts) and icons with text for status. Light and dark themes are equally complete.
+**Source**: D25; §6 "modern, responsive desktop application … usability of modern development tools".
+**Measure**: No colour, shadow or font-size literal outside the token file (automated check); every primary area and dialog uses only the shared components (no unstyled native buttons, inputs or plain-text status); the automated WCAG 2.1 AA contrast check (NFR-020) passes in both themes for all primary areas; in a usability check, ≥ 4 of 5 developers rate the UI as "modern" and "easy to scan" (≥ 4 on a 5-point scale).
+**Priority**: Should Have
+**Release**: R1
 
 ---
 

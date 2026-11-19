@@ -36,8 +36,7 @@ describe('US-035 over IPC', () => {
     const client = await connectClient(wrap(port1));
     const project = await client.command('projects.create', {
       name: 'E',
-      parentDir: mkdtempSync(join(tmpdir(), 'sf-epics-ws-')),
-      folderName: 'e',
+      path: join(mkdtempSync(join(tmpdir(), 'sf-epics-ws-')), 'e'),
       initGit: false,
     });
     const ws = project.path;

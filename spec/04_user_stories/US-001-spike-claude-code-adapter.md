@@ -1,7 +1,7 @@
 ---
 id: US-001
 title: Spike S1: validate Claude Code integration via Agent SDK
-status: in progress
+status: done
 size: L
 epic: Foundation & spikes
 ---
@@ -18,7 +18,7 @@ As a **SpecForge developer**, I want **a throwaway prototype proving streaming, 
 - [x] AC-3: Aborting via `abortController` stops the agent and all child processes within 10 s. _(verified on Windows 2026-10-14; macOS/Linux pending CI)_
 - [x] AC-4: Resuming with the stored session id in the same cwd continues the conversation with prior context. _(verified on Windows 2026-10-14; macOS/Linux pending CI)_
 - [x] AC-5: Verified that user/project Claude settings with permissive allow rules cannot bypass the relay (or the required setting-source configuration is documented). _(verified on Windows 2026-10-14; macOS/Linux pending CI)_
-- [ ] AC-6: Results for Windows, macOS and Linux are documented in `docs/spikes/S1-claude-code-adapter.md` with a go/no-go recommendation for ADR-006 (fallback: CLI + PreToolUse hook).
+- [x] AC-6: Results for Windows, macOS and Linux are documented in `docs/spikes/S1-claude-code-adapter.md` with a go/no-go recommendation for ADR-006 (fallback: CLI + PreToolUse hook). _(all three OSes verified; macOS/Linux 2026-11-17, workflow `spike-s1-live` run 44196800695)_
 
 ## Technical Notes
 - Related design document: `spec/03_design/technical_design/c4_architecture.md` — ADR-006
@@ -32,7 +32,7 @@ As a **SpecForge developer**, I want **a throwaway prototype proving streaming, 
 - None
 
 ## Implementation Details
-Status **in progress**: AC-1–AC-5 verified live on Windows; AC-6 requires the macOS and Linux runs of the CI workflow `spike-s1-live` (product-owner decision 2026-10-14).
+Status **done**: AC-1–AC-6 verified live on Windows (2026-10-14), macOS and Linux (2026-11-17); ADR-006 confirmed. Product-owner decision 2026-11-18: the remaining condition (a completed live call with an API key, ADR-007) moves to US-066 AC-4.
 
 Files created:
 - `spikes/s1/package.json`, `package-lock.json`, `tsconfig.json`, `vitest.config.ts`, `.gitignore` — standalone throwaway spike package (npm; the pnpm monorepo follows in US-004)
@@ -43,17 +43,18 @@ Files created:
 - `spikes/s1/src/processTree.ts` — cross-platform process-tree listing (excludes the probe by PID)
 - `spikes/s1/src/record.ts` — records live outcomes to `spikes/s1/results/live-<platform>.json`
 - `spikes/s1/scripts/diag.ts` — diagnostic script printing all events and the process tree for a scenario
-- `spikes/s1/results/live-win32.json` — Windows evidence
-- `.github/workflows/spike-s1.yml` — manually triggered live run on macOS/Linux with `ANTHROPIC_API_KEY` secret
-- `docs/spikes/S1-claude-code-adapter.md` — results, findings and recommendation (**Go** for ADR-006, conditional on macOS/Linux + API-key path)
+- `spikes/s1/results/live-win32.json`, `live-darwin.json`, `live-linux.json` — evidence per OS
+- `.github/workflows/spike-s1.yml` — manually triggered live run on macOS/Linux; input `auth`: `subscription` (secret `CLAUDE_CODE_OAUTH_TOKEN`, default) or `api-key` (secret `ANTHROPIC_API_KEY`)
+- `docs/spikes/S1-claude-code-adapter.md` — results, findings and recommendation (**Go** for ADR-006; confirmed on all three OSes, API-key live check in US-066)
 
 Decisions / deviations:
-- Windows live run authenticated with the developer's local Claude Code login (developer-only exception agreed with the product owner); CI uses an API key per ADR-007.
+- Windows live run authenticated with the developer's local Claude Code login (developer-only exception agreed with the product owner). macOS/Linux CI runs authenticated with the developer's subscription token (product-owner decision 2026-11-17, same exception; API credit not used).
+- Fixes found by the macOS/Linux runs (2026-11-17): unit tests compare real temp paths (macOS `/var` → `/private/var`); AC-3 recognises the Node grandchild as `MainThread` on Linux (recent Node names its main thread, which `ps -o comm` reports).
 - Live tests use the default model (product-owner choice); sessions cost ≈ $0.03–$0.14.
-- Key findings for the design: resolve npm shims; always set `permissionMode: 'default'`; use `settingSources: []` and supply project instructions via ContextAssembler; Windows agents use a PowerShell tool instead of Bash (approval-rule suggestions must cover both); abort finished in 8.5 s, so keep the tree-kill fallback.
+- Key findings for the design: resolve npm shims; always set `permissionMode: 'default'`; use `settingSources: []` and supply project instructions via ContextAssembler; Windows agents use a PowerShell tool instead of Bash (approval-rule suggestions must cover both); abort finished in 8.5 s on Windows (≈ 2.5 s on macOS/Linux), so keep the tree-kill fallback; process-tree code must use PIDs, not names.
 
 ## Test Coverage
 - Coverage (unit tests, `spikes/s1/src`): **91.4 % lines**, 89.3 % statements, 77.6 % branches, 92.3 % functions
 - Unit tests: `spikes/s1/test/executable.test.ts`, `broker.test.ts`, `mapper.test.ts`, `processTree.test.ts`, `runner.test.ts`, `record.test.ts`, `docs.test.ts` — 28 passing (+1 POSIX-only skipped on Windows)
-- Live acceptance tests: `spikes/s1/test/live.test.ts` — 6 scenarios (AC-1, AC-2 allow after 10 min, AC-2 deny, AC-3, AC-4, AC-5), all passing on Windows; run with `npm run test:live`
+- Live acceptance tests: `spikes/s1/test/live.test.ts` — 6 scenarios (AC-1, AC-2 allow after 10 min, AC-2 deny, AC-3, AC-4, AC-5), all passing on Windows, macOS and Linux; run with `npm run test:live`
 - Tests written for this story: 35

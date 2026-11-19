@@ -4,6 +4,7 @@ import { MergeView, unifiedMergeView } from '@codemirror/merge';
 import { EditorState, type Extension } from '@codemirror/state';
 import { EditorView, lineNumbers } from '@codemirror/view';
 import { useEffect, useRef } from 'react';
+import { editorAppearance } from '../specs/editor-theme.js';
 
 function styleNonce(): string {
   return (window as { specforgeShell?: { styleNonce?: string } }).specforgeShell?.styleNonce ?? '';
@@ -22,6 +23,7 @@ export function DiffView({ before, after, mode, label }: DiffViewProps) {
   useEffect(() => {
     const base: Extension[] = [
       lineNumbers(),
+      editorAppearance,
       EditorState.readOnly.of(true),
       EditorView.editable.of(false),
       // The renderer CSP admits CodeMirror's style element only with the session nonce.

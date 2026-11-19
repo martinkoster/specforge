@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Recovery of a failed or interrupted run (US-055, UC-023, FR-026/FR-035): retry, resume or discard.
+import { Dialog, Skeleton } from '../components/index.js';
 import { useEffect, useState } from 'react';
 import type { CommandInput, QueryOutput } from '@specforge/ipc-contract';
 import type { CoreSession } from '../core/core-session.js';
@@ -44,11 +45,10 @@ export function RunRecoveryDialog({ session, projectId, storyId, onDone, onCance
   };
 
   return (
-    <div role="dialog" aria-modal="true" aria-labelledby="recover-title" className="dialog">
-      <h2 id="recover-title">Recover {storyId}</h2>
+    <Dialog title={`Recover ${storyId}`} onClose={onCancel} busy={busy}>
       {error && <p role="alert">{error}</p>}
       {!recovery ? (
-        <p>Loading…</p>
+        <Skeleton label="Loading the recovery options" />
       ) : (
         <>
           <section aria-label="Retry">
@@ -58,16 +58,16 @@ export function RunRecoveryDialog({ session, projectId, storyId, onDone, onCance
               <fieldset>
                 <legend>Branch</legend>
                 <label>
-                  <input type="radio" name="retry-branch" checked={!reuseBranch} onChange={() => setReuseBranch(false)} />
+                  <input className="radio" type="radio" name="retry-branch" checked={!reuseBranch} onChange={() => setReuseBranch(false)} />
                   Fresh branch from the base branch
                 </label>
                 <label>
-                  <input type="radio" name="retry-branch" checked={reuseBranch} onChange={() => setReuseBranch(true)} />
+                  <input className="radio" type="radio" name="retry-branch" checked={reuseBranch} onChange={() => setReuseBranch(true)} />
                   Reuse the existing branch
                 </label>
               </fieldset>
             )}
-            <button type="button" disabled={busy} onClick={() => void run({ action: 'retry', reuseBranch })}>
+            <button className="btn btn-secondary" type="button" disabled={busy} onClick={() => void run({ action: 'retry', reuseBranch })}>
               Retry
             </button>
           </section>
@@ -75,6 +75,7 @@ export function RunRecoveryDialog({ session, projectId, storyId, onDone, onCance
             <h3>Resume</h3>
             <p>Continues the agent session of the last run where it stopped.</p>
             <button
+              className="btn btn-secondary"
               type="button"
               disabled={busy || !recovery.resumable}
               title={recovery.resumable ? undefined : 'The agent session of the last run cannot be resumed.'}
@@ -88,21 +89,31 @@ export function RunRecoveryDialog({ session, projectId, storyId, onDone, onCance
             <p>Returns the story to Ready.</p>
             {recovery.hasWorktree && (
               <label>
-                <input type="checkbox" checked={removeWorktree} onChange={(e) => setRemoveWorktree(e.target.checked)} />
+                <input
+                  className="checkbox"
+                  type="checkbox"
+                  checked={removeWorktree}
+                  onChange={(e) => setRemoveWorktree(e.target.checked)}
+                />
                 Also remove the worktree
               </label>
             )}
-            <button type="button" disabled={busy} onClick={() => void run({ action: 'discard', removeWorktree })}>
+            <button
+              className="btn btn-danger"
+              type="button"
+              disabled={busy}
+              onClick={() => void run({ action: 'discard', removeWorktree })}
+            >
               Discard
             </button>
           </section>
         </>
       )}
-      <footer>
-        <button type="button" onClick={onCancel}>
+      <div className="dialog-footer">
+        <button className="btn btn-secondary" type="button" onClick={onCancel}>
           Cancel
         </button>
-      </footer>
-    </div>
+      </div>
+    </Dialog>
   );
 }

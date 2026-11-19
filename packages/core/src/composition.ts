@@ -3,7 +3,7 @@
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { ClaudeCodeAdapter, detectClaudeCode, systemEnvironment, verifyClaudeCode } from '@specforge/agent-claude-code';
 import {
   ApprovalService,
@@ -240,7 +240,7 @@ export async function createCore(options: CoreOptions): Promise<Core> {
       },
     },
     newId: randomUUID,
-    join,
+    isAbsolute,
   });
 
   // US-024: merge checks of the open project (open, interval, focus, after SpecForge Git operations).
@@ -1060,6 +1060,7 @@ export async function createCore(options: CoreOptions): Promise<Core> {
     'board.recheck': ({ projectId, storyId }) => board.recheck(projectId, storyId),
     'board.move': ({ projectId, storyId, to, beforeStoryId }) => board.move(projectId, storyId, to, beforeStoryId),
     'projects.gitAvailable': async () => ({ available: await service.gitAvailable() }),
+    'projects.inspectFolder': ({ path }) => service.inspectFolder(path),
     'shell.state': async () => {
       const current = currentProjectId ? await projects.get(currentProjectId) : undefined;
       return {

@@ -35,7 +35,7 @@ The Scheduler calls back into execution through a `RunLauncher` port implemented
 
 ## ProjectService
 **Purpose**: Create, open, adopt, list, rename, remove projects; detect their VCS mode; detect merged story branches.
-**Public Interface**: `project.create({name, path, initGit?})`, `project.open(id)`, `project.adopt(path)` (brownfield registration; the UI then offers `spec.analyze`, FR-079, Release 2), `project.list()`, `project.rename`, `project.remove(id)`, `merge.refresh(projectId)` (manual *Refresh*, FR-115); events `ProjectOpened`, `VcsModeChanged`, `StoryMerged`.
+**Public Interface**: `project.create({name, path, initGit?})` (path = picked empty or new folder, D24), `project.inspectFolder(path)` (project / empty / notEmpty, US-068), `project.open(id)`, `project.adopt(path)` (brownfield registration; the UI then offers `spec.analyze`, FR-079, Release 2), `project.list()`, `project.rename`, `project.remove(id)`, `merge.refresh(projectId)` (manual *Refresh*, FR-115); events `ProjectOpened`, `VcsModeChanged`, `StoryMerged`.
 **Merge detection (FR-115)**: for every approved story with an unmerged branch, calls `ExecutionSpaceManager.isMerged(branch, base)` (`git merge-base --is-ancestor`) on project open, on window focus, after git operations SpecForge performs, every `merge_check_interval_s` (default 60 s) and on `merge.refresh`; sets `story.merged_at`, emits `StoryMerged` (→ epic *Merged* status, "merged" count, "Merge n approved branches" next step; later stacked bases use the base branch).
 **Dependencies**: WorkspaceIndexer, ExecutionSpaceManager (merge detection), Git port, Persistence, ExecutionService (startup recovery).
 **Data Owned**: `project`, `.specforge/project.yaml`, `story.merged_at`.

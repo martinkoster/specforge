@@ -9,12 +9,14 @@ import {
   app,
   dialog,
   ipcMain,
+  nativeTheme,
   safeStorage,
   session,
   shell,
   utilityProcess,
   type MessagePortMain,
 } from 'electron';
+import { appPaths } from './app-paths.js';
 import { CloseCoordinator } from './close-coordinator.js';
 import { CoreSupervisor } from './core-supervisor.js';
 import { notificationContent } from './notifications.js';
@@ -23,23 +25,25 @@ import { handleOpenPath } from './open-path.js';
 import { handleSecretRequest } from './secret-bridge.js';
 import { SecretVault } from './secret-vault.js';
 import { contentSecurityPolicy, createStyleNonce, installNavigationGuards, secureWebPreferences } from './security.js';
+import { applyThemeRequest, readThemePreference, themeBackground } from './ui-preferences.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const TEST_MODE = process.env.SPECFORGE_TEST === '1';
 const STYLE_NONCE = createStyleNonce();
 // Tests run against an isolated profile.
 if (TEST_MODE && process.env.SPECFORGE_USER_DATA) app.setPath('userData', process.env.SPECFORGE_USER_DATA);
-const paths = {
-  preload: join(here, 'preload.cjs'),
-  core: join(here, '..', '..', 'core', 'dist', 'main.js'),
-  page: join(here, '..', '..', 'ui', 'dist', 'app', 'index.html'),
-};
+const paths = appPaths(here, app.isPackaged);
 
 function createWindow(): BrowserWindow {
   const window = new BrowserWindow({
     width: 1280,
     height: 800,
+    // US-072 AC-5: below this the shell layout would not fit.
+    minWidth: 1024,
+    minHeight: 640,
     title: 'SpecForge',
+    // US-077 AC-3: the theme background from the first frame (no flash of the other theme).
+    backgroundColor: themeBackground(nativeTheme.shouldUseDarkColors),
     webPreferences: secureWebPreferences(paths.preload),
   });
   const appUrl = pathToFileURL(paths.page).href + (TEST_MODE ? '?test=1' : '');
@@ -90,7 +94,22 @@ void app.whenReady().then(() => {
   ipcMain.on('specforge:style-nonce', (event) => {
     event.returnValue = STYLE_NONCE;
   });
+  // US-077 (FR-117): the stored theme applies before the window exists; the renderer reads and changes it.
+  const themeFile = join(app.getPath('userData'), 'ui-preferences.json');
+  nativeTheme.themeSource = readThemePreference(themeFile);
   const window = createWindow();
+  nativeTheme.on('updated', () => {
+    if (!window.isDestroyed()) window.setBackgroundColor(themeBackground(nativeTheme.shouldUseDarkColors));
+  });
+  ipcMain.handle('specforge:get-theme', () => nativeTheme.themeSource);
+  ipcMain.handle('specforge:set-theme', (event, value: unknown) =>
+    applyThemeRequest({
+      fromApp: event.senderFrame?.url.split('?')[0] === pathToFileURL(paths.page).href,
+      value,
+      file: themeFile,
+      nativeTheme,
+    }),
+  );
   // US-049 AC-2: closing with active runs asks the renderer first.
   const fromApp = (event: Electron.IpcMainEvent) => event.senderFrame?.url.split('?')[0] === pathToFileURL(paths.page).href;
   const closing = new CloseCoordinator({

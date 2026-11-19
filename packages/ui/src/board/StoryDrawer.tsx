@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Story drawer (US-043 AC-3, US-040 AC-1): status, queue position, Remove from queue, dependency editor; the review of
 // stories in Review (US-057); its trace and rejected branches (US-034, US-058).
+import { Drawer } from '../components/index.js';
 import { useEffect, useState, type ReactNode } from 'react';
 import type { CommandOutput } from '@specforge/ipc-contract';
 import { DependencyEditor, type DependencyEditorProps } from '../stories/DependencyEditor.js';
@@ -43,15 +44,7 @@ export function StoryDrawer({
     if (card.status === 'review') setReviewed(true);
   }, [card.status]);
   return (
-    <div role="dialog" aria-label={`${card.storyId} ${card.title}`} className="drawer">
-      <header className="drawer-header">
-        <h2>
-          {card.storyId} {card.title}
-        </h2>
-        <button type="button" onClick={onClose}>
-          Close
-        </button>
-      </header>
+    <Drawer title={`${card.storyId} ${card.title}`} onClose={onClose}>
       <p>
         {COLUMN_LABELS[card.status]}
         {queued && ` · ${queueLabel(board, card)}`}
@@ -62,7 +55,7 @@ export function StoryDrawer({
         </p>
       )}
       {queued && (
-        <button type="button" onClick={onRemoveFromQueue}>
+        <button className="btn btn-secondary" type="button" onClick={onRemoveFromQueue}>
           Remove from queue
         </button>
       )}
@@ -78,6 +71,6 @@ export function StoryDrawer({
         onRemove={onRemoveDependency ?? noChange}
       />
       {details}
-    </div>
+    </Drawer>
   );
 }

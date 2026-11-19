@@ -56,8 +56,7 @@ async function boot(initGit: boolean, script: (request: RunRequest) => MockStep[
   );
   const project = await client.command('projects.create', {
     name: 'Excl',
-    parentDir: mkdtempSync(join(tmpdir(), 'sf-excl-ws-')),
-    folderName: 'excl',
+    path: join(mkdtempSync(join(tmpdir(), 'sf-excl-ws-')), 'excl'),
     initGit,
   });
   writeFileSync(join(project.path, 'spec', '04_user_stories', 'US-001.md'), STORY);

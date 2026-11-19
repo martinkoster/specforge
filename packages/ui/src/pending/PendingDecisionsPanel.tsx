@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Pending decisions (US-053 AC-2, UC-027): permission requests, reviews, failed/interrupted runs, blocked queue items and
 // recommendations, grouped by story or run.
+import { Drawer, EmptyState } from '../components/index.js';
 import type { QueryOutput } from '@specforge/ipc-contract';
 import { PermissionPrompt, type PermissionDecision, type PermissionPromptProps } from './PermissionPrompt.js';
 
@@ -24,14 +25,10 @@ const LABELS: Record<'failed' | 'interrupted' | 'blocked' | 'review' | 'recommen
 export function PendingDecisionsPanel({ groups, onDecide, onOpenBoard, onClose }: PendingDecisionsPanelProps) {
   const count = groups.reduce((n, g) => n + g.items.length, 0);
   return (
-    <div role="dialog" aria-label={`Pending decisions (${count})`} className="drawer">
-      <header className="drawer-header">
-        <h2>Pending decisions</h2>
-        <button type="button" onClick={onClose}>
-          Close
-        </button>
-      </header>
-      {groups.length === 0 && <p>Nothing is waiting for you.</p>}
+    <Drawer title="Pending decisions" label={`Pending decisions (${count})`} onClose={onClose}>
+      {groups.length === 0 && (
+        <EmptyState compact title="Nothing is waiting for you." description="Permission requests, reviews and failed runs appear here." />
+      )}
       {groups.map((group) => {
         const label = group.storyId ? `${group.storyId} ${group.title}` : group.title;
         return (
@@ -52,13 +49,13 @@ export function PendingDecisionsPanel({ groups, onDecide, onOpenBoard, onClose }
               ),
             )}
             {group.storyId && group.items.some((i) => i.kind !== 'permission') && (
-              <button type="button" onClick={() => onOpenBoard(group.storyId!)}>
+              <button className="btn btn-secondary" type="button" onClick={() => onOpenBoard(group.storyId!)}>
                 Open on the board
               </button>
             )}
           </section>
         );
       })}
-    </div>
+    </Drawer>
   );
 }

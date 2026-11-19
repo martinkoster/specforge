@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Clarify the intent with AI (US-028, UC-005): questions, ambiguities, alternatives and assumptions as cards; answers
 // continue the agent session; finishing proposes a "Clarified decisions" section; cancelling keeps a draft.
+import { Skeleton } from '../components/index.js';
 import { useCallback, useEffect, useState } from 'react';
 import type { QueryOutput } from '@specforge/ipc-contract';
 import type { CoreSession } from '../core/core-session.js';
@@ -33,6 +34,7 @@ function ItemCard({ item, value, onChange }: { item: Item; value: string; onChan
       {item.type === 'assumption' ? (
         <span>
           <button
+            className="btn btn-secondary"
             type="button"
             aria-pressed={value === 'accepted'}
             aria-label={`Accept assumption: ${item.text}`}
@@ -41,6 +43,7 @@ function ItemCard({ item, value, onChange }: { item: Item; value: string; onChan
             Accept
           </button>
           <button
+            className="btn btn-secondary"
             type="button"
             aria-pressed={value === 'rejected'}
             aria-label={`Reject assumption: ${item.text}`}
@@ -54,13 +57,19 @@ function ItemCard({ item, value, onChange }: { item: Item; value: string; onChan
           <legend className="visually-hidden">{item.text}</legend>
           {item.options.map((option) => (
             <label key={option}>
-              <input type="radio" name={`alt-${item.id}`} checked={value === option} onChange={() => onChange(option)} />
+              <input className="radio" type="radio" name={`alt-${item.id}`} checked={value === option} onChange={() => onChange(option)} />
               {option}
             </label>
           ))}
         </fieldset>
       ) : (
-        <textarea aria-label={`Answer to: ${item.text}`} rows={2} value={value} onChange={(e) => onChange(e.target.value)} />
+        <textarea
+          className="textarea"
+          aria-label={`Answer to: ${item.text}`}
+          rows={2}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+        />
       )}
     </li>
   );
@@ -112,7 +121,7 @@ export function ClarificationPanel({ session, projectId, path, onChanged, aiDisa
     onChanged();
   };
 
-  if (record === undefined) return <p>Loading…</p>;
+  if (record === undefined) return <Skeleton label="Loading the clarification" />;
   const id = record?.id;
   // Answers typed since the last submit are saved before finishing.
   const unsaved = (record?.items ?? []).some((i) => (answers[i.id] ?? null) !== i.answer && (answers[i.id] ?? '') !== '');
@@ -122,7 +131,13 @@ export function ClarificationPanel({ session, projectId, path, onChanged, aiDisa
       <h2>Clarify with AI</h2>
       {error && <p role="alert">{error}</p>}
       {(!record || record.state === 'finished' || record.state === 'failed') && (
-        <button type="button" disabled={aiDisabledReason !== null} title={aiDisabledReason ?? undefined} onClick={start}>
+        <button
+          className="btn btn-secondary"
+          type="button"
+          disabled={aiDisabledReason !== null}
+          title={aiDisabledReason ?? undefined}
+          onClick={start}
+        >
           Analyse intent
         </button>
       )}
@@ -146,6 +161,7 @@ export function ClarificationPanel({ session, projectId, path, onChanged, aiDisa
       {editable && id && (
         <footer>
           <button
+            className="btn btn-secondary"
             type="button"
             disabled={aiDisabledReason !== null}
             onClick={() => void session.client().command('clarify.answer', { clarificationId: id, answers }).then(decision).catch(fail)}
@@ -154,6 +170,7 @@ export function ClarificationPanel({ session, projectId, path, onChanged, aiDisa
           </button>
           {record.state === 'cancelled' && (
             <button
+              className="btn btn-secondary"
               type="button"
               onClick={() =>
                 void session.client().command('clarify.saveDraft', { clarificationId: id, answers }).then(decision).catch(fail)
@@ -163,6 +180,7 @@ export function ClarificationPanel({ session, projectId, path, onChanged, aiDisa
             </button>
           )}
           <button
+            className="btn btn-secondary"
             type="button"
             onClick={() =>
               void (unsaved ? session.client().command('clarify.saveDraft', { clarificationId: id, answers }) : Promise.resolve())
@@ -181,6 +199,7 @@ export function ClarificationPanel({ session, projectId, path, onChanged, aiDisa
       )}
       {record && (record.state === 'running' || record.state === 'awaiting_answers') && (
         <button
+          className="btn btn-secondary"
           type="button"
           onClick={() => void session.client().command('clarify.cancel', { clarificationId: record.id }).then(decision).catch(fail)}
         >

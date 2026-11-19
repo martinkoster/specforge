@@ -1,21 +1,19 @@
 // SPDX-License-Identifier: Apache-2.0
 // US-065 AC-3 (NFR-020): the primary workflow is completable with the keyboard only (every control reached with Tab,
 // activated with Enter/Space or typed into), and every primary area passes the automated WCAG 2.1 AA contrast check
-// (axe-core `color-contrast`).
-import { mkdtempSync, writeFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
+// (axe-core `color-contrast`) in the light and the dark colour scheme (US-069 AC-4).
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { ElectronApplication, Page } from 'playwright-core';
 import { afterAll, describe, expect, it } from 'vitest';
-import { launch, storyFile, stubFolderPicker, tempProfile, waitForColumn } from './e2e-support.js';
+import { contrastViolations, launch, storyFile, stubFolderPicker, tempProfile, waitForColumn } from './e2e-support.js';
 
 let app: ElectronApplication | undefined;
 afterAll(async () => {
   await app?.close();
 });
 
-const AXE = (createRequire(import.meta.url)('axe-core') as { source: string }).source;
 const AREAS = ['Dashboard', 'Projects', 'Intent', 'Specifications', 'Kanban', 'Executions', 'Settings'];
 
 /** Accessible name of the focused element (aria-label, associated label or text). */
@@ -23,7 +21,12 @@ const focusedName = (page: Page) =>
   page.evaluate(() => {
     const el = document.activeElement as HTMLElement | null;
     if (!el || el === document.body) return '';
-    const label = el.getAttribute('aria-label') ?? (el as HTMLInputElement).labels?.[0]?.textContent ?? el.textContent ?? '';
+    const labelledBy = el
+      .getAttribute('aria-labelledby')
+      ?.split(' ')
+      .map((id) => document.getElementById(id)?.textContent ?? '')
+      .join(' ');
+    const label = el.getAttribute('aria-label') ?? labelledBy ?? (el as HTMLInputElement).labels?.[0]?.textContent ?? el.textContent ?? '';
     return label.replace(/\s+/g, ' ').trim();
   });
 
@@ -48,35 +51,18 @@ async function choose(page: Page, selectName: string, option: string): Promise<v
   await page.keyboard.type(option);
 }
 
-async function contrastViolations(page: Page): Promise<string[]> {
-  // Evaluated through the DevTools protocol, so the renderer CSP does not apply.
-  await page.evaluate(AXE);
-  return page.evaluate(async () => {
-    const axe = (
-      window as unknown as {
-        axe: {
-          run(context: Document, options: object): Promise<{ violations: { nodes: { target: string[]; failureSummary?: string }[] }[] }>;
-        };
-      }
-    ).axe;
-    const result = await axe.run(document, { runOnly: { type: 'rule', values: ['color-contrast'] }, resultTypes: ['violations'] });
-    return result.violations.flatMap((v) => v.nodes.map((n) => `${n.target.join(' ')}: ${n.failureSummary ?? ''}`));
-  });
-}
-
 describe('US-065 AC-3: keyboard and contrast', () => {
   it('completes the primary workflow with the keyboard only; all primary areas pass the contrast check', async () => {
     ({ app } = await launch(tempProfile(), { mockAgent: true }));
     const page = (await app.firstWindow()) as Page;
     const parent = mkdtempSync(join(tmpdir(), 'sf-e2e-a11y-'));
-    await stubFolderPicker(app, parent);
+    mkdirSync(join(parent, 'keys'));
+    await stubFolderPicker(app, join(parent, 'keys'));
     expect(await contrastViolations(page)).toEqual([]);
 
     // Create a project.
+    // US-068: folder first; the project name is pre-filled from the folder name.
     await press(page, 'Create new project');
-    await tabTo(page, /^Project name/);
-    await page.keyboard.type('Keys');
-    await press(page, 'Choose location…');
     await press(page, 'Create');
     await page.getByRole('heading', { name: 'Intent' }).waitFor();
 
@@ -121,12 +107,15 @@ describe('US-065 AC-3: keyboard and contrast', () => {
     await press(page, 'Close');
     await waitForColumn(page, 'US-001', 'Done');
 
-    // Contrast in every primary area.
+    // Contrast in every primary area, in the light and the dark colour scheme (US-069 AC-4, D25).
     const violations: string[] = [];
-    for (const area of AREAS) {
-      await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: area }).click();
-      await page.waitForTimeout(300);
-      violations.push(...(await contrastViolations(page)).map((v) => `${area}: ${v}`));
+    for (const colorScheme of ['light', 'dark'] as const) {
+      await page.emulateMedia({ colorScheme });
+      for (const area of AREAS) {
+        await page.getByRole('navigation', { name: 'Primary' }).getByRole('button', { name: area }).click();
+        await page.waitForTimeout(300);
+        violations.push(...(await contrastViolations(page)).map((v) => `${colorScheme} ${area}: ${v}`));
+      }
     }
     expect(violations).toEqual([]);
   }, 300_000);

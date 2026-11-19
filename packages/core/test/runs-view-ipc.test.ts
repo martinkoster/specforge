@@ -56,8 +56,7 @@ describe('US-054 over IPC', () => {
 
     const project = await client.command('projects.create', {
       name: 'View',
-      parentDir: mkdtempSync(join(tmpdir(), 'sf-view-ws-')),
-      folderName: 'view',
+      path: join(mkdtempSync(join(tmpdir(), 'sf-view-ws-')), 'view'),
       initGit: true,
     });
     writeFileSync(

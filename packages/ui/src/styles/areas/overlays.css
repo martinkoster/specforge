@@ -1,0 +1,53 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Pending decisions and permission prompts (UF-05, US-076, ui_design_concept.md §4.2, §5). */
+@layer areas {
+  .pending-group {
+    padding: var(--space-3) 0;
+    border-top: 1px solid var(--border);
+  }
+
+  .pending-group:first-of-type {
+    border-top: none;
+  }
+
+  .pending-group h3 {
+    margin: 0 0 var(--space-2);
+    font-size: var(--text-md);
+  }
+
+  .permission-prompt {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin: var(--space-2) 0;
+    padding: var(--space-3);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--warning);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+  }
+
+  .permission-head {
+    margin: 0;
+  }
+
+  .permission-args {
+    max-height: 10rem;
+    margin: 0;
+    overflow: auto;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-md);
+    background: var(--bg-subtle);
+    white-space: pre-wrap;
+  }
+
+  .permission-prompt .field {
+    margin-bottom: 0;
+  }
+
+  .permission-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+}

@@ -73,7 +73,7 @@ SpecForge is a single installable Electron application made of three OS processe
 
 | Container | Technology | Responsibility | Rationale |
 |---|---|---|---|
-| Renderer | React 19, TypeScript, Vite, Tailwind + Radix UI, dnd-kit, React Flow, CodeMirror 6 (Markdown editor, `@codemirror/merge` diffs) | All UI; no Node access (sandboxed, `contextIsolation`) | Rich-client UX (§6), mature components for boards, graphs, diffs |
+| Renderer | React 19, TypeScript, Vite, design tokens + plain CSS (ADR-023), Radix UI primitives, Lucide icons, dnd-kit, React Flow, CodeMirror 6 (Markdown editor, `@codemirror/merge` diffs) | All UI; no Node access (sandboxed, `contextIsolation`) | Rich-client UX (§6), mature components for boards, graphs, diffs |
 | Main process | Electron main (TypeScript) | Window/app lifecycle, IPC broker between renderer and core, OS notifications, `safeStorage` encryption, close-with-active-runs guard (FR-041) | Keep thin so it never blocks UI event delivery |
 | Core service | Electron `utilityProcess` running Node 22+/TypeScript | All business logic and I/O | Isolates CPU/IO from the UI and from window management (NFR-001); crash of core does not kill the UI (shows "reconnecting") |
 | SQLite DB | SQLite 3 via better-sqlite3, WAL, FTS5 | Registry, index, runs, events, permissions, queue | Embedded, zero-admin, transactional, crash-safe (NFR-015, CON-012) |
@@ -148,7 +148,7 @@ SpecForge is a single installable Electron application made of three OS processe
 | ADR-003 | Modular monolith, hexagonal, CI-enforced layering | Accepted |
 | ADR-004 | Workspace Markdown = source of truth; offer "Commit spec changes" | Accepted |
 | ADR-005 | SQLite via better-sqlite3 + Kysely | Accepted |
-| ADR-006 | Agent SDK with user's executable | Accepted, conditional on spike S1 |
+| ADR-006 | Agent SDK with user's executable | Accepted (confirmed by S1 on Windows, macOS and Linux, 2026-11-17) |
 | ADR-007 | API key / cloud provider auth only | Accepted |
 | ADR-008 | Adapter contract; fenced `specforge-result` JSON | Accepted |
 | ADR-009 | Single-writer scheduler; all implementation/correction/retry/resume starts via Scheduler; corrections jump queue; spec runs outside limit | Accepted |
@@ -165,6 +165,7 @@ SpecForge is a single installable Electron application made of three OS processe
 | ADR-020 | Epics as planning artifacts with derived status; swimlanes; per-story merges | Accepted (from intent D21) |
 | ADR-021 | Feature intents as delta artifacts with change sets, impact analysis and rework stories (Release 2) | Accepted (from intent D22) |
 | ADR-022 | TypeScript pinned to 6.0.x (TS 7 lacks the compiler API needed by lint/layering tooling) | Accepted (2026-10-15) |
+| ADR-023 | UI styling: design tokens as CSS custom properties + plain CSS in cascade layers; Radix primitives for behaviour only; Lucide icons; theme via `nativeTheme.themeSource` (replaces "Tailwind" in the renderer stack) | Accepted (from intent D25, 2026-11-18) |
 
 ### ADR-001: Electron + TypeScript as desktop framework
 **Status**: Accepted (2026-10-13)
@@ -203,7 +204,7 @@ SpecForge is a single installable Electron application made of three OS processe
 **Consequences**: (+) Single file, robust, fast. (−) Native module must be rebuilt per Electron version/platform (electron-builder handles it). Alternative: Node's built-in `node:sqlite` — reconsider when stable in Electron's Node.
 
 ### ADR-006: Claude Code integration via the Claude Agent SDK, pointing to the user's executable
-**Status**: Accepted, conditional on spike S1 (2026-10-13) — if S1 fails, fall back to the CLI + PreToolUse hook adapter
+**Status**: Accepted (2026-10-13); confirmed by spike S1 on Windows (2026-10-14), macOS and Linux (2026-11-17) — `docs/spikes/S1-claude-code-adapter.md`. The CLI + PreToolUse hook fallback is not needed. A completed live run with an API key or cloud provider (ADR-007) is checked in the manual MVP acceptance (US-066; product-owner decision 2026-11-18).
 **Context**: The adapter needs streaming events, live permission relay (D3), cancellation, session resume (D5) and per-run configuration. Options:
 (a) spawn `claude -p --output-format stream-json` and relay permissions via `--permission-prompt-tool` (MCP) — the flag is documented but its request/response payload is **not documented**;
 (b) spawn the CLI and relay via a `PreToolUse` hook that calls back into SpecForge — documented, but hook timeouts (600 s default, fail-open unless `onFailure: "block"`) complicate long human waits;
@@ -212,7 +213,7 @@ SpecForge is a single installable Electron application made of three OS processe
 **Consequences**:
 - (+) Fully documented, typed, no fragile output parsing; permission relay is first-class.
 - (+) One agent process per run → natural isolation for parallel runs (D10).
-- (−) Auto-approved calls (via Claude Code's own allow rules/settings) never reach `canUseTool`; SpecForge therefore passes no allow-lists to the agent and keeps all rules in its own PermissionPolicy (ADR-013). Spike S1 must verify that user/project Claude settings cannot auto-approve actions that bypass the relay, and configure setting sources accordingly.
+- (−) Auto-approved calls (via Claude Code's own allow rules/settings) never reach `canUseTool`; SpecForge therefore passes no allow-lists to the agent and keeps all rules in its own PermissionPolicy (ADR-013). Spike S1 verified that project allow rules did not bypass the relay; the adapter nevertheless passes `settingSources: []` (isolation) and supplies project instructions via the ContextAssembler.
 - (−) SDK version coupling; adapter pins a tested SDK range and checks the executable's version (minimum version recorded in settings).
 - Product must not be branded with "Claude Code" naming (Agent SDK terms).
 
@@ -364,3 +365,9 @@ On capability loss while runs are active, SpecForge does not stop them: active r
 **Context**: TypeScript 7 is the native (Go) compiler and does not expose the JavaScript compiler API. typescript-eslint (supports TypeScript < 6.1) and dependency-cruiser (TypeScript parsing for the layering rules, ADR-003) depend on that API; with TS 7 linting failed and the layering check found no dependencies (US-004).
 **Decision**: Pin `typescript` to `~6.0` for the whole workspace (build, type-check, lint, layering). Re-evaluate quarterly, or when typescript-eslint and dependency-cruiser support TypeScript 7; a mixed setup (TS 7 for builds, TS 6 for tooling) is not used, to avoid two compilers disagreeing.
 **Consequences**: (+) Working lint and enforced layering. (−) No speed-up from the native compiler for now; a later migration must re-run the full tooling checks.
+
+### ADR-023: UI styling with design tokens and plain CSS
+**Status**: Accepted (2026-11-18, from intent D25)
+**Context**: The container table (Level 2) and the technology stack named "Tailwind + Radix UI" for the renderer, but neither was adopted during Release 1; the UI grew as one hand-written stylesheet without tokens, and looks dated (no consistent controls, colours or dark theme). The renderer CSP forbids inline styles (`style-src 'self'` + per-session nonce for CodeMirror). The product owner chose a modern developer-tool look with light and dark themes (D25, `ui_design_concept.md`).
+**Decision**: (1) All visual values are **design tokens** (CSS custom properties) in `packages/ui/src/styles/tokens.css`, with dark values under `@media (prefers-color-scheme: dark)`. (2) Styles are **plain static CSS** organised in **cascade layers** (`reset, tokens, base, components, areas, utilities`) with component classes and ARIA/data-attribute states; no CSS-in-JS runtime, no Tailwind. (3) **Radix UI primitives** are used only where behaviour and accessibility matter (dialog, dropdown menu, popover, tooltip); they are styled with the same classes. (4) **Lucide** (`lucide-react`, ISC) is the icon set. (5) The theme preference (*System / Light / Dark*, FR-117) is owned by the **main process**: it is stored in a small preferences file in the user-data directory and applied via Electron `nativeTheme.themeSource` before the window is created, so CSS media queries, native controls and the title bar follow one setting; the renderer changes it over the shell bridge. (6) Guardrails: a check rejects colour/shadow/font-size literals outside the token file; the axe contrast check runs in both themes (NFR-020, NFR-033).
+**Consequences**: (+) Existing class-based markup can be migrated area by area; CSP stays strict; no utility-class churn across ~40 components; tokens make both themes and third-party views (CodeMirror, React Flow, logs) consistent. (+) Theme switching needs no re-render logic in React. (−) No ready-made utility vocabulary — component CSS must be written and kept disciplined (layers, naming, lint check). (−) Deviates from the originally named Tailwind; the stack tables are updated accordingly.

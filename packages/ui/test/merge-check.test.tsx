@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 // @vitest-environment happy-dom
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanupChecked } from './styled-controls.js';
 import { App } from '../src/App.js';
 import { KanbanArea } from '../src/board/KanbanArea.js';
 import { closeFakeCores, fakeCore } from './fake-core.js';
 
 afterEach(() => {
-  cleanup();
+  cleanupChecked();
   closeFakeCores();
 });
 
@@ -38,8 +39,15 @@ describe('US-024 AC-1/AC-2: merge check triggers in the UI', () => {
     render(<App session={session} testMode={false} />);
     await screen.findByRole('button', { name: 'Close project' });
 
-    act(() => void window.dispatchEvent(new Event('focus')));
-    await vi.waitFor(() => expect(check).toHaveBeenCalledWith(expect.objectContaining({ projectId: 'p1' })));
+    // The focus listener is registered in a passive effect that may run after the button is visible: refocus
+    // until the check arrives instead of relying on a single event.
+    await vi.waitFor(
+      () => {
+        act(() => void window.dispatchEvent(new Event('focus')));
+        expect(check).toHaveBeenCalledWith(expect.objectContaining({ projectId: 'p1' }));
+      },
+      { timeout: 5000, interval: 100 },
+    );
   });
 
   it('does not check in non-git mode', async () => {

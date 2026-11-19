@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Close dialog (US-049 AC-2, FR-041): closing with active runs lists them; confirming stops them (Interrupted).
+import { Dialog } from '../components/index.js';
 import { useEffect, useState } from 'react';
 import type { QueryOutput } from '@specforge/ipc-contract';
 import type { CoreSession } from '../core/core-session.js';
@@ -32,10 +33,20 @@ export function CloseGuard({ session, bridge }: { session: CoreSession; bridge: 
   }, [session, bridge]);
 
   if (!runs) return null;
+  const keepRunning = () => {
+    setRuns(null);
+    bridge.cancel();
+  };
+
   return (
-    <div role="alertdialog" aria-modal="true" aria-labelledby="close-title" className="dialog">
-      <h2 id="close-title">Runs are still active</h2>
-      <p>Closing SpecForge stops these runs; they are marked Interrupted and can be retried later.</p>
+    <Dialog
+      role="alertdialog"
+      tone="danger"
+      title="Runs are still active"
+      description="Closing SpecForge stops these runs; they are marked Interrupted and can be retried later."
+      busy={busy}
+      onClose={keepRunning}
+    >
       <ul>
         {runs.map((r) => (
           <li key={r.runId}>
@@ -43,29 +54,25 @@ export function CloseGuard({ session, bridge }: { session: CoreSession; bridge: 
           </li>
         ))}
       </ul>
-      <button
-        type="button"
-        disabled={busy}
-        onClick={() => {
-          setBusy(true);
-          void session
-            .client()
-            .command('runs.interruptAll', {})
-            .finally(() => bridge.confirm());
-        }}
-      >
-        Stop runs and close
-      </button>
-      <button
-        type="button"
-        disabled={busy}
-        onClick={() => {
-          setRuns(null);
-          bridge.cancel();
-        }}
-      >
-        Keep running
-      </button>
-    </div>
+      <div className="dialog-footer">
+        <button className="btn btn-secondary" type="button" disabled={busy} onClick={keepRunning}>
+          Keep running
+        </button>
+        <button
+          className="btn btn-danger"
+          type="button"
+          disabled={busy}
+          onClick={() => {
+            setBusy(true);
+            void session
+              .client()
+              .command('runs.interruptAll', {})
+              .finally(() => bridge.confirm());
+          }}
+        >
+          Stop runs and close
+        </button>
+      </div>
+    </Dialog>
   );
 }

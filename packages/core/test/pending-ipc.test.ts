@@ -59,8 +59,7 @@ async function boot() {
 async function startStory(client: ContractClient) {
   const project = await client.command('projects.create', {
     name: 'Pend',
-    parentDir: mkdtempSync(join(tmpdir(), 'sf-pend-ws-')),
-    folderName: 'pend',
+    path: join(mkdtempSync(join(tmpdir(), 'sf-pend-ws-')), 'pend'),
     initGit: true,
   });
   writeFileSync(

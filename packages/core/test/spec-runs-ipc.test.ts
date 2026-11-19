@@ -56,8 +56,7 @@ async function boot(script: (prompt: string) => MockStep[]): Promise<{ client: C
   );
   const project = await client.command('projects.create', {
     name: 'Spec',
-    parentDir: mkdtempSync(join(tmpdir(), 'sf-spec-ws-')),
-    folderName: 'spec-project',
+    path: join(mkdtempSync(join(tmpdir(), 'sf-spec-ws-')), 'spec-project'),
     initGit: false,
   });
   writeFileSync(join(project.path, 'spec', '02_requirements', 'functional_requirements.md'), EXISTING);

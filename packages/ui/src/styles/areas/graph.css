@@ -1,0 +1,74 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Dependency graph (React Flow, FR-064, US-074). React Flow's own stylesheet reads these variables, so its nodes, edges,
+   controls, minimap and background follow the tokens in both themes. */
+@layer areas {
+  .graph-canvas {
+    height: 70vh;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+  }
+
+  .graph-canvas .react-flow {
+    --xy-background-color: var(--bg);
+    --xy-background-pattern-color: var(--border);
+    --xy-node-background-color: var(--surface);
+    --xy-node-color: var(--text);
+    --xy-node-border: 1px solid var(--border-strong);
+    --xy-node-border-radius: var(--radius-md);
+    --xy-node-boxshadow-hover: var(--shadow-md);
+    --xy-node-boxshadow-selected: 0 0 0 2px var(--focus);
+    --xy-edge-stroke: var(--text-subtle);
+    --xy-edge-stroke-selected: var(--accent);
+    --xy-controls-button-background-color: var(--surface);
+    --xy-controls-button-background-color-hover: var(--surface-hover);
+    --xy-controls-button-color: var(--text);
+    --xy-controls-button-color-hover: var(--text);
+    --xy-controls-button-border-color: var(--border);
+    --xy-controls-box-shadow: var(--shadow-md);
+    --xy-minimap-background-color: var(--bg-subtle);
+    --xy-attribution-background-color: transparent;
+  }
+
+  .graph-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin: 0 0 var(--space-3);
+    padding: 0;
+    list-style: none;
+  }
+
+  .graph-legend li {
+    padding: 0 var(--space-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-full);
+    color: var(--text);
+    font-size: var(--text-xs);
+    line-height: var(--leading-sm);
+  }
+
+  .graph-node-backlog {
+    background: var(--surface-hover);
+  }
+
+  .graph-node-ready {
+    background: var(--info-subtle);
+  }
+
+  .graph-node-in_progress {
+    background: var(--warning-subtle);
+  }
+
+  .graph-node-review {
+    background: var(--review-subtle);
+  }
+
+  .graph-node-done {
+    background: var(--success-subtle);
+  }
+
+  .edge-related path {
+    stroke-dasharray: 4 4;
+  }
+}

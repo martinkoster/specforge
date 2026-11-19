@@ -49,8 +49,7 @@ describe('US-034 over IPC', () => {
 
     const project = await client.command('projects.create', {
       name: 'T',
-      parentDir: mkdtempSync(join(tmpdir(), 'sf-trace-ws-')),
-      folderName: 't',
+      path: join(mkdtempSync(join(tmpdir(), 'sf-trace-ws-')), 't'),
       initGit: false,
     });
     writeFileSync(join(project.path, 'spec', '02_requirements', 'fr.md'), '---\nkind: requirements\n---\n### FR-001: Login\n');

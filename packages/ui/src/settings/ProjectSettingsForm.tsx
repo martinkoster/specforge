@@ -53,10 +53,10 @@ export function ProjectSettingsForm({ view, onSave, onSaveInstructions }: Projec
       <h2>Project</h2>
       <label>
         Project instructions & conventions
-        <textarea rows={8} value={instructions} onChange={(e) => setInstructions(e.target.value)} />
+        <textarea className="textarea" rows={8} value={instructions} onChange={(e) => setInstructions(e.target.value)} />
       </label>
       <p className="hint">Stored in .specforge/instructions.md and given to the agent with every run.</p>
-      <button type="button" onClick={() => void saveInstructions()}>
+      <button className="btn btn-secondary" type="button" onClick={() => void saveInstructions()}>
         Save instructions
       </button>
       {instructionsResult && <p role={instructionsResult.ok ? 'status' : 'alert'}>{instructionsResult.text}</p>}
@@ -64,23 +64,24 @@ export function ProjectSettingsForm({ view, onSave, onSaveInstructions }: Projec
       <form onSubmit={(e) => void submit(e)} aria-label="Git and execution settings">
         <label>
           Base branch
-          <input value={baseBranch} disabled={!git} onChange={(e) => setBaseBranch(e.target.value)} />
+          <input className="input" value={baseBranch} disabled={!git} onChange={(e) => setBaseBranch(e.target.value)} />
         </label>
         <label>
           Branch pattern
-          <input value={branchPattern} disabled={!git} onChange={(e) => setBranchPattern(e.target.value)} />
+          <input className="input" value={branchPattern} disabled={!git} onChange={(e) => setBranchPattern(e.target.value)} />
         </label>
         <label>
           Worktree folder
-          <input value={worktreeRoot} disabled={!git} onChange={(e) => setWorktreeRoot(e.target.value)} />
+          <input className="input" value={worktreeRoot} disabled={!git} onChange={(e) => setWorktreeRoot(e.target.value)} />
         </label>
         <label>
           Snapshot exclusions (one per line)
-          <textarea rows={4} value={exclusions} onChange={(e) => setExclusions(e.target.value)} />
+          <textarea className="textarea" rows={4} value={exclusions} onChange={(e) => setExclusions(e.target.value)} />
         </label>
         <label>
           Parallel runs
           <input
+            className="input"
             type="number"
             min={1}
             max={10}
@@ -97,7 +98,9 @@ export function ProjectSettingsForm({ view, onSave, onSaveInstructions }: Projec
             ))}
           </div>
         )}
-        <button type="submit">Save project settings</button>
+        <button className="btn btn-secondary" type="submit">
+          Save project settings
+        </button>
         {saved && <span aria-live="polite">Saved</span>}
       </form>
     </section>

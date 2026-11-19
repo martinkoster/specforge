@@ -1,0 +1,35 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Diffs in reviews and spec-run results (UF-06). Redesigned in US-075. */
+@layer areas {
+  .diff {
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    max-height: 24rem;
+    overflow: auto;
+  }
+
+  .diff pre {
+    max-height: 20rem;
+    overflow: auto;
+  }
+
+  .diff-added {
+    color: var(--success);
+  }
+
+  .diff-removed {
+    color: var(--danger);
+  }
+
+  .diff-header {
+    font-weight: var(--weight-semibold);
+  }
+
+  .diff-add {
+    background: var(--success-subtle);
+  }
+
+  .diff-del {
+    background: var(--danger-subtle);
+  }
+}

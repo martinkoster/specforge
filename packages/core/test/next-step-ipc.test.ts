@@ -42,8 +42,7 @@ describe('US-060 AC-3 over IPC', () => {
 
     const project = await client.command('projects.create', {
       name: 'Next',
-      parentDir: mkdtempSync(join(tmpdir(), 'sf-next-ws-')),
-      folderName: 'next',
+      path: join(mkdtempSync(join(tmpdir(), 'sf-next-ws-')), 'next'),
       initGit: false,
     });
     const approved = (kind: string) => `---\nkind: ${kind}\napproval: approved\n---\n`;

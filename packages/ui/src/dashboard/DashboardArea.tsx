@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // Project dashboard (US-061, UC-034, UF-12): phase stepper, next step with action, story statistics and progress,
 // runs, pending decisions, recent activity, artifacts per phase, epics and the Kanban link.
+import { ArrowRightCircle } from 'lucide-react';
+import { Icon } from '../components/icons.js';
+import { EmptyState, PageHeader, Skeleton, StatusBadge } from '../components/index.js';
 import { useEffect, useState } from 'react';
 import type { QueryOutput } from '@specforge/ipc-contract';
 import type { CoreSession } from '../core/core-session.js';
@@ -67,115 +70,145 @@ export function DashboardArea({
 
   return (
     <div className="dashboard">
-      <h1>Dashboard</h1>
+      <PageHeader title="Dashboard" />
       {error && <p role="alert">{error}</p>}
       {phases && <PhaseStepper status={phases} current={null} onOpen={onOpenPhase} />}
       <ChatPanel session={session} projectId={projectId} aiDisabledReason={aiDisabledReason} />
       {nextStep && (
-        <section aria-label="Next step" className="next-step">
-          <h2>Next step</h2>
-          <button type="button" onClick={() => onNextStep(nextStep.target)}>
+        <section aria-label="Next step" className="callout callout-info next-step">
+          <Icon icon={ArrowRightCircle} className="callout-icon" />
+          <div className="callout-body">
+            <strong className="callout-title">Next step</strong>
+            <p className="callout-text">{nextStep.reason}</p>
+          </div>
+          <button className="btn btn-primary" type="button" onClick={() => onNextStep(nextStep.target)}>
             {nextStep.label}
           </button>
-          <p>{nextStep.reason}</p>
         </section>
       )}
-      {data && (
-        <>
-          <section aria-label="Stories" className="dashboard-widget">
-            <h2>Stories</h2>
-            <ul>
-              {(Object.keys(COLUMN_LABELS) as (keyof typeof COLUMN_LABELS)[]).map((status) => (
-                <li key={status}>
-                  {COLUMN_LABELS[status]} {data.storyCounts[status] ?? 0}
-                </li>
-              ))}
-            </ul>
-            <progress value={data.progress.done} max={Math.max(data.progress.total, 1)} aria-label="Story progress" />
-            <p>
-              {data.progress.done} of {data.progress.total} done
-            </p>
-            <button
-              type="button"
-              disabled={!data.kanbanEnabled}
-              title={data.kanbanEnabled ? undefined : KANBAN_HINT}
-              onClick={onOpenKanban}
-            >
-              Open Kanban
-            </button>
-            {!data.kanbanEnabled && (
-              <button type="button" onClick={() => onOpenPhase('stories')}>
-                Go to User stories
-              </button>
-            )}
-          </section>
-          <section aria-label="Runs" className="dashboard-widget">
-            <h2>Runs</h2>
-            <p>
-              {data.runs.active} running · {data.runs.queued} queued
-              {data.unmerged > 0 ? ` · ${plural(data.unmerged, 'approved branch', 'approved branches')} to merge` : ''}
-            </p>
-            <button type="button" onClick={onOpenPending}>
-              {plural(data.pendingDecisions, 'pending decision')}
-            </button>
-          </section>
-          <section aria-label="Recent activity" className="dashboard-widget">
-            <h2>Recent activity</h2>
-            {data.activity.length === 0 ? (
-              <p>No runs yet.</p>
-            ) : (
-              <ul>
-                {data.activity.map((a) => (
-                  <li key={a.runId}>
-                    <time dateTime={a.at}>{a.at.slice(0, 16).replace('T', ' ')}</time> {a.label}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-          <section aria-label="Artifacts" className="dashboard-widget">
-            <h2>Artifacts</h2>
-            {data.artifacts.map((group) => (
-              <div key={group.phase}>
-                <h3>{PHASE_LABEL[group.phase]}</h3>
-                {group.items.length === 0 ? (
-                  <p className="hint">None yet</p>
-                ) : (
-                  <ul>
-                    {group.items.map((a) => (
-                      <li key={a.path}>
-                        <button type="button" className="link" onClick={() => onOpenArtifact(a.path)}>
-                          {a.path} — {a.approval === 'approved' ? 'Approved' : 'Draft'}
-                          {a.impacted ? ' · potentially impacted' : ''}
-                        </button>
+      <div className="dashboard-grid">
+        {!data && !error && <Skeleton label="Loading the dashboard" lines={5} />}
+        {data && (
+          <>
+            <section aria-label="Stories" className="dashboard-widget">
+              <header className="widget-header">
+                <h2>Stories</h2>
+              </header>
+              {data.progress.total === 0 ? (
+                <EmptyState
+                  compact
+                  title="No stories yet"
+                  description="Stories appear here once the user stories phase has produced them."
+                />
+              ) : (
+                <>
+                  <ul className="stat-list">
+                    {(Object.keys(COLUMN_LABELS) as (keyof typeof COLUMN_LABELS)[]).map((status) => (
+                      <li key={status}>
+                        <StatusBadge status={status} label={COLUMN_LABELS[status]} />{' '}
+                        <span className="stat-value">{data.storyCounts[status] ?? 0}</span>
                       </li>
                     ))}
                   </ul>
+                  <progress value={data.progress.done} max={Math.max(data.progress.total, 1)} aria-label="Story progress" />
+                  <p className="hint">
+                    {data.progress.done} of {data.progress.total} done
+                  </p>
+                </>
+              )}
+              <footer className="widget-footer">
+                <button
+                  className="btn btn-secondary"
+                  type="button"
+                  disabled={!data.kanbanEnabled}
+                  title={data.kanbanEnabled ? undefined : KANBAN_HINT}
+                  onClick={onOpenKanban}
+                >
+                  Open Kanban
+                </button>
+                {!data.kanbanEnabled && (
+                  <button className="btn btn-secondary" type="button" onClick={() => onOpenPhase('stories')}>
+                    Go to User stories
+                  </button>
                 )}
-              </div>
-            ))}
-          </section>
-          {data.epics.length > 0 && (
-            <section aria-label="Epics" className="dashboard-widget">
-              <h2>Epics</h2>
-              <ul>
-                {data.epics.map((e) => (
-                  <li key={e.epicId}>
-                    <button type="button" className="link" onClick={() => onOpenEpic(e.epicId)}>
-                      {e.epicId} {e.title} · {e.status.replaceAll('_', ' ')} · {e.progress.done}/{e.progress.total}
-                    </button>
-                    <progress
-                      value={e.progress.doneWeight}
-                      max={Math.max(e.progress.totalWeight, 1)}
-                      aria-label={`Progress of ${e.epicId}`}
-                    />
-                  </li>
-                ))}
-              </ul>
+              </footer>
             </section>
-          )}
-        </>
-      )}
+            <section aria-label="Runs" className="dashboard-widget">
+              <header className="widget-header">
+                <h2>Runs</h2>
+              </header>
+              <p className="run-summary">
+                {data.runs.active} running · {data.runs.queued} queued
+                {data.unmerged > 0 ? ` · ${plural(data.unmerged, 'approved branch', 'approved branches')} to merge` : ''}
+              </p>
+              <button className="btn btn-secondary" type="button" onClick={onOpenPending}>
+                {plural(data.pendingDecisions, 'pending decision')}
+              </button>
+            </section>
+            <section aria-label="Recent activity" className="dashboard-widget">
+              <header className="widget-header">
+                <h2>Recent activity</h2>
+              </header>
+              {data.activity.length === 0 ? (
+                <EmptyState compact title="No runs yet." />
+              ) : (
+                <ul>
+                  {data.activity.map((a) => (
+                    <li key={a.runId}>
+                      <time dateTime={a.at}>{a.at.slice(0, 16).replace('T', ' ')}</time> {a.label}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+            <section aria-label="Artifacts" className="dashboard-widget">
+              <header className="widget-header">
+                <h2>Artifacts</h2>
+              </header>
+              {data.artifacts.map((group) => (
+                <div key={group.phase}>
+                  <h3>{PHASE_LABEL[group.phase]}</h3>
+                  {group.items.length === 0 ? (
+                    <p className="hint">None yet</p>
+                  ) : (
+                    <ul>
+                      {group.items.map((a) => (
+                        <li key={a.path}>
+                          <button type="button" className="link" onClick={() => onOpenArtifact(a.path)}>
+                            {a.path} — {a.approval === 'approved' ? 'Approved' : 'Draft'}
+                            {a.impacted ? ' · potentially impacted' : ''}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              ))}
+            </section>
+            {data.epics.length > 0 && (
+              <section aria-label="Epics" className="dashboard-widget">
+                <header className="widget-header">
+                  <h2>Epics</h2>
+                </header>
+                <ul>
+                  {data.epics.map((e) => (
+                    <li key={e.epicId}>
+                      <button type="button" className="link" onClick={() => onOpenEpic(e.epicId)}>
+                        {e.epicId} {e.title} · {e.status.replaceAll('_', ' ')} · {e.progress.done}/{e.progress.total}
+                      </button>
+                      <progress
+                        value={e.progress.doneWeight}
+                        max={Math.max(e.progress.totalWeight, 1)}
+                        aria-label={`Progress of ${e.epicId}`}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }

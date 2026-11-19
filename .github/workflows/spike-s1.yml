@@ -1,11 +1,19 @@
 # SPDX-License-Identifier: Apache-2.0
 # Spike S1 (US-001): live validation of the Claude Code integration via the Agent SDK.
-# Manually triggered; runs real model calls (costs usage) with the ANTHROPIC_API_KEY repository secret (ADR-007).
+# Manually triggered; runs real model calls. Auth (input `auth`): `subscription` uses the developer's Claude
+# subscription token (repository secret CLAUDE_CODE_OAUTH_TOKEN from `claude setup-token`; test-only — the product
+# never uses subscription logins), `api-key` the ANTHROPIC_API_KEY secret (ADR-007, costs API credit).
+# Only the selected credential is passed: Claude Code prefers an API key over an OAuth token.
 name: spike-s1-live
 
 on:
   workflow_dispatch:
     inputs:
+      auth:
+        description: Credential to use
+        type: choice
+        options: [subscription, api-key]
+        default: subscription
       wait_minutes:
         description: Minutes the permission relay test keeps a request pending (AC-2)
         default: '10'
@@ -40,7 +48,8 @@ jobs:
         env:
           S1_LIVE: '1'
           WAIT_MINUTES: ${{ inputs.wait_minutes }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ inputs.auth == 'api-key' && secrets.ANTHROPIC_API_KEY || '' }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.auth == 'subscription' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
         # Expressions have no arithmetic: the wait is converted to milliseconds in the shell.
         run: S1_WAIT_MS=$((WAIT_MINUTES * 60000)) npx vitest run test/live.test.ts --testTimeout=1800000
       - name: Upload results

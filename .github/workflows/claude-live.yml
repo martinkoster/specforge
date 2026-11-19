@@ -1,11 +1,19 @@
 # SPDX-License-Identifier: Apache-2.0
 # US-045 AC-4: the shared AgentAdapter contract suite against the real Claude Code on all three OSes.
-# Manually triggered; runs real model calls (costs usage) with the ANTHROPIC_API_KEY repository secret (ADR-007).
+# Manually triggered; runs real model calls. Auth (input `auth`): `subscription` uses the developer's Claude
+# subscription token (repository secret CLAUDE_CODE_OAUTH_TOKEN from `claude setup-token`; test-only — the product
+# never uses subscription logins), `api-key` the ANTHROPIC_API_KEY secret (ADR-007, costs API credit).
+# Only the selected credential is passed: Claude Code prefers an API key over an OAuth token.
 name: claude-adapter-live
 
 on:
   workflow_dispatch:
     inputs:
+      auth:
+        description: Credential to use
+        type: choice
+        options: [subscription, api-key]
+        default: subscription
       os:
         description: Runners to use (JSON array)
         default: '["windows-latest", "macos-latest", "ubuntu-latest"]'
@@ -35,5 +43,6 @@ jobs:
       - name: Live contract suite
         env:
           SPECFORGE_LIVE_CLAUDE: '1'
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ inputs.auth == 'api-key' && secrets.ANTHROPIC_API_KEY || '' }}
+          CLAUDE_CODE_OAUTH_TOKEN: ${{ inputs.auth == 'subscription' && secrets.CLAUDE_CODE_OAUTH_TOKEN || '' }}
         run: pnpm exec vitest run packages/adapters/agent-claude-code/test/contract.live.test.ts --reporter=verbose

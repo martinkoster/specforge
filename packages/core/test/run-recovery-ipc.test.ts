@@ -40,8 +40,7 @@ async function boot(script: (request: RunRequest, n: number) => MockStep[]) {
   const client: ContractClient = await connectClient(wrap(port1));
   const project = await client.command('projects.create', {
     name: 'Rec',
-    parentDir: mkdtempSync(join(tmpdir(), 'sf-recover-ws-')),
-    folderName: 'rec',
+    path: join(mkdtempSync(join(tmpdir(), 'sf-recover-ws-')), 'rec'),
     initGit: true,
   });
   writeFileSync(

@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // @vitest-environment happy-dom
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanupChecked } from './styled-controls.js';
 import { PendingDecisionsPanel, type PendingGroups } from '../src/pending/PendingDecisionsPanel.js';
 import { PermissionPrompt, type PendingPermissionView } from '../src/pending/PermissionPrompt.js';
 
-afterEach(cleanup);
+afterEach(cleanupChecked);
 
 const permission = (overrides: Partial<PendingPermissionView> = {}): PendingPermissionView => ({
   id: 'q1',
@@ -30,7 +31,7 @@ describe('US-053 AC-1: permission prompt', () => {
     expect(prompt).toHaveTextContent('Run run-1234');
     expect(within(prompt).getByText('npm test')).toBeInTheDocument();
     expect(prompt).toHaveTextContent('C:\\wt\\US-001');
-    expect(within(prompt).queryByText('Outside workspace')).not.toBeInTheDocument();
+    expect(within(prompt).queryByText('Outside the workspace')).not.toBeInTheDocument();
 
     await userEvent.click(within(prompt).getByRole('button', { name: 'Allow' }));
     expect(onDecide).toHaveBeenCalledWith({ decision: 'allow' });
@@ -57,7 +58,7 @@ describe('US-053 AC-1: permission prompt', () => {
       />,
     );
 
-    expect(screen.getByText('Outside workspace')).toBeInTheDocument();
+    expect(screen.getByText('Outside the workspace')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Always allow for this project' })).not.toBeInTheDocument();
     expect(screen.getByText(/"file_path": "C:\\\\Windows\\\\win.ini"/)).toBeInTheDocument();
   });

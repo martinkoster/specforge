@@ -2,6 +2,7 @@
 // Kanban board (US-038, US-041, US-043, UF-03): five columns, drag & drop (mouse + keyboard, dnd-kit) and an accessible
 // "Move to" control; dependency badges, highlighting with connector lines, queue reasons, early-queue warning, story
 // drawer. Moves are decided by the core — rejected moves snap back with the explanation.
+import { Callout, Dialog } from '../components/index.js';
 import {
   DndContext,
   KeyboardSensor,
@@ -74,7 +75,7 @@ function BoardColumn({
       className={isOver ? 'column column-over' : 'column'}
     >
       <h2>
-        {COLUMN_LABELS[column.status]} <span className="count">{column.cards.length}</span>
+        {COLUMN_LABELS[column.status]} <span className="count pill pill-neutral">{column.cards.length}</span>
       </h2>
       <SortableContext items={column.cards.map((c) => c.storyId)} strategy={verticalListSortingStrategy}>
         {children}
@@ -272,14 +273,14 @@ export function KanbanBoard({
   return (
     <div className="kanban" ref={container}>
       {rejection && (
-        <p role="alert" className="banner banner-warning">
+        <Callout tone="warning" role="alert">
           {rejection}
-        </p>
+        </Callout>
       )}
       {byEpic && (
         <label>
           Epic filter{' '}
-          <select aria-label="Epic filter" value={epicFilter} onChange={(e) => setEpicFilter(e.target.value)}>
+          <select className="select" aria-label="Epic filter" value={epicFilter} onChange={(e) => setEpicFilter(e.target.value)}>
             <option value="all">All epics</option>
             {lanes.map((l) => (
               <option key={l.epicId ?? 'none'} value={l.epicId ?? 'none'}>
@@ -327,6 +328,7 @@ export function KanbanBoard({
                     }}
                   >
                     <button
+                      className="btn btn-secondary"
                       type="button"
                       aria-expanded={!isCollapsed}
                       aria-label={`${isCollapsed ? 'Expand' : 'Collapse'} ${name}`}
@@ -349,6 +351,7 @@ export function KanbanBoard({
                     {lane.epicId && (
                       <>
                         <button
+                          className="btn btn-secondary"
                           type="button"
                           aria-label={`Move lane ${lane.epicId} up`}
                           disabled={index === 0}
@@ -357,6 +360,7 @@ export function KanbanBoard({
                           ↑
                         </button>
                         <button
+                          className="btn btn-secondary"
                           type="button"
                           aria-label={`Move lane ${lane.epicId} down`}
                           disabled={!shown[index + 1]?.epicId}
@@ -394,28 +398,30 @@ export function KanbanBoard({
         )}
       </DndContext>
       {laneChange && (
-        <div role="alertdialog" aria-modal="true" aria-labelledby="lane-change-title" className="dialog">
-          <h2 id="lane-change-title">Move {laneChange.storyId} to another epic?</h2>
+        <Dialog role="alertdialog" title={<>Move {laneChange.storyId} to another epic?</>} onClose={() => setLaneChange(null)}>
           <p>
             {laneChange.epicId ? `${laneChange.storyId} will belong to ${laneChange.epicId}.` : `${laneChange.storyId} will have no epic.`}
           </p>
-          <button
-            type="button"
-            onClick={() => {
-              const change = laneChange;
-              setLaneChange(null);
-              const card = board.columns.flatMap((c) => c.cards).find((c) => c.storyId === change.storyId);
-              void onSetEpic!(change.storyId, change.epicId).then(() => {
-                if (card && card.status !== change.to) requestMove(change.storyId, change.to, change.beforeStoryId);
-              });
-            }}
-          >
-            Move
-          </button>
-          <button type="button" onClick={() => setLaneChange(null)}>
-            Cancel
-          </button>
-        </div>
+          <div className="dialog-footer">
+            <button className="btn btn-secondary" type="button" onClick={() => setLaneChange(null)}>
+              Cancel
+            </button>
+            <button
+              className="btn btn-primary"
+              type="button"
+              onClick={() => {
+                const change = laneChange;
+                setLaneChange(null);
+                const card = board.columns.flatMap((c) => c.cards).find((c) => c.storyId === change.storyId);
+                void onSetEpic!(change.storyId, change.epicId).then(() => {
+                  if (card && card.status !== change.to) requestMove(change.storyId, change.to, change.beforeStoryId);
+                });
+              }}
+            >
+              Move
+            </button>
+          </div>
+        </Dialog>
       )}
       {lines.length > 0 && (
         <svg className="connectors" aria-hidden="true">
@@ -425,23 +431,25 @@ export function KanbanBoard({
         </svg>
       )}
       {confirm && (
-        <div role="alertdialog" aria-modal="true" aria-labelledby="early-queue-title" className="dialog">
-          <h2 id="early-queue-title">Queue behind unstarted stories?</h2>
+        <Dialog role="alertdialog" title={<>Queue behind unstarted stories?</>} onClose={() => setConfirm(null)}>
           <p>{confirm.warning}</p>
-          <button
-            type="button"
-            onClick={() => {
-              const { storyId, beforeStoryId } = confirm;
-              setConfirm(null);
-              void move(storyId, 'in_progress', beforeStoryId);
-            }}
-          >
-            Queue anyway
-          </button>
-          <button type="button" onClick={() => setConfirm(null)}>
-            Cancel
-          </button>
-        </div>
+          <div className="dialog-footer">
+            <button className="btn btn-secondary" type="button" onClick={() => setConfirm(null)}>
+              Cancel
+            </button>
+            <button
+              className="btn btn-primary"
+              type="button"
+              onClick={() => {
+                const { storyId, beforeStoryId } = confirm;
+                setConfirm(null);
+                void move(storyId, 'in_progress', beforeStoryId);
+              }}
+            >
+              Queue anyway
+            </button>
+          </div>
+        </Dialog>
       )}
       {openCard && (
         <StoryDrawer

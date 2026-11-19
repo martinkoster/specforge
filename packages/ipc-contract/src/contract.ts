@@ -153,7 +153,7 @@ export const CONTRACT = {
       ]),
     },
     'projects.create': {
-      input: z.object({ name: z.string(), parentDir: z.string().min(1), folderName: z.string(), initGit: z.boolean() }),
+      input: z.object({ name: z.string(), path: z.string().min(1), initGit: z.boolean() }),
       output: OpenedProject,
     },
     'projects.open': {
@@ -442,6 +442,11 @@ export const CONTRACT = {
     'projects.gitAvailable': {
       input: z.object({}),
       output: z.object({ available: z.boolean() }),
+    },
+    // US-068: what a picked folder holds (SpecForge project, empty, or other content).
+    'projects.inspectFolder': {
+      input: z.object({ path: z.string().min(1) }),
+      output: z.object({ kind: z.enum(['project', 'empty', 'notEmpty']) }),
     },
     'artifacts.list': {
       input: z.object({ projectId: z.string().min(1) }),

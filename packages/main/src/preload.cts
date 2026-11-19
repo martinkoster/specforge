@@ -33,6 +33,14 @@ contextBridge.exposeInMainWorld('specforgeShell', {
   notify(title: string, body: string): void {
     ipcRenderer.send('specforge:notify', title, body);
   },
+  /** Colour theme preference (US-077): `system`, `light` or `dark`. */
+  getTheme(): Promise<string> {
+    return ipcRenderer.invoke('specforge:get-theme') as Promise<string>;
+  },
+  /** Applies and stores the theme; resolves to the applied theme (null if refused). */
+  setTheme(theme: string): Promise<string | null> {
+    return ipcRenderer.invoke('specforge:set-theme', theme) as Promise<string | null>;
+  },
   /** Native folder picker; resolves to the chosen folder or null when cancelled. */
   pickFolder(title: string): Promise<string | null> {
     return ipcRenderer.invoke('specforge:pick-folder', title) as Promise<string | null>;

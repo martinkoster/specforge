@@ -56,8 +56,7 @@ describe('US-057 over IPC', () => {
 
     const project = await client.command('projects.create', {
       name: 'Review',
-      parentDir: mkdtempSync(join(tmpdir(), 'sf-review-ws-')),
-      folderName: 'review',
+      path: join(mkdtempSync(join(tmpdir(), 'sf-review-ws-')), 'review'),
       initGit: true,
     });
     const git = (...args: string[]) =>

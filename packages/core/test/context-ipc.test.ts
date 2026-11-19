@@ -70,8 +70,7 @@ describe('US-050 over IPC', () => {
     const client = await boot();
     const project = await client.command('projects.create', {
       name: 'Ctx',
-      parentDir: mkdtempSync(join(tmpdir(), 'sf-ctx-ws-')),
-      folderName: 'ctx',
+      path: join(mkdtempSync(join(tmpdir(), 'sf-ctx-ws-')), 'ctx'),
       initGit: true,
     });
     const spec = join(project.path, 'spec');

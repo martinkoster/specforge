@@ -1,46 +1,63 @@
 // SPDX-License-Identifier: Apache-2.0
-// Create-project dialog: name, location, folder name, "Initialise Git" (US-018, UC-029 flow B, UF-01b).
+// Create-project dialog, folder-first (US-068, D24, UC-029 flow B, UF-01b): picked folder, project name, "Initialise Git".
+import { Dialog } from '../components/index.js';
 import { useState, type FormEvent } from 'react';
 import type { CommandInput } from '@specforge/ipc-contract';
 
 export type CreateProjectInput = CommandInput<'projects.create'>;
 
 export interface CreateProjectDialogProps {
+  /** The picked folder (empty or new). */
+  folder: string;
   gitAvailable: boolean;
-  onPickFolder(): Promise<string | null>;
-  /** Rejects with a user-facing message (e.g. folder not empty). */
+  /** Picks another folder; resolves null when cancelled, rejects with a user-facing message (e.g. folder not empty). */
+  onChangeFolder(): Promise<string | null>;
+  /** Rejects with a user-facing message. */
   onCreate(input: CreateProjectInput): Promise<void>;
   onCancel(): void;
 }
 
-/** Folder name derived from the project name: lower case, ASCII, words joined by "-". */
-export function folderNameFor(name: string): string {
-  return name
-    .normalize('NFKD')
-    .replace(/[̀-ͯ]/g, '')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
+/** Shown for a picked folder with other content: adopting existing code is Release 2 (FR-079). */
+export const ADOPT_IN_RELEASE_2 = 'Choose an empty folder — adopting existing code arrives in Release 2.';
+
+/** Last segment of a Windows or POSIX path; empty for a drive or file-system root. */
+export function folderBaseName(path: string): string {
+  const last =
+    path
+      .replace(/[\\/]+$/, '')
+      .split(/[\\/]/)
+      .pop() ?? '';
+  return last.endsWith(':') ? '' : last;
 }
 
-export function CreateProjectDialog({ gitAvailable, onPickFolder, onCreate, onCancel }: CreateProjectDialogProps) {
-  const [name, setName] = useState('');
-  const [folderName, setFolderName] = useState('');
-  const [folderEdited, setFolderEdited] = useState(false);
-  const [parentDir, setParentDir] = useState<string | null>(null);
+export function CreateProjectDialog({ folder: initialFolder, gitAvailable, onChangeFolder, onCreate, onCancel }: CreateProjectDialogProps) {
+  const [folder, setFolder] = useState(initialFolder);
+  const [name, setName] = useState(folderBaseName(initialFolder));
+  const [nameEdited, setNameEdited] = useState(false);
   const [initGit, setInitGit] = useState(gitAvailable);
   const [error, setError] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
 
-  const effectiveFolder = folderEdited ? folderName : folderNameFor(name);
-  const ready = name.trim() !== '' && effectiveFolder.trim() !== '' && parentDir !== null && !busy;
+  const ready = name.trim() !== '' && !busy;
+
+  const changeFolder = async (): Promise<void> => {
+    try {
+      const next = await onChangeFolder();
+      if (!next) return;
+      setFolder(next);
+      if (!nameEdited) setName(folderBaseName(next));
+      setError(undefined);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    }
+  };
 
   const submit = async (event: FormEvent): Promise<void> => {
     event.preventDefault();
     if (!ready) return;
     setBusy(true);
     try {
-      await onCreate({ name: name.trim(), parentDir, folderName: effectiveFolder.trim(), initGit: gitAvailable && initGit });
+      await onCreate({ name: name.trim(), path: folder, initGit: gitAvailable && initGit });
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -49,38 +66,29 @@ export function CreateProjectDialog({ gitAvailable, onPickFolder, onCreate, onCa
   };
 
   return (
-    <div role="dialog" aria-modal="true" aria-labelledby="create-project-title" className="dialog">
-      <h2 id="create-project-title">Create new project</h2>
+    <Dialog title="Create new project" onClose={onCancel} busy={busy}>
       <form onSubmit={(e) => void submit(e)}>
-        <label>
-          Project name
-          <input value={name} onChange={(e) => setName(e.target.value)} autoFocus />
-        </label>
         <div>
-          <span>Location</span> <span className="path">{parentDir ?? 'No location chosen'}</span>{' '}
-          <button
-            type="button"
-            onClick={() =>
-              void onPickFolder().then((dir) => {
-                if (dir) setParentDir(dir);
-              })
-            }
-          >
-            Choose location…
+          <span>Folder</span> <span className="path">{folder}</span>{' '}
+          <button className="btn btn-secondary" type="button" onClick={() => void changeFolder()}>
+            Change…
           </button>
         </div>
         <label>
-          Folder name
+          Project name
           <input
-            value={effectiveFolder}
+            className="input"
+            value={name}
             onChange={(e) => {
-              setFolderEdited(true);
-              setFolderName(e.target.value);
+              setNameEdited(true);
+              setName(e.target.value);
             }}
+            autoFocus
           />
         </label>
         <label>
           <input
+            className="checkbox"
             type="checkbox"
             checked={gitAvailable && initGit}
             disabled={!gitAvailable}
@@ -90,13 +98,15 @@ export function CreateProjectDialog({ gitAvailable, onPickFolder, onCreate, onCa
         </label>
         {!gitAvailable && <p>Git is not installed — the project is created without Git (one run at a time, no isolation).</p>}
         {error && <p role="alert">{error}</p>}
-        <button type="submit" disabled={!ready}>
-          Create
-        </button>
-        <button type="button" onClick={onCancel}>
-          Cancel
-        </button>
+        <div className="dialog-footer">
+          <button className="btn btn-secondary" type="button" onClick={onCancel}>
+            Cancel
+          </button>
+          <button className="btn btn-primary" type="submit" disabled={!ready}>
+            Create
+          </button>
+        </div>
       </form>
-    </div>
+    </Dialog>
   );
 }

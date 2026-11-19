@@ -8,6 +8,8 @@ export interface DependencyLicense {
   name: string;
   version: string;
   license: string;
+  /** Installed package directory, when known (used for THIRD_PARTY_NOTICES). */
+  path?: string;
 }
 
 export interface LicenseReport {
@@ -63,9 +65,16 @@ export function classifyLicense(expression: string): LicenseClass {
 
 /** Parses the output of `pnpm licenses list --prod --json`. */
 export function parsePnpmLicenses(json: string): DependencyLicense[] {
-  const grouped = JSON.parse(json) as Record<string, Array<{ name: string; versions: string[]; license?: string }>>;
+  const grouped = JSON.parse(json) as Record<string, Array<{ name: string; versions: string[]; paths?: string[]; license?: string }>>;
   return Object.entries(grouped).flatMap(([groupLicense, packages]) =>
-    packages.flatMap((p) => p.versions.map((version) => ({ name: p.name, version, license: p.license ?? groupLicense }))),
+    packages.flatMap((p) =>
+      p.versions.map((version, i) => ({
+        name: p.name,
+        version,
+        license: p.license ?? groupLicense,
+        ...(p.paths?.[i] ? { path: p.paths[i] } : {}),
+      })),
+    ),
   );
 }
 
@@ -75,7 +84,7 @@ export function parsePnpmLicenses(json: string): DependencyLicense[] {
  */
 export const PROPRIETARY: Readonly<Record<string, string>> = {
   '@anthropic-ai/claude-agent-sdk':
-    "Anthropic's terms (ADR-006, technical_decisions.md): installer bundling to be confirmed before US-009; its bundled Claude Code binary is never installed (pnpm-workspace.yaml).",
+    "Anthropic's terms (ADR-006, technical_decisions.md): bundled in the R1 installers per D23, legal confirmation required before any public release; its bundled Claude Code binary is never installed (pnpm-workspace.yaml).",
 };
 
 const classifyDependency = (d: DependencyLicense): LicenseClass => (d.name in PROPRIETARY ? 'review' : classifyLicense(d.license));

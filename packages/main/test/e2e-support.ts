@@ -101,7 +101,15 @@ export async function allowPending(page: Page): Promise<void> {
       { timeout: 30_000 },
     );
   }
-  await panel.getByRole('button', { name: 'Close' }).click();
+  // A modal opened meanwhile (e.g. the review of a finished specification run) blocks the page; the caller closes the
+  // panel after deciding it (closePendingPanel).
+  if ((await page.locator('.dialog-overlay').count()) === 0) await closePendingPanel(page);
+}
+
+/** Closes the pending-decisions panel if it is open. */
+export async function closePendingPanel(page: Page): Promise<void> {
+  const panel = page.getByRole('dialog', { name: /^Pending decisions/ });
+  if ((await panel.count()) > 0) await panel.getByRole('button', { name: 'Close' }).click();
 }
 
 /** Moves a story with the keyboard-accessible "Move to" control and waits until it left its column. */

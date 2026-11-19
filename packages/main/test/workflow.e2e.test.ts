@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { ElectronApplication, Page } from 'playwright-core';
 import { afterAll, describe, expect, it } from 'vitest';
-import { allowPending, columnOf, createProject, launch, moveTo, tempProfile, waitForColumn } from './e2e-support.js';
+import { allowPending, closePendingPanel, columnOf, createProject, launch, moveTo, tempProfile, waitForColumn } from './e2e-support.js';
 
 let app: ElectronApplication | undefined;
 afterAll(async () => {
@@ -18,6 +18,7 @@ async function keepReview(page: Page, target: string): Promise<void> {
   await dialog.waitFor({ timeout: 60_000 });
   await dialog.getByRole('button', { name: 'Keep' }).click();
   await dialog.waitFor({ state: 'detached' });
+  await closePendingPanel(page);
 }
 
 async function approveArtifact(page: Page, fileName: string): Promise<void> {

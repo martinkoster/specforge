@@ -34,7 +34,8 @@ async function generate(page: Page, target: string, folder: string, firstOfKind:
   await page.getByRole('button', { name: 'Generate', exact: true }).click();
   const draftConfirm = page.getByRole('button', { name: 'Continue anyway' });
   if (await draftConfirm.isVisible().catch(() => false)) await draftConfirm.click();
-  if (firstOfKind) await allowPending(page);
+  // The review of the finished run opens as a modal right after the answer; keepReview closes the panel.
+  if (firstOfKind) await allowPending(page, { close: false });
   await keepReview(page, folder);
 }
 

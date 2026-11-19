@@ -82,7 +82,11 @@ export async function createProject(
 }
 
 /** Answers every relayed permission request of the open project with "Always allow for this project". */
-export async function allowPending(page: Page): Promise<void> {
+/**
+ * `close: false` leaves the panel open — for callers that expect a modal (e.g. the review of a specification run) to
+ * open right after the answer and close the panel themselves (closePendingPanel).
+ */
+export async function allowPending(page: Page, options: { close?: boolean } = {}): Promise<void> {
   const counter = page.getByRole('button', { name: /pending decisions?$/ });
   await page.waitForFunction(
     () => /^[1-9]\d* pending decision/.test(document.querySelector('.pending-decisions')?.textContent ?? ''),
@@ -101,9 +105,7 @@ export async function allowPending(page: Page): Promise<void> {
       { timeout: 30_000 },
     );
   }
-  // A modal opened meanwhile (e.g. the review of a finished specification run) blocks the page; the caller closes the
-  // panel after deciding it (closePendingPanel).
-  if ((await page.locator('.dialog-overlay').count()) === 0) await closePendingPanel(page);
+  if (options.close ?? true) await closePendingPanel(page);
 }
 
 /** Closes the pending-decisions panel if it is open. */

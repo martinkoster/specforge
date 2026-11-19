@@ -32,10 +32,13 @@ export function AppearanceSettings({ theme: bridge }: { theme: ThemeBridge }) {
   }, [bridge]);
 
   const choose = async (next: Theme): Promise<void> => {
+    const previous = theme;
+    setTheme(next); // reflect the choice at once; main confirms (or the previous choice comes back on failure)
     try {
       setTheme(await bridge.set(next));
       setError(undefined);
     } catch (e) {
+      setTheme(previous);
       setError(e instanceof Error ? e.message : String(e));
     }
   };

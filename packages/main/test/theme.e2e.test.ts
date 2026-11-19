@@ -31,7 +31,8 @@ describe('US-077 end-to-end: colour theme', () => {
     apps.push(first.app);
     await followNativeTheme(first.page);
     await openAppearance(first.page);
-    expect(await first.page.getByRole('radio', { name: 'System' }).isChecked()).toBe(true);
+    // The radios stay disabled and unchecked until the stored preference has loaded.
+    await expect.poll(() => first.page.getByRole('radio', { name: 'System' }).isChecked()).toBe(true);
 
     await first.page.getByRole('radio', { name: 'Dark' }).check();
     await expect.poll(() => bodyBackground(first.page)).toBe(DARK);

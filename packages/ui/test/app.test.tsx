@@ -2,15 +2,16 @@
 // @vitest-environment happy-dom
 import { MessageChannel, type MessagePort } from 'node:worker_threads';
 import { CONTRACT_VERSION, IpcError, serveContract, type ContractHandlers, type PortLike } from '@specforge/ipc-contract';
-import { act, cleanup, render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it } from 'vitest';
+import { cleanupChecked } from './styled-controls.js';
 import { App } from '../src/App.js';
 import { CoreSession } from '../src/core/core-session.js';
 
 const open: MessagePort[] = [];
 afterEach(() => {
-  cleanup();
+  cleanupChecked();
   for (const p of open.splice(0)) p.close();
 });
 
@@ -56,8 +57,9 @@ describe('US-017/US-022: renderer root', () => {
 
     const item = await screen.findByRole('listitem', { name: 'Tasks' });
     expect(screen.getByTestId('core-status')).toHaveTextContent('connected');
-    await userEvent.click(within(item).getByRole('button', { name: 'Remove Tasks' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Remove from list' }));
+    await userEvent.click(within(item).getByRole('button', { name: 'Actions for Tasks' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Remove from list' }));
+    await userEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Remove from list' }));
     expect(await screen.findByText('No recent projects')).toBeInTheDocument();
   });
 
@@ -85,14 +87,16 @@ describe('US-017/US-022: renderer root', () => {
     });
     render(<App session={session} testMode={false} />);
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Rename Tasks' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Actions for Tasks' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Rename' }));
     const input = screen.getByRole('textbox', { name: 'Project name' });
     await userEvent.clear(input);
     await userEvent.type(input, 'Tasks v2{Enter}');
     expect(await screen.findByRole('listitem', { name: 'Tasks v2' })).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole('button', { name: 'Remove Tasks v2' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Remove from list' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Tasks v2' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Remove from list' }));
+    await userEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Remove from list' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('1 active run');
   });
 
@@ -142,6 +146,7 @@ function projectCore(extra: ContractHandlers = {}) {
     }),
     'projects.recent': async () => [],
     'projects.gitAvailable': async () => ({ available: true }),
+    'projects.inspectFolder': async () => ({ kind: 'project' as const }),
     'projects.close': async () => {
       current = null;
       return {};
@@ -152,23 +157,97 @@ function projectCore(extra: ContractHandlers = {}) {
 }
 
 describe('US-018/US-019: project flows in the renderer', () => {
-  it('US-018 AC-4: creating a project opens it at the Intent phase', async () => {
+  it('US-018 AC-4 / US-068 AC-1/AC-2: picking an empty folder and confirming the pre-filled name opens the project at the Intent phase', async () => {
     const core = projectCore();
+    const created: unknown[] = [];
+    const titles: string[] = [];
     const session = await connect({
       ...core.handlers,
-      'projects.create': async (input) => core.open({ ...opened(), name: input.name }),
+      'projects.inspectFolder': async () => ({ kind: 'empty' as const }),
+      'projects.create': async (input) => {
+        created.push(input);
+        return core.open({ ...opened(), name: input.name });
+      },
     });
-    render(<App session={session} testMode={false} pickFolder={async () => 'C:\\work'} />);
+    const pickFolder = async (title: string) => {
+      titles.push(title);
+      return 'C:\\work\\task-manager';
+    };
+    render(<App session={session} testMode={false} pickFolder={pickFolder} />);
 
     await userEvent.click(await screen.findByRole('button', { name: 'Create new project' }));
-    await userEvent.type(screen.getByRole('textbox', { name: 'Project name' }), 'Task Manager');
-    await userEvent.click(screen.getByRole('button', { name: 'Choose location…' }));
-    await screen.findByText('C:\\work');
-    await userEvent.click(screen.getByRole('button', { name: 'Create' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Create new project' });
+    expect(within(dialog).getByText('C:\\work\\task-manager')).toBeInTheDocument();
+    expect(within(dialog).getByRole('textbox', { name: 'Project name' })).toHaveValue('task-manager');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Create' }));
 
     expect(await screen.findByRole('heading', { name: 'Intent' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Intent' })).toHaveAttribute('aria-current', 'page');
     expect(screen.getByText('Git · main')).toBeInTheDocument();
+    expect(created).toEqual([{ name: 'task-manager', path: 'C:\\work\\task-manager', initGit: true }]);
+    expect(titles).toEqual(['Choose or create an empty folder for the new project']);
+  });
+
+  it('US-068 AC-3: picking a SpecForge project folder in "Create new project" opens it without the dialog', async () => {
+    const core = projectCore();
+    const session = await connect({
+      ...core.handlers,
+      'projects.open': async () => core.open(opened()),
+    });
+    render(<App session={session} testMode={false} pickFolder={async () => 'C:\\work\\task-manager'} />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Create new project' }));
+
+    expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Create new project' })).toBeNull();
+  });
+
+  it('US-068 AC-3: a non-empty folder without metadata is rejected with the Release 2 hint', async () => {
+    let creates = 0;
+    const session = await connect({
+      ...projectCore().handlers,
+      'projects.inspectFolder': async () => ({ kind: 'notEmpty' as const }),
+      'projects.create': async () => {
+        creates++;
+        throw new Error('unexpected');
+      },
+    });
+    render(<App session={session} testMode={false} pickFolder={async () => 'C:\\code\\app'} />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Create new project' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'C:\\code\\app is not empty. Choose an empty folder — adopting existing code arrives in Release 2.',
+    );
+    expect(screen.queryByRole('dialog', { name: 'Create new project' })).toBeNull();
+    expect(creates).toBe(0);
+  });
+
+  it('US-068 AC-4: "Open existing project" on an empty folder offers "Create new project here"', async () => {
+    const core = projectCore();
+    let opens = 0;
+    const session = await connect({
+      ...core.handlers,
+      'projects.inspectFolder': async () => ({ kind: 'empty' as const }),
+      'projects.open': async () => {
+        opens++;
+        throw new Error('unexpected');
+      },
+      'projects.create': async (input) => core.open({ ...opened(), name: input.name, path: input.path }),
+    });
+    render(<App session={session} testMode={false} pickFolder={async () => '/home/me/notes'} />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Open existing project' }));
+    const offer = await screen.findByRole('region', { name: 'Empty folder' });
+    expect(offer).toHaveTextContent('/home/me/notes is empty');
+    await userEvent.click(within(offer).getByRole('button', { name: 'Create new project here' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Create new project' });
+    expect(within(dialog).getByRole('textbox', { name: 'Project name' })).toHaveValue('notes');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Create' }));
+
+    expect(await screen.findByRole('heading', { name: 'Intent' })).toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Empty folder' })).toBeNull();
+    expect(opens).toBe(0);
   });
 
   it('US-019 AC-1/AC-2: opening a folder shows the project with its VCS badge and the non-git warning', async () => {
@@ -183,13 +262,14 @@ describe('US-018/US-019: project flows in the renderer', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Open existing project' }));
 
     expect(await screen.findByText('No Git — runs are not isolated')).toBeInTheDocument();
-    expect(screen.getByRole('status')).toHaveTextContent(warning);
+    expect(screen.getByText(warning).closest('[role="status"]')).toHaveClass('callout-warning');
     expect(screen.getByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
   });
 
-  it('US-019 AC-1: explains a folder without SpecForge metadata', async () => {
+  it('US-019 AC-1 / US-068 AC-4: explains a non-empty folder without SpecForge metadata', async () => {
     const session = await connect({
       ...projectCore().handlers,
+      'projects.inspectFolder': async () => ({ kind: 'notEmpty' as const }),
       'projects.open': async () => {
         throw new IpcError('NOT_A_PROJECT', 'The folder C:\\plain has no SpecForge metadata (.specforge/project.yaml).');
       },

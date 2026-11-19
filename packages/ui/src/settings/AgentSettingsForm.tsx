@@ -66,7 +66,7 @@ export function AgentSettingsForm({ title, settings, modelSuggestions, onSave }:
       <h2>{title}</h2>
       <label>
         Model
-        <input list={listId} value={model} onChange={(e) => setModel(e.target.value)} />
+        <input className="input" list={listId} value={model} onChange={(e) => setModel(e.target.value)} />
         <datalist id={listId}>
           {modelSuggestions.map((m) => (
             <option key={m} value={m} />
@@ -75,7 +75,7 @@ export function AgentSettingsForm({ title, settings, modelSuggestions, onSave }:
       </label>
       <label>
         Effort
-        <select value={effort} onChange={(e) => setEffort(e.target.value as Effort | '')}>
+        <select className="select" value={effort} onChange={(e) => setEffort(e.target.value as Effort | '')}>
           <option value="">Default</option>
           {EFFORTS.map((e) => (
             <option key={e} value={e}>
@@ -86,7 +86,7 @@ export function AgentSettingsForm({ title, settings, modelSuggestions, onSave }:
       </label>
       <label>
         Max turns
-        <input type="number" min={1} value={maxTurns} onChange={(e) => setMaxTurns(e.target.value)} />
+        <input className="input" type="number" min={1} value={maxTurns} onChange={(e) => setMaxTurns(e.target.value)} />
       </label>
       <table aria-label="Environment variables">
         <thead>
@@ -101,10 +101,16 @@ export function AgentSettingsForm({ title, settings, modelSuggestions, onSave }:
           {rows.map((r) => (
             <tr key={r.key}>
               <td>
-                <input aria-label="Variable name" value={r.name} onChange={(e) => update(r.key, { name: e.target.value })} />
+                <input
+                  className="input"
+                  aria-label="Variable name"
+                  value={r.name}
+                  onChange={(e) => update(r.key, { name: e.target.value })}
+                />
               </td>
               <td>
                 <input
+                  className="input"
                   aria-label={`Value of ${r.name || 'variable'}`}
                   type={r.secret ? 'password' : 'text'}
                   autoComplete="off"
@@ -116,6 +122,7 @@ export function AgentSettingsForm({ title, settings, modelSuggestions, onSave }:
               <td>
                 <label>
                   <input
+                    className="checkbox"
                     type="checkbox"
                     checked={r.secret}
                     onChange={(e) => update(r.key, { secret: e.target.checked, storedSecret: false, value: '' })}
@@ -125,6 +132,7 @@ export function AgentSettingsForm({ title, settings, modelSuggestions, onSave }:
               </td>
               <td>
                 <button
+                  className="btn btn-secondary"
                   type="button"
                   aria-label={`Remove ${r.name || 'variable'}`}
                   onClick={() => setRows((rs) => rs.filter((x) => x.key !== r.key))}
@@ -137,6 +145,7 @@ export function AgentSettingsForm({ title, settings, modelSuggestions, onSave }:
         </tbody>
       </table>
       <button
+        className="btn btn-secondary"
         type="button"
         onClick={() => {
           setRows((rs) => [...rs, { key: nextKey, name: '', secret: false, value: '', storedSecret: false }]);
@@ -153,7 +162,9 @@ export function AgentSettingsForm({ title, settings, modelSuggestions, onSave }:
           ))}
         </div>
       )}
-      <button type="submit">Save agent settings</button>
+      <button className="btn btn-secondary" type="submit">
+        Save agent settings
+      </button>
       {saved && <span aria-live="polite">Saved</span>}
     </form>
   );

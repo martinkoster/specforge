@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // @vitest-environment happy-dom
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanupChecked } from './styled-controls.js';
 import { PhaseStepper, type PhaseStatus } from '../src/shell/PhaseStepper.js';
 
-afterEach(cleanup);
+afterEach(cleanupChecked);
 
 const status: PhaseStatus = {
   phases: [

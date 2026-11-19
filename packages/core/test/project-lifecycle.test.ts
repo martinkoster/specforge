@@ -36,8 +36,7 @@ describe('US-018: create a new project end-to-end in the core', () => {
 
     const opened = await client.command('projects.create', {
       name: 'Task Manager',
-      parentDir: parent,
-      folderName: 'task-manager',
+      path: join(parent, 'task-manager'),
       initGit: true,
     });
 
@@ -56,6 +55,28 @@ describe('US-018: create a new project end-to-end in the core', () => {
       storyCount: 0,
     });
     await expect(client.query('projects.gitAvailable', {})).resolves.toEqual({ available: true });
+  });
+});
+
+describe('US-068: folder-first project creation in the core', () => {
+  it('AC-2/AC-3/AC-4: inspects picked folders and creates the project in an existing empty folder', async () => {
+    const { client } = await boot(tmp('sf-app-'));
+    const empty = tmp('sf-empty-');
+    const code = tmp('sf-code-');
+    writeFileSync(join(code, 'main.c'), 'int main(void) { return 0; }\n');
+
+    await expect(client.query('projects.inspectFolder', { path: empty })).resolves.toEqual({ kind: 'empty' });
+    await expect(client.query('projects.inspectFolder', { path: code })).resolves.toEqual({ kind: 'notEmpty' });
+    await expect(client.command('projects.create', { name: 'Code', path: code, initGit: false })).rejects.toMatchObject({
+      code: 'FOLDER_NOT_EMPTY',
+    });
+    expect(existsSync(join(code, '.specforge'))).toBe(false);
+
+    const opened = await client.command('projects.create', { name: 'My Notes', path: empty, initGit: true });
+
+    expect(opened).toMatchObject({ name: 'My Notes', path: empty, vcs: { mode: 'git' } });
+    expect(readFileSync(join(empty, '.specforge', 'project.yaml'), 'utf8')).toContain('name: My Notes');
+    await expect(client.query('projects.inspectFolder', { path: empty })).resolves.toEqual({ kind: 'project' });
   });
 });
 
@@ -107,7 +128,7 @@ describe('US-019: open an existing project end-to-end in the core', () => {
 
   it('closing the project returns to the start wizard state', async () => {
     const { client } = await boot(tmp('sf-app-'));
-    await client.command('projects.create', { name: 'P', parentDir: tmp('sf-parent-'), folderName: 'p', initGit: false });
+    await client.command('projects.create', { name: 'P', path: join(tmp('sf-parent-'), 'p'), initGit: false });
 
     await client.command('projects.close', {});
 

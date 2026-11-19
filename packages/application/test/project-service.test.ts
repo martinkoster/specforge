@@ -64,7 +64,7 @@ function setup(
     store,
     indexer: { indexAll: async (id) => void indexed.push(id) },
     newId: () => `proj-${++n}`,
-    join: (...parts) => parts.join('/'),
+    isAbsolute: (path) => path.startsWith('/'),
   });
   return { service, rows, calls, indexed };
 }
@@ -73,7 +73,7 @@ describe('US-018: create a new project', () => {
   it('AC-2: creates the folder with SpecForge structure, git init and an initial commit, then registers and indexes it', async () => {
     const { service, rows, calls, indexed } = setup();
 
-    const opened = await service.create({ name: 'Task Manager', parentDir: '/work', folderName: 'task-manager', initGit: true });
+    const opened = await service.create({ name: 'Task Manager', path: '/work/task-manager', initGit: true });
 
     expect(opened).toEqual({
       id: 'proj-1',
@@ -99,13 +99,13 @@ describe('US-018: create a new project', () => {
   it('AC-2: rejects an existing non-empty folder and empty names', async () => {
     const { service } = setup({ existing: { '/work/taken': { files: ['README.md'] } } });
 
-    await expect(service.create({ name: 'X', parentDir: '/work', folderName: 'taken', initGit: true })).rejects.toMatchObject({
+    await expect(service.create({ name: 'X', path: '/work/taken', initGit: true })).rejects.toMatchObject({
       code: 'FOLDER_NOT_EMPTY',
     });
-    await expect(service.create({ name: ' ', parentDir: '/work', folderName: 'x', initGit: true })).rejects.toMatchObject({
+    await expect(service.create({ name: ' ', path: '/work/x', initGit: true })).rejects.toMatchObject({
       code: 'INVALID_NAME',
     });
-    await expect(service.create({ name: 'X', parentDir: '/work', folderName: '../escape', initGit: true })).rejects.toMatchObject({
+    await expect(service.create({ name: 'X', path: 'relative/escape', initGit: true })).rejects.toMatchObject({
       code: 'INVALID_FOLDER',
     });
   });
@@ -114,7 +114,7 @@ describe('US-018: create a new project', () => {
     const { service, calls } = setup({ git: false });
 
     expect(await service.gitAvailable()).toBe(false);
-    const opened = await service.create({ name: 'Notes', parentDir: '/work', folderName: 'notes', initGit: true });
+    const opened = await service.create({ name: 'Notes', path: '/work/notes', initGit: true });
 
     expect(opened.vcs).toEqual({ mode: 'none' });
     expect(opened.isolationWarning).toMatch(/not isolated/i);
@@ -124,10 +124,57 @@ describe('US-018: create a new project', () => {
   it('AC-2: unticking "Initialise Git" creates a non-git project even when Git is installed', async () => {
     const { service, calls } = setup();
 
-    const opened = await service.create({ name: 'Notes', parentDir: '/work', folderName: 'notes', initGit: false });
+    const opened = await service.create({ name: 'Notes', path: '/work/notes', initGit: false });
 
     expect(opened.vcs).toEqual({ mode: 'none' });
     expect(calls).toEqual(['structure /work/notes']);
+  });
+});
+
+describe('US-068: folder-first project creation', () => {
+  it('AC-2: creates the project in the picked (existing, empty) folder with the entered name', async () => {
+    const { service, calls, rows } = setup({ existing: { '/work/notes': { files: [] } } });
+
+    const opened = await service.create({ name: 'My Notes', path: '/work/notes', initGit: true });
+
+    expect(opened).toMatchObject({ name: 'My Notes', path: '/work/notes', vcs: { mode: 'git', branch: 'main' } });
+    expect(calls[0]).toBe('structure /work/notes');
+    expect(rows.get(opened.id)).toMatchObject({ name: 'My Notes', workspacePath: '/work/notes' });
+  });
+
+  it('AC-3: rejects a non-empty folder with the Release 2 hint and writes nothing', async () => {
+    const { service, calls } = setup({ existing: { '/code/app': { files: ['main.c'] } } });
+
+    const error = await service.create({ name: 'App', path: '/code/app', initGit: true }).catch((e: unknown) => e);
+
+    expect(error).toMatchObject({
+      code: 'FOLDER_NOT_EMPTY',
+      message: expect.stringContaining('Choose an empty folder — adopting existing code arrives in Release 2.'),
+    });
+    expect(calls).toEqual([]);
+  });
+
+  it('AC-3/AC-4: classifies a picked folder as SpecForge project, empty or not empty', async () => {
+    const { service } = setup({
+      existing: {
+        '/p': { files: ['.specforge/project.yaml'], descriptor: { id: 'abc', name: 'Billing' } },
+        '/empty': { files: [] },
+        '/code': { files: ['main.c'] },
+      },
+    });
+
+    expect(await service.inspectFolder('/p')).toEqual({ kind: 'project' });
+    expect(await service.inspectFolder('/empty')).toEqual({ kind: 'empty' });
+    expect(await service.inspectFolder('/code')).toEqual({ kind: 'notEmpty' });
+  });
+
+  it('AC-4: opening a non-empty folder without metadata says that adopting existing code arrives in Release 2', async () => {
+    const { service } = setup({ existing: { '/code': { files: ['main.c'] } } });
+
+    await expect(service.open('/code')).rejects.toMatchObject({
+      code: 'NOT_A_PROJECT',
+      message: expect.stringMatching(/no SpecForge metadata.*adopting existing code arrives in Release 2/s),
+    });
   });
 });
 

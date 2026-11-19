@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 // @vitest-environment happy-dom
-import { act, cleanup, render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanupChecked } from './styled-controls.js';
 import type { ContractHandlers, QueryOutput } from '@specforge/ipc-contract';
 import { ChatPanel } from '../src/dashboard/ChatPanel.js';
 import { closeFakeCores, fakeCoreWithEvents } from './fake-core.js';
 
 afterEach(async () => {
-  cleanup();
+  cleanupChecked();
   closeFakeCores();
 });
 

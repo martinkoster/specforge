@@ -41,6 +41,7 @@ export function EffectiveRules({ rules, onToggleGlobal }: EffectiveRulesProps) {
               {rule.origin === 'global' ? (
                 <label>
                   <input
+                    className="checkbox"
                     type="checkbox"
                     aria-label={`Use global rule ${ruleName(rule)} in this project`}
                     checked={!rule.disabled}

@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // Guided phases (US-033, UC-031, UF-09, FR-080/FR-081): Intent → Requirements → Design → User stories → Kanban with
 // derived status, the recommended phase, the loop of the current phase and a soft gate for unapproved inputs.
+import { Circle, CircleCheck, CircleDashed, CircleDot, Lock } from 'lucide-react';
+import { Dialog } from '../components/index.js';
+import { Icon } from '../components/icons.js';
 import { useState } from 'react';
 import type { QueryOutput } from '@specforge/ipc-contract';
 
@@ -28,6 +31,18 @@ export interface PhaseStepperProps {
   onOpen(phase: GuidedPhase): void;
 }
 
+type PhaseEntry = PhaseStatus['phases'][number];
+
+/** Visual state of a step (US-072 AC-4): done, current, blocked, started or to do. */
+function stepState(phase: PhaseEntry, current: GuidedPhase | null): 'done' | 'current' | 'blocked' | 'started' | 'todo' {
+  if (!phase.enabled) return 'blocked';
+  if (phase.phase === current) return 'current';
+  if (phase.state === 'approved') return 'done';
+  return phase.state === 'not_started' ? 'todo' : 'started';
+}
+
+const STEP_ICON = { done: CircleCheck, current: CircleDot, blocked: Lock, started: CircleDashed, todo: Circle } as const;
+
 export function PhaseStepper({ status, current, onOpen }: PhaseStepperProps) {
   const [gate, setGate] = useState<{ phase: GuidedPhase; inputs: string[] } | null>(null);
   const shown = status.phases.find((p) => p.phase === current);
@@ -44,14 +59,17 @@ export function PhaseStepper({ status, current, onOpen }: PhaseStepperProps) {
           <button
             key={p.phase}
             type="button"
-            className={`phase phase-${p.state}`}
+            className={`phase-step phase-${stepState(p, current)}`}
             aria-current={p.phase === current ? 'step' : undefined}
             disabled={!p.enabled}
             title={p.enabled ? undefined : 'Available once user stories exist.'}
             onClick={() => open(p)}
           >
-            {LABEL[p.phase]} · {p.state.replace('_', ' ')}
-            {p.phase === status.recommended ? ' (recommended)' : ''}
+            <Icon icon={STEP_ICON[stepState(p, current)]} />
+            <span>
+              {LABEL[p.phase]} · {p.state.replace('_', ' ')}
+              {p.phase === status.recommended ? ' (recommended)' : ''}
+            </span>
           </button>
         ))}
       </nav>
@@ -65,25 +83,27 @@ export function PhaseStepper({ status, current, onOpen }: PhaseStepperProps) {
         </ol>
       )}
       {gate && (
-        <div role="alertdialog" aria-modal="true" aria-labelledby="phase-gate-title" className="dialog">
-          <h2 id="phase-gate-title">Inputs not approved yet</h2>
+        <Dialog role="alertdialog" title={<>Inputs not approved yet</>} onClose={() => setGate(null)}>
           <p>
             {gate.inputs.map((i) => LABEL[i as GuidedPhase] ?? i).join(', ')} {gate.inputs.length === 1 ? 'is' : 'are'} not approved yet.
             Work in {LABEL[gate.phase]} may need rework later.
           </p>
-          <button
-            type="button"
-            onClick={() => {
-              onOpen(gate.phase);
-              setGate(null);
-            }}
-          >
-            Continue
-          </button>
-          <button type="button" onClick={() => setGate(null)}>
-            Go back
-          </button>
-        </div>
+          <div className="dialog-footer">
+            <button className="btn btn-secondary" type="button" onClick={() => setGate(null)}>
+              Go back
+            </button>
+            <button
+              className="btn btn-primary"
+              type="button"
+              onClick={() => {
+                onOpen(gate.phase);
+                setGate(null);
+              }}
+            >
+              Continue
+            </button>
+          </div>
+        </Dialog>
       )}
     </div>
   );

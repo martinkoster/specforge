@@ -66,8 +66,7 @@ async function boot(adapter: (requests: RunRequest[]) => MockAdapter) {
   );
   const project = await client.command('projects.create', {
     name: 'C',
-    parentDir: mkdtempSync(join(tmpdir(), 'sf-correct-ws-')),
-    folderName: 'c',
+    path: join(mkdtempSync(join(tmpdir(), 'sf-correct-ws-')), 'c'),
     initGit: true,
   });
   writeFileSync(

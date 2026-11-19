@@ -1,12 +1,12 @@
 # Requirements Summary
 
-Last updated: 2026-10-14
+Last updated: 2026-11-18
 
 ## Releases
 
 | Release | Scope | Must | Should | Could | Won't |
 |---|---|---|---|---|---|
-| R1 | MVP — end-to-end workflow: setup, start wizard, guided phases, dashboard + read-only chat, epics (basics), Kanban with dependencies, queue and parallel runs, review | 83 | 2 | 0 | 0 |
+| R1 | MVP — end-to-end workflow: setup, start wizard, guided phases, dashboard + read-only chat, epics (basics), Kanban with dependencies, queue and parallel runs, review | 83 | 3 | 0 | 0 |
 | R2 | Evolution & depth — feature intents, chat writes, epic review, plan view, decision review, brownfield onboarding, usage & cost, impact analysis, versioning, test concepts | 11 | 16 | 0 | 0 |
 | R3 | Refinements — e.g. direct-edit feature hint | 0 | 0 | 1 | 0 |
 | Later | Deferred capabilities (other runtimes, cross-runtime parallelism, collaboration) | 0 | 0 | 0 | 3 |
@@ -94,7 +94,7 @@ Priorities are MoSCoW within the release they belong to.
 | FR-075 | Re-run setup and environment status | Should Have | R2 | Active |
 | FR-076 | Start wizard | Must Have | R1 | Active |
 | FR-077 | Open an existing SpecForge project | Must Have | R1 | Active |
-| FR-078 | Create a new project with a new folder | Must Have | R1 | Active |
+| FR-078 | Create a new project in an empty folder | Must Have | R1 | Active |
 | FR-079 | Brownfield onboarding (adopt existing code) | Should Have | R2 | Active |
 | FR-080 | Guided phase process (stepper) | Must Have | R1 | Active |
 | FR-081 | Uniform phase loop | Must Have | R1 | Active |
@@ -133,6 +133,7 @@ Priorities are MoSCoW within the release they belong to.
 | FR-114 | Direct edits remain possible | Could Have | R3 | Active |
 | FR-115 | Merge detection | Must Have | R1 | Active |
 | FR-116 | Workspace consistency rules | Must Have | R1 | Active |
+| FR-117 | Colour theme selection | Should Have | R1 | Active |
 
 ## Non-Functional Requirements
 
@@ -170,6 +171,7 @@ Priorities are MoSCoW within the release they belong to.
 | NFR-030 | Dashboard freshness and performance | Performance | Should Have | R1 | Active |
 | NFR-031 | Traceability of chat changes | Security | Must Have | R2 | Active |
 | NFR-032 | Feature capture effort | Usability | Should Have | R2 | Active |
+| NFR-033 | Consistent modern visual design | Usability | Should Have | R1 | Active |
 
 ## Constraints
 
@@ -194,7 +196,7 @@ Priorities are MoSCoW within the release they belong to.
 ## Open questions / assumptions to confirm
 | # | Item | Assumption made |
 |---|------|-----------------|
-| A1 | Quantitative NFR targets | Proposed by analyst (NFR-001…NFR-032); confirm or adjust |
+| A1 | Quantitative NFR targets | Proposed by analyst (NFR-001…NFR-033); confirm or adjust |
 | A2 | Artifact lifecycle states | Draft → Approved (FR-013); any edit by AI resets to Draft |
 | A3 | Board transitions beyond §5.4 | Transition matrix in FR-021 (incl. In Progress → Ready on cancel) |
 | A4 | Approval policies vs. interactive relay | Rule-based auto-allow/deny is permitted on top of D3 (FR-051, Must Have); default relays everything |
@@ -221,3 +223,5 @@ Priorities are MoSCoW within the release they belong to.
 | 2026-10-15 | NFR-004 / US-047 AC-4: snapshot target split — initial (cold) snapshot in background with progress, pre-run (incremental) snapshot < 5 s (product-owner decision after measurement). |
 | 2026-10-18 | NFR-003 / US-065 AC-2: cold start measured as SpecForge's share (bare-Electron baseline of the same machine and test driver subtracted; product-owner decision after measurement). |
 | 2026-10-21 | Intent D23 (US-009): CON-015 notes that the Agent SDK's JavaScript is bundled in the installers and that public releases require legal confirmation of Anthropic's terms. |
+| 2026-11-18 | Intent D24 (folder-first project creation): FR-078 renamed "Create a new project in an empty folder" — native folder picker first, project name pre-filled from the folder name, no parent-location / folder-name fields; FR-077 clarified (empty folder without metadata → *Create new project here*; non-empty → explanation, *Adopt this folder* from R2). UC-029 and UF-01b updated; rework story US-068. Brownfield adoption (FR-079) stays R2. |
+| 2026-11-18 | Intent D25 (UI design concept: modern developer-tool style, design tokens + plain CSS, light/dark, Lucide icons): added FR-117 (colour theme selection, Should Have, R1) and NFR-033 (consistent modern visual design, Should Have, R1); NFR-020 measure: contrast check in both themes. Design: `ui_design_concept.md`, ADR-023. Stories US-069–US-077. |

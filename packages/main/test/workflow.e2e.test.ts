@@ -103,8 +103,9 @@ async function flow(page: Page, parent: string): Promise<void> {
   await page.getByRole('region', { name: 'Review of US-001' }).getByText('US-001 implemented.').waitFor({ timeout: 30_000 });
   await page.getByRole('region', { name: 'Decision' }).getByRole('button', { name: 'Approve', exact: true }).click();
   await page.getByRole('region', { name: 'Merge instructions' }).waitFor();
+  // Esc closes the story drawer (US-071 AC-4).
   await page.keyboard.press('Escape');
-  await page.getByRole('button', { name: 'Close', exact: true }).first().click();
+  await page.getByRole('dialog', { name: /^US-001 / }).waitFor({ state: 'detached' });
   await waitForColumn(page, 'US-002', 'Review', 90_000);
   expect(await columnOf(page, 'US-001')).toContain('Done');
   if (existsSync(join(workspace, '.git')))

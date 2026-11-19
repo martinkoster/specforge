@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 // @vitest-environment happy-dom
-import { act, cleanup, render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanupChecked } from './styled-controls.js';
 import type { ContractHandlers } from '@specforge/ipc-contract';
 import { ExecutionsArea, formatElapsed, type RunRow } from '../src/executions/ExecutionsArea.js';
 import { formatEvent, mergeLines } from '../src/executions/RunLog.js';
 import { closeFakeCores, fakeCoreWithEvents } from './fake-core.js';
 
 afterEach(() => {
-  cleanup();
+  cleanupChecked();
   closeFakeCores();
 });
 
@@ -269,5 +270,17 @@ describe('US-034 AC-1: trace of a run in the executions view', () => {
     const trace = await screen.findByRole('region', { name: 'Trace' });
     expect(await within(trace).findByRole('button', { name: 'US-001: Login' })).toBeInTheDocument();
     expect(within(trace).getByText('src/login.ts')).toBeInTheDocument();
+  });
+});
+
+describe('US-076 AC-1: run list and panel design', () => {
+  it('shows statuses as badges (running spins), tabs as a segmented tab list and Cancel as a destructive action', async () => {
+    await renderArea();
+    const table = screen.getByRole('table', { name: 'Runs' });
+    const running = within(table).getByText('Running').closest('.badge')!;
+    expect(running).toHaveClass('badge-info');
+    expect(running.querySelector('svg')).toHaveClass('icon-spin');
+    expect(within(table).getByText('Completed').closest('.badge')).toHaveClass('badge-success');
+    expect(within(table).getByRole('button', { name: 'Cancel US-001' })).toHaveClass('btn-danger');
   });
 });

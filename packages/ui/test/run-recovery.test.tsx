@@ -3,12 +3,13 @@
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanupChecked } from './styled-controls.js';
 import { KanbanBoard, type BoardData } from '../src/board/KanbanBoard.js';
 import { RunRecoveryDialog } from '../src/board/RunRecoveryDialog.js';
 import { closeFakeCores, fakeCore } from './fake-core.js';
 
 afterEach(() => {
-  cleanup();
+  cleanupChecked();
   closeFakeCores();
 });
 

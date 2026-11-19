@@ -1,0 +1,118 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* First-start setup wizard (UF-01, US-073, ui_design_concept.md §4.2): step indicator, one form per step, summary. */
+@layer areas {
+  .setup-wizard {
+    max-width: 64rem;
+    margin: 0 auto;
+    padding: var(--space-6) var(--space-5);
+  }
+
+  .setup-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-5);
+  }
+
+  .setup-header h1 {
+    font-size: var(--text-2xl);
+    line-height: var(--leading-2xl);
+  }
+
+  .setup-layout {
+    display: grid;
+    grid-template-columns: 16rem minmax(0, 1fr);
+    gap: var(--space-5);
+    align-items: start;
+  }
+
+  .setup-layout nav {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .setup-step {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: var(--control-md);
+    padding: 0 var(--space-3);
+    border: none;
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .setup-step:hover {
+    background: var(--surface-hover);
+    color: var(--text);
+  }
+
+  .setup-step:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: -2px;
+  }
+
+  .setup-step-current {
+    background: var(--surface-selected);
+    color: var(--accent-text);
+  }
+
+  .setup-step-done .icon {
+    color: var(--success);
+  }
+
+  .setup-step-warning .icon {
+    color: var(--warning);
+  }
+
+  .setup-step-open .icon {
+    color: var(--text-subtle);
+  }
+
+  .setup-panel {
+    padding: var(--space-5);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    background: var(--surface);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .setup-panel h2 {
+    margin-bottom: var(--space-3);
+  }
+
+  .setup-summary {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin: 0 0 var(--space-4);
+    padding: 0;
+    list-style: none;
+  }
+
+  .setup-summary li {
+    display: grid;
+    grid-template-columns: 14rem auto minmax(0, 1fr);
+    align-items: center;
+    gap: var(--space-3);
+  }
+
+  .setup-summary-label {
+    font-weight: var(--weight-medium);
+  }
+
+  .setup-footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    margin-top: var(--space-5);
+    padding-top: var(--space-4);
+    border-top: 1px solid var(--border);
+  }
+}

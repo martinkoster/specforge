@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // @vitest-environment happy-dom
-import { cleanup, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanupChecked } from './styled-controls.js';
 import { ProjectSettingsForm, type ProjectSettingsView } from '../src/settings/ProjectSettingsForm.js';
 
-afterEach(cleanup);
+afterEach(cleanupChecked);
 
 const view = (overrides: Partial<ProjectSettingsView> = {}): ProjectSettingsView => ({
   settings: {

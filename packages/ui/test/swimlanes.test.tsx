@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 // @vitest-environment happy-dom
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanupChecked } from './styled-controls.js';
 import { KanbanBoard, resolveDrop, type BoardData } from '../src/board/KanbanBoard.js';
 import { KanbanArea } from '../src/board/KanbanArea.js';
 import { closeFakeCores, fakeCore } from './fake-core.js';
 
 afterEach(() => {
-  cleanup();
+  cleanupChecked();
   closeFakeCores();
 });
 
@@ -78,7 +79,7 @@ describe('US-039 AC-1: lanes by epic', () => {
   it('cards show an epic colour tag, also in the flat view', () => {
     const { unmount } = render(<KanbanBoard board={board} layout="flat" onMove={async () => ({ ok: true })} />);
     expect(screen.queryAllByRole('region', { name: /^Lane / })).toHaveLength(0);
-    expect(screen.getByText('EP-002', { selector: '.epic-tag' })).toHaveClass('epic-colour-1');
+    expect(screen.getByText('EP-002', { selector: '.tag' })).toHaveClass('epic-colour-1');
     unmount();
   });
 });
@@ -140,5 +141,53 @@ describe('US-039 AC-3: moving a card into another lane', () => {
     await userEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Move' }));
     expect(onSetEpic).toHaveBeenCalledWith('US-002', null);
     expect(onMove).not.toHaveBeenCalled();
+  });
+});
+
+describe('US-074 AC-3: segmented layout and view toggles', () => {
+  it('switches between board by epic, flat board and the dependency graph', async () => {
+    const session = await fakeCore({ 'board.get': async () => board });
+    render(<KanbanArea session={session} projectId="p1" />);
+
+    const layout = await screen.findByRole('radiogroup', { name: 'Layout' });
+    expect(layout).toHaveClass('segmented');
+    expect(within(layout).getByRole('radio', { name: 'By epic' })).toBeChecked();
+    await userEvent.click(within(layout).getByRole('radio', { name: 'Flat' }));
+    expect(screen.queryAllByRole('region', { name: /^Lane / })).toHaveLength(0);
+
+    const view = screen.getByRole('radiogroup', { name: 'View' });
+    expect(view).toHaveClass('segmented');
+    await userEvent.click(within(view).getByRole('radio', { name: 'Dependency graph' }));
+    expect(await screen.findByRole('region', { name: 'Dependency graph' })).toBeInTheDocument();
+  });
+});
+
+describe('KanbanArea: load error and recovery dialog', () => {
+  it('shows a load error', async () => {
+    const session = await fakeCore({
+      'board.get': async () => {
+        throw new Error('database locked');
+      },
+    });
+    render(<KanbanArea session={session} projectId="p1" />);
+    expect(await screen.findByRole('alert')).toHaveTextContent('database locked');
+  });
+
+  it('opens the recovery dialog of a failed story and closes it again', async () => {
+    const failed = {
+      ...board,
+      columns: board.columns.map((c) =>
+        c.status === 'in_progress'
+          ? { ...c, cards: [{ ...card('US-009', 'ready', null), status: 'in_progress' as const, subState: 'failed' as const }] }
+          : c,
+      ),
+    } as BoardData;
+    const session = await fakeCore({ 'board.get': async () => failed });
+    render(<KanbanArea session={session} projectId="p1" />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Recover US-009' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Recover US-009' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('dialog', { name: 'Recover US-009' })).toBeNull();
   });
 });

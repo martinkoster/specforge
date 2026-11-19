@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // First-start setup wizard (US-012, UC-028, UF-01): step list with status, one panel per step, "Skip setup" always visible.
+import { Circle, CircleCheck, CircleDot, TriangleAlert } from 'lucide-react';
+import { Icon } from '../components/icons.js';
+import { Dialog, Skeleton, StatusBadge } from '../components/index.js';
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import type { CommandInput, QueryOutput } from '@specforge/ipc-contract';
 import type { CoreSession } from '../core/core-session.js';
@@ -12,6 +15,16 @@ type Provider = CommandInput<'setup.saveProvider'>['provider'];
 type Suggestion = QueryOutput<'setup.ruleSuggestions'>[number];
 
 const STATUS_TEXT: Record<Step['status'], string> = { ok: 'OK', warning: 'warning', missing: 'missing', skipped: 'skipped' };
+const STATUS_BADGE: Record<Step['status'], string> = { ok: 'OK', warning: 'Warning', missing: 'Missing', skipped: 'Skipped' };
+
+/** Step indicator state (US-073 AC-2): current, done (OK), warning, or still open. */
+function stepKind(step: Step, current: string): 'current' | 'done' | 'warning' | 'open' {
+  if (step.id === current) return 'current';
+  if (step.status === 'ok') return 'done';
+  return step.status === 'warning' ? 'warning' : 'open';
+}
+
+const STEP_ICON = { current: CircleDot, done: CircleCheck, warning: TriangleAlert, open: Circle } as const;
 
 const message = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
@@ -47,15 +60,15 @@ function RuntimePanel({ session, step, reload }: { session: CoreSession; step: S
   return (
     <>
       <p>{step.detail}</p>
-      <button type="button" onClick={() => void recheck()}>
+      <button className="btn btn-secondary" type="button" onClick={() => void recheck()}>
         Re-check
       </button>
       <form onSubmit={(e) => void verify(e)}>
         <label>
           Path to Claude Code
-          <input value={path} onChange={(e) => setPath(e.target.value)} />
+          <input className="input" value={path} onChange={(e) => setPath(e.target.value)} />
         </label>
-        <button type="submit" disabled={path.trim() === ''}>
+        <button className="btn btn-secondary" type="submit" disabled={path.trim() === ''}>
           Verify
         </button>
       </form>
@@ -80,6 +93,7 @@ function ProviderPanel({ session, reload }: { session: CoreSession; reload(): Pr
     <label>
       {label}
       <input
+        className="input"
         type={secret ? 'password' : 'text'}
         autoComplete="off"
         value={fields[name] ?? ''}
@@ -124,7 +138,7 @@ function ProviderPanel({ session, reload }: { session: CoreSession; reload(): Pr
         <legend>Provider</legend>
         {PROVIDERS.map((p) => (
           <label key={p.kind}>
-            <input type="radio" name="provider" checked={kind === p.kind} onChange={() => setKind(p.kind)} />
+            <input className="radio" type="radio" name="provider" checked={kind === p.kind} onChange={() => setKind(p.kind)} />
             {p.label}
           </label>
         ))}
@@ -149,7 +163,7 @@ function ProviderPanel({ session, reload }: { session: CoreSession; reload(): Pr
         </>
       )}
       <p className="hint">Keys are stored in the operating system's credential store and passed only to the agent process.</p>
-      <button type="submit" disabled={busy}>
+      <button className="btn btn-secondary" type="submit" disabled={busy}>
         Save and test connection
       </button>
       {result && <p role={result.ok ? 'status' : 'alert'}>{result.text}</p>}
@@ -181,6 +195,7 @@ function RulesPanel({ session, reload }: { session: CoreSession; reload(): Promi
           <li key={s.key}>
             <label>
               <input
+                className="checkbox"
                 type="checkbox"
                 checked={s.enabled || chosen.has(s.key)}
                 disabled={s.enabled}
@@ -197,7 +212,7 @@ function RulesPanel({ session, reload }: { session: CoreSession; reload(): Promi
         ))}
       </ul>
       <p className="hint">Everything else will ask you first. Actions outside the workspace always ask.</p>
-      <button type="button" onClick={() => void save()}>
+      <button className="btn btn-secondary" type="button" onClick={() => void save()}>
         Save rules
       </button>
       {done && <p aria-live="polite">{done}</p>}
@@ -251,7 +266,7 @@ export function SetupWizard({ session, onDone, startAtFirstIncomplete = false }:
 
   const run = (fn: () => Promise<void>) => () => void fn().catch((e: unknown) => setError(message(e)));
 
-  if (!data) return error ? <p role="alert">{error}</p> : <p>Loading setup…</p>;
+  if (!data) return error ? <p role="alert">{error}</p> : <Skeleton label="Loading setup" lines={6} />;
   const step = data.steps.find((s) => s.id === current)!;
   const index = data.steps.findIndex((s) => s.id === current);
   const next = data.steps[index + 1];
@@ -260,7 +275,7 @@ export function SetupWizard({ session, onDone, startAtFirstIncomplete = false }:
     <div className="setup-wizard">
       <header className="setup-header">
         <h1>Set up SpecForge</h1>
-        <button type="button" onClick={() => setConfirmSkip(true)}>
+        <button className="btn btn-secondary" type="button" onClick={() => setConfirmSkip(true)}>
           Skip setup
         </button>
       </header>
@@ -271,10 +286,13 @@ export function SetupWizard({ session, onDone, startAtFirstIncomplete = false }:
               key={s.id}
               type="button"
               aria-current={s.id === current ? 'step' : undefined}
-              className={`step step-${s.status}`}
+              className={`setup-step setup-step-${stepKind(s, current)}`}
               onClick={() => setCurrent(s.id)}
             >
-              {s.label} — {STATUS_TEXT[s.status]}
+              <Icon icon={STEP_ICON[stepKind(s, current)]} />
+              <span>
+                {s.label} — {STATUS_TEXT[s.status]}
+              </span>
             </button>
           ))}
         </nav>
@@ -288,17 +306,20 @@ export function SetupWizard({ session, onDone, startAtFirstIncomplete = false }:
           {current === 'defaults' && <DefaultsPanel session={session} reload={reload} />}
           {current === 'summary' && (
             <>
-              <ul>
+              <ul className="setup-summary">
                 {data.steps
                   .filter((s) => s.id !== 'summary')
                   .map((s) => (
                     <li key={s.id}>
-                      {s.label}: {STATUS_TEXT[s.status]} — {s.detail}
+                      <span className="setup-summary-label">{s.label}</span>
+                      <StatusBadge status={s.status} label={STATUS_BADGE[s.status]} />
+                      <span className="hint">{s.detail}</span>
                     </li>
                   ))}
               </ul>
               <p>{step.detail}</p>
               <button
+                className="btn btn-primary btn-lg"
                 type="button"
                 onClick={run(async () => {
                   await session.client().command('setup.complete', {});
@@ -312,6 +333,7 @@ export function SetupWizard({ session, onDone, startAtFirstIncomplete = false }:
           {current !== 'summary' && (
             <div className="setup-footer">
               <button
+                className="btn btn-ghost btn-lg"
                 type="button"
                 onClick={run(async () => {
                   await session.client().command('setup.skipStep', { step: current });
@@ -321,7 +343,7 @@ export function SetupWizard({ session, onDone, startAtFirstIncomplete = false }:
                 Skip this step
               </button>
               {next && (
-                <button type="button" onClick={() => setCurrent(next.id)}>
+                <button className="btn btn-primary btn-lg" type="button" onClick={() => setCurrent(next.id)}>
                   Next
                 </button>
               )}
@@ -330,22 +352,24 @@ export function SetupWizard({ session, onDone, startAtFirstIncomplete = false }:
         </section>
       </div>
       {confirmSkip && (
-        <div role="alertdialog" aria-modal="true" aria-labelledby="skip-setup-title" className="dialog">
-          <h2 id="skip-setup-title">Skip setup?</h2>
+        <Dialog role="alertdialog" title={<>Skip setup?</>} onClose={() => setConfirmSkip(false)}>
           <p>AI features will be disabled until setup is complete. You can run the setup again from Settings.</p>
-          <button
-            type="button"
-            onClick={run(async () => {
-              await session.client().command('setup.skip', {});
-              onDone();
-            })}
-          >
-            Skip setup
-          </button>
-          <button type="button" onClick={() => setConfirmSkip(false)}>
-            Cancel
-          </button>
-        </div>
+          <div className="dialog-footer">
+            <button className="btn btn-secondary" type="button" onClick={() => setConfirmSkip(false)}>
+              Cancel
+            </button>
+            <button
+              className="btn btn-danger"
+              type="button"
+              onClick={run(async () => {
+                await session.client().command('setup.skip', {});
+                onDone();
+              })}
+            >
+              Skip setup
+            </button>
+          </div>
+        </Dialog>
       )}
     </div>
   );

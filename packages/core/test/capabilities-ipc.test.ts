@@ -52,8 +52,7 @@ async function boot(agentAdapter: AgentAdapter | undefined) {
   const client: ContractClient = await connectClient(wrap(port1));
   const project = await client.command('projects.create', {
     name: 'Caps',
-    parentDir: mkdtempSync(join(tmpdir(), 'sf-caps-ws-')),
-    folderName: 'caps',
+    path: join(mkdtempSync(join(tmpdir(), 'sf-caps-ws-')), 'caps'),
     initGit: false,
   });
   for (const id of ['US-001', 'US-002']) writeFileSync(join(project.path, 'spec', '04_user_stories', `${id}.md`), STORY(id));

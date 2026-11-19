@@ -1,7 +1,7 @@
 # SpecForge — Functional Requirements
 
 **Source:** `spec/01_intent/intent.md` v0.2 incl. §13 Clarified decisions (D1–D22)  
-**Last updated:** 2026-10-13
+**Last updated:** 2026-11-18
 
 Each requirement has a **Release** (R1 = MVP per intent §8, R2, R3, Later) and a MoSCoW **Priority** within that release. Capabilities deferred beyond the planned releases are listed as *Won't Have (MVP)* with Release *Later* so they stay traceable. The release overview is in `requirements_summary.md`.
 
@@ -585,18 +585,18 @@ Correction rounds (FR-045) re-enter *In Progress* via the Scheduler (Queued → 
 **Acceptance**: With no project open the start wizard is shown with its elements (without *Adopt* in Release 1); clicking a recent project opens it on its dashboard.
 
 ### FR-077: Open an existing SpecForge project
-**Description**: *Open existing project* lets the user select a folder. If it contains `.specforge/project.yaml`, the project is registered (if not yet) and opened on its dashboard. If not, SpecForge explains that this is not a SpecForge project and offers *Adopt this folder* (FR-079) or *Create new project here* (empty folder only).
-**Source**: D14 "open an existing SpecForge project (folder with `.specforge` metadata)".
+**Description**: *Open existing project* lets the user select a folder. If it contains `.specforge/project.yaml`, the project is registered (if not yet) and opened on its dashboard. If not, SpecForge explains that this is not a SpecForge project and offers *Create new project here* (empty folder only, FR-078) or *Adopt this folder* (non-empty folder, from Release 2 with FR-079; in Release 1 the explanation says that adopting existing code arrives in Release 2).
+**Source**: D14 "open an existing SpecForge project (folder with `.specforge` metadata)"; D24.
 **Priority**: Must Have
 **Release**: R1
-**Acceptance**: Selecting a folder cloned from a repository that contains SpecForge metadata opens it with all artifacts, stories and dependencies indexed; selecting a folder without metadata shows the adopt/create choice.
+**Acceptance**: Selecting a folder cloned from a repository that contains SpecForge metadata opens it with all artifacts, stories and dependencies indexed; selecting an empty folder without metadata offers *Create new project here*; selecting a non-empty folder without metadata explains why it cannot be opened (Release 2: offers *Adopt this folder*).
 
-### FR-078: Create a new project with a new folder
-**Description**: *Create new project* asks for project name, parent location and folder name (pre-filled from the project name), creates the folder, initialises Git by default (checkbox, explained: required for parallel runs and isolation), creates the SpecForge structure and an initial commit, and starts the guided phase process at *Intent* (FR-080).
-**Source**: D14; user request "when creating a new project, the user is asked to create a new project folder".
+### FR-078: Create a new project in an empty folder
+**Description**: *Create new project* opens the native folder picker, in which the user picks an empty folder or creates a new one (D24). A short dialog then shows the chosen folder, the project name (pre-filled from the folder name, editable) and the Git checkbox. If the picked folder already holds `.specforge/project.yaml`, it is opened as an existing project (FR-077); a non-empty folder without metadata is rejected with a hint to choose an empty folder (adopting existing code: FR-079, Release 2). SpecForge initialises Git by default (checkbox, explained: required for parallel runs and isolation), creates the SpecForge structure and an initial commit, and starts the guided phase process at *Intent* (FR-080).
+**Source**: D14, D24 (2026-11-18: folder-first instead of name / parent location / folder name).
 **Priority**: Must Have
 **Release**: R1
-**Acceptance**: Creating "Task Manager" under a chosen parent creates `task-manager/` with `.git`, `.specforge/`, `spec/` and one initial commit, and opens the Intent phase.
+**Acceptance**: Picking a new empty folder `task-manager/` and confirming the pre-filled name "task-manager" creates in it `.git`, `.specforge/`, `spec/` and one initial commit, and opens the Intent phase.
 
 ### FR-079: Brownfield onboarding (adopt existing code)
 **Description**: *Adopt existing code folder* registers a folder that contains code but no SpecForge metadata. SpecForge creates the SpecForge structure (Git detected; offer `git init` if absent), then — on request — runs an analysis run in which the agent reads the codebase (read-only) and drafts: a current-state summary, a draft intent ("as-is" description plus a section for the desired change, to be completed by the user), and draft current-state requirements and design (architecture, components, technologies). All drafts are *Draft* and enter the guided phase process.
@@ -875,6 +875,13 @@ Correction rounds (FR-045) re-enter *In Progress* via the Scheduler (Queued → 
 **Priority**: Must Have
 **Release**: R1
 **Acceptance**: An agent edit of a story file inside a worktree is denied; in a non-git project, moving a story to In Progress while a chat answer is being generated queues it with "waiting for workspace" and starts it after the chat run ends; in a git project with an uncommitted change in `src/`, starting a run shows the warning.
+
+### FR-117: Colour theme selection
+**Description**: SpecForge offers a light and a dark theme (UI design concept, D25). By default the theme follows the operating system's light/dark preference; *Settings → Appearance* lets the user choose *System*, *Light* or *Dark*. The choice applies immediately to the whole application (including editor, diff, graph and log views), is kept across restarts and is applied before the first window paint.
+**Source**: D25 (2026-11-18).
+**Priority**: Should Have
+**Release**: R1
+**Acceptance**: With the OS in dark mode and *System* selected, the app starts dark; switching to *Light* turns every area light without restart; after a restart the app opens light with no dark flash; *System* follows a later OS change.
 
 ---
 

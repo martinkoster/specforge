@@ -3,13 +3,14 @@
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanupChecked } from './styled-controls.js';
 import type { ContractHandlers } from '@specforge/ipc-contract';
 import { ReviewPanel } from '../src/review/ReviewPanel.js';
 import { RejectedBranches } from '../src/review/RejectedBranches.js';
 import { closeFakeCores, fakeCore } from './fake-core.js';
 
 afterEach(() => {
-  cleanup();
+  cleanupChecked();
   closeFakeCores();
 });
 

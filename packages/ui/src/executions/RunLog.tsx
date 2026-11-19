@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Live, virtualised run log with full-text search (US-054 AC-2, AC-3; NFR-002, NFR-005).
+import { AnsiText } from './ansi.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { CoreSession } from '../core/core-session.js';
 
@@ -158,25 +159,28 @@ export function RunLog({ session, runId, live }: RunLogProps) {
         }}
       >
         <input
+          className="input"
           aria-label="Search log"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search log (e.g. error, install*)"
         />
-        <button type="submit">Search</button>
+        <button className="btn btn-secondary" type="submit">
+          Search
+        </button>
         {matches && (
           <>
             <span role="status">{matches.length === 0 ? 'No matches' : `${current + 1} of ${matches.length}`}</span>
-            <button type="button" onClick={() => step(-1)} disabled={matches.length === 0}>
+            <button className="btn btn-secondary" type="button" onClick={() => step(-1)} disabled={matches.length === 0}>
               Previous match
             </button>
-            <button type="button" onClick={() => step(1)} disabled={matches.length === 0}>
+            <button className="btn btn-secondary" type="button" onClick={() => step(1)} disabled={matches.length === 0}>
               Next match
             </button>
           </>
         )}
         <label>
-          <input type="checkbox" checked={follow} onChange={(e) => setFollow(e.target.checked)} /> Follow
+          <input className="checkbox" type="checkbox" checked={follow} onChange={(e) => setFollow(e.target.checked)} /> Follow
         </label>
         {searchError && <span role="alert">{searchError}</span>}
       </form>
@@ -202,7 +206,7 @@ export function RunLog({ session, runId, live }: RunLogProps) {
               aria-current={matches?.[current] === line.seq ? 'true' : undefined}
               style={{ position: 'absolute', top: (first + i) * ROW_HEIGHT, height: ROW_HEIGHT, left: 0, right: 0 }}
             >
-              {line.text}
+              <AnsiText text={line.text} />
             </div>
           ))}
         </div>

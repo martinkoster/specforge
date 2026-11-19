@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // Story card (US-038, US-041, US-043): ID, title, size, approval, execution/queue indicator, dependency badges,
 // conflict files with Re-check, drag handle and the accessible "Move to" control.
+import { GripVertical, Link2, LoaderCircle } from 'lucide-react';
+import { StatusBadge, Tag, statusLabel, statusTone } from '../components/index.js';
+import { Icon, STATUS_ICONS } from '../components/icons.js';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { COLUMN_LABELS, type BoardCard as Card, type BoardData, type BoardStatus as Status } from './types.js';
@@ -80,25 +83,31 @@ export function StoryCard({
           {...listeners}
           aria-label={`Drag ${card.storyId}`}
         >
-          ⠿
+          <Icon icon={GripVertical} />
         </button>
-        <button type="button" className="card-id link" aria-label={`Open ${card.storyId}`} onClick={onOpen}>
+        <button type="button" className="card-id link mono" aria-label={`Open ${card.storyId}`} onClick={onOpen}>
           {card.storyId}
         </button>
-        {card.size && <span className="badge">{card.size}</span>}
-        <span className={card.approval === 'approved' ? 'badge' : 'badge badge-warning'}>
-          {card.approval === 'approved' ? 'Approved' : 'Draft'}
+        <span className="card-status" title={statusLabel(card.subState !== 'none' ? card.subState : card.status)}>
+          {card.subState === 'running' || card.subState === 'preparing' ? (
+            <Icon icon={LoaderCircle} className="icon-spin" />
+          ) : (
+            <Icon icon={STATUS_ICONS[statusTone(card.subState !== 'none' ? card.subState : card.status)]} />
+          )}
         </span>
       </header>
       <p className="card-title">{card.title}</p>
       <div className="card-badges">
-        {badges.blockedBy > 0 && <span className="badge badge-warning">Blocked by {badges.blockedBy}</span>}
-        {badges.blocks > 0 && <span className="badge">Blocks {badges.blocks}</span>}
-        {badges.related > 0 && (
-          <span className="badge" title={`Related to ${card.related.join(', ')}`}>
-            Related
-          </span>
+        {card.epicId && <Tag {...(epicColour !== null ? { colour: epicColour } : {})}>{card.epicId}</Tag>}
+        {card.size && <Tag>{card.size}</Tag>}
+        {card.approval === 'approved' ? (
+          <StatusBadge status="approved" label="Approved" />
+        ) : (
+          <StatusBadge status="draft" tone="warning" label="Draft" />
         )}
+        {badges.blockedBy > 0 && <StatusBadge status="blocked" tone="warning" label={`Blocked by ${badges.blockedBy}`} />}
+        {badges.blocks > 0 && <StatusBadge status="blocks" label={`Blocks ${badges.blocks}`} />}
+        {badges.related > 0 && <StatusBadge status="related" label="Related" title={`Related to ${card.related.join(', ')}`} />}
         {(card.dependsOn.length > 0 || badges.blocks > 0 || badges.related > 0) && (
           <button
             type="button"
@@ -107,7 +116,7 @@ export function StoryCard({
             aria-pressed={highlight === 'selected'}
             onClick={onToggleDependencies}
           >
-            ⛓
+            <Icon icon={Link2} />
           </button>
         )}
       </div>
@@ -116,21 +125,21 @@ export function StoryCard({
         <>
           <p className="card-notice">Conflicting files: {card.waitingFor.join(', ')}</p>
           {onRecheck && (
-            <button type="button" aria-label={`Re-check ${card.storyId}`} onClick={onRecheck}>
+            <button className="btn btn-secondary" type="button" aria-label={`Re-check ${card.storyId}`} onClick={onRecheck}>
               Re-check
             </button>
           )}
         </>
       )}
-      {card.epicId && <span className={`epic-tag${epicColour !== null ? ` epic-colour-${epicColour}` : ''}`}>{card.epicId}</span>}
       {card.statusNotice && !conflict && <p className="card-notice">{card.statusNotice}</p>}
       {onRecover && (card.subState === 'failed' || card.subState === 'interrupted') && (
-        <button type="button" aria-label={`Recover ${card.storyId}`} onClick={onRecover}>
+        <button className="btn btn-secondary" type="button" aria-label={`Recover ${card.storyId}`} onClick={onRecover}>
           Retry / resume…
         </button>
       )}
       {epicOptions && onChangeEpic && (
         <select
+          className="select"
           aria-label={`Move ${card.storyId} to epic`}
           value=""
           onChange={(e) => e.target.value && onChangeEpic(e.target.value === 'none' ? null : e.target.value)}
@@ -147,7 +156,12 @@ export function StoryCard({
       )}
       <label>
         <span className="visually-hidden">Move {card.storyId} to</span>
-        <select aria-label={`Move ${card.storyId} to`} value="" onChange={(e) => e.target.value && onMove(e.target.value as Status)}>
+        <select
+          className="select"
+          aria-label={`Move ${card.storyId} to`}
+          value=""
+          onChange={(e) => e.target.value && onMove(e.target.value as Status)}
+        >
           <option value="">Move to…</option>
           {(Object.keys(COLUMN_LABELS) as Status[])
             .filter((s) => s !== card.status)

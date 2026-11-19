@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // @vitest-environment happy-dom
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanupChecked } from './styled-controls.js';
 import { KanbanBoard, type BoardData, type KanbanBoardProps } from '../src/board/KanbanBoard.js';
 
-afterEach(cleanup);
+afterEach(cleanupChecked);
 
 type Card = BoardData['columns'][number]['cards'][number];
 const card = (storyId: string, status: Card['status'], overrides: Partial<Card> = {}): Card => ({
@@ -62,7 +63,7 @@ describe('US-041 AC-1: dependency badges', () => {
     renderBoard();
     expect(within(article('US-002')).getByText('Blocked by 1')).toBeInTheDocument();
     expect(within(article('US-002')).getByText('Blocks 1')).toBeInTheDocument();
-    expect(within(article('US-002')).getByText('Related')).toHaveAttribute('title', 'Related to US-005');
+    expect(within(article('US-002')).getByText('Related').closest('.badge')).toHaveAttribute('title', 'Related to US-005');
     expect(within(article('US-001')).getByText('Blocks 1')).toBeInTheDocument();
     expect(within(article('US-001')).queryByText(/Blocked by/)).not.toBeInTheDocument();
   });

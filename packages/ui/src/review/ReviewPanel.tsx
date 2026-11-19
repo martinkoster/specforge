@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Review of a completed story (US-057, UC-022, UF-06): outcome, summary, tests, coverage, open issues, overlap
 // warnings; the story's own changed files with diffs; Log, Permissions and Context tabs; Open in editor.
+import { Callout, Skeleton } from '../components/index.js';
 import { useEffect, useState } from 'react';
 import type { CommandOutput as QueryOutputCommand, QueryOutput } from '@specforge/ipc-contract';
 import type { CoreSession } from '../core/core-session.js';
@@ -60,7 +61,7 @@ function Corrections({
 
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)}>
+      <button className="btn btn-secondary" type="button" onClick={() => setOpen(true)}>
         Request corrections…
       </button>
     );
@@ -70,7 +71,13 @@ function Corrections({
     <div>
       <label>
         Feedback for the agent
-        <textarea aria-label="Feedback for the agent" rows={3} value={feedback} onChange={(e) => setFeedback(e.target.value)} />
+        <textarea
+          className="textarea"
+          aria-label="Feedback for the agent"
+          rows={3}
+          value={feedback}
+          onChange={(e) => setFeedback(e.target.value)}
+        />
       </label>
       {fresh && (
         <p role="note" className="hint">
@@ -79,6 +86,7 @@ function Corrections({
         </p>
       )}
       <button
+        className="btn btn-secondary"
         type="button"
         disabled={options === null || feedback.trim() === ''}
         onClick={() =>
@@ -91,7 +99,7 @@ function Corrections({
       >
         {fresh ? 'Start a fresh run on the same branch' : 'Send to the agent'}
       </button>
-      <button type="button" onClick={() => setOpen(false)}>
+      <button className="btn btn-secondary" type="button" onClick={() => setOpen(false)}>
         Cancel
       </button>
     </div>
@@ -121,7 +129,7 @@ function Decision({
 
   if (merge) {
     return (
-      <section aria-label="Merge instructions" className="banner">
+      <Callout tone="success" role="region" label="Merge instructions">
         <h3>Approved</h3>
         {merge.order.length === 0 ? (
           <p>No branch to merge (the run worked in the workspace).</p>
@@ -135,13 +143,14 @@ function Decision({
           </ol>
         )}
         <p className="hint">SpecForge does not merge; merge the branches yourself in this order (predecessors first).</p>
-      </section>
+      </Callout>
     );
   }
   return (
     <section aria-label="Decision" className="review-decision">
       {error && <p role="alert">{error}</p>}
       <button
+        className="btn btn-secondary"
         type="button"
         onClick={() =>
           void session
@@ -159,22 +168,29 @@ function Decision({
       </button>
       <Corrections session={session} projectId={projectId} storyId={storyId} onFail={fail} {...(onDecided ? { onDecided } : {})} />
       {!rejecting ? (
-        <button type="button" onClick={() => setRejecting(true)}>
+        <button className="btn btn-secondary" type="button" onClick={() => setRejecting(true)}>
           Reject…
         </button>
       ) : (
         <div>
           <label>
             Reason (optional)
-            <textarea aria-label="Reason (optional)" rows={2} value={reason} onChange={(e) => setReason(e.target.value)} />
+            <textarea
+              className="textarea"
+              aria-label="Reason (optional)"
+              rows={2}
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+            />
           </label>
           {!gitMode && (
             <label>
-              <input type="checkbox" checked={restore} onChange={(e) => setRestore(e.target.checked)} />
+              <input className="checkbox" type="checkbox" checked={restore} onChange={(e) => setRestore(e.target.checked)} />
               Restore the files the run changed
             </label>
           )}
           <button
+            className="btn btn-secondary"
             type="button"
             onClick={() =>
               void session
@@ -191,7 +207,7 @@ function Decision({
           >
             Reject
           </button>
-          <button type="button" onClick={() => setRejecting(false)}>
+          <button className="btn btn-secondary" type="button" onClick={() => setRejecting(false)}>
             Cancel
           </button>
         </div>
@@ -215,7 +231,7 @@ export function ReviewPanel({ session, projectId, storyId, onDecided }: ReviewPa
   }, [session, projectId, storyId]);
 
   if (error) return <p role="alert">{error}</p>;
-  if (!review || result === undefined) return <p>Loading the review…</p>;
+  if (!review || result === undefined) return <Skeleton label="Loading the review" lines={5} />;
   if (!review.runId) return <p>This story has no run to review yet.</p>;
   const runId = review.runId;
 
@@ -223,7 +239,14 @@ export function ReviewPanel({ session, projectId, storyId, onDecided }: ReviewPa
     <section className="review-panel" aria-label={`Review of ${storyId}`}>
       <div role="tablist" aria-label="Review sections">
         {TABS.map((t) => (
-          <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)}>
+          <button
+            className="btn btn-secondary"
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.id}
+            onClick={() => setTab(t.id)}
+          >
             {t.label}
           </button>
         ))}
@@ -312,8 +335,7 @@ function Summary({
         </section>
       )}
       {review.overlaps.length > 0 && (
-        <section aria-label="Warnings" className="banner banner-warning">
-          <h3>Warnings</h3>
+        <Callout tone="warning" role="region" label="Warnings" title="Warnings">
           <ul>
             {review.overlaps.map((o) => (
               <li key={o.storyId}>
@@ -321,7 +343,7 @@ function Summary({
               </li>
             ))}
           </ul>
-        </section>
+        </Callout>
       )}
       <section aria-label="Changed files">
         <h3>Changed files</h3>
@@ -338,7 +360,12 @@ function Summary({
                   +{f.additions} −{f.deletions}
                 </span>{' '}
                 {f.change !== 'D' && (
-                  <button type="button" aria-label={`Open ${f.path} in editor`} onClick={() => openInEditor(f.path)}>
+                  <button
+                    className="btn btn-secondary"
+                    type="button"
+                    aria-label={`Open ${f.path} in editor`}
+                    onClick={() => openInEditor(f.path)}
+                  >
                     Open in editor
                   </button>
                 )}
@@ -349,12 +376,12 @@ function Summary({
       </section>
       {selected && (
         <section aria-label={`Diff of ${selected}`}>
-          <div role="radiogroup" aria-label="Diff layout">
-            <label>
+          <div role="radiogroup" aria-label="Diff layout" className="segmented">
+            <label className="segmented-option">
               <input type="radio" name="diff-layout" checked={mode === 'side-by-side'} onChange={() => setMode('side-by-side')} />
               Side by side
             </label>
-            <label>
+            <label className="segmented-option">
               <input type="radio" name="diff-layout" checked={mode === 'unified'} onChange={() => setMode('unified')} />
               Unified
             </label>
@@ -380,7 +407,7 @@ function PermissionLog({ session, runId }: { session: CoreSession; runId: string
       .query('runs.permissions', { runId })
       .then(setLog, () => setLog([]));
   }, [session, runId]);
-  if (!log) return <p>Loading…</p>;
+  if (!log) return <Skeleton label="Loading the log" />;
   if (log.length === 0) return <p>No permission requests in this run.</p>;
   return (
     <table aria-label="Permission requests">

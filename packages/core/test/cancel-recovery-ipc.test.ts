@@ -55,8 +55,7 @@ async function boot(appDataDir: string): Promise<{ client: ContractClient; close
 async function startStory(client: ContractClient) {
   const project = await client.command('projects.create', {
     name: 'Cancel',
-    parentDir: mkdtempSync(join(tmpdir(), 'sf-cancel-ws-')),
-    folderName: 'cancel',
+    path: join(mkdtempSync(join(tmpdir(), 'sf-cancel-ws-')), 'cancel'),
     initGit: true,
   });
   writeFileSync(

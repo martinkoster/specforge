@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // @vitest-environment happy-dom
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanupChecked } from './styled-controls.js';
 import { StartWizard, type RecentProject } from '../src/projects/StartWizard.js';
 
-afterEach(cleanup);
+afterEach(cleanupChecked);
 
 const recent: RecentProject[] = [
   {
@@ -88,7 +89,8 @@ describe('US-017 AC-2: rename and remove', () => {
     const props = renderWizard();
     const item = row('Task Manager');
 
-    await userEvent.click(within(item).getByRole('button', { name: 'Rename Task Manager' }));
+    await userEvent.click(within(item).getByRole('button', { name: 'Actions for Task Manager' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Rename' }));
     const input = within(item).getByRole('textbox', { name: 'Project name' });
     await userEvent.clear(input);
     await userEvent.type(input, 'Tasks v2{Enter}');
@@ -100,8 +102,9 @@ describe('US-017 AC-2: rename and remove', () => {
     const props = renderWizard();
     const item = row('Task Manager');
 
-    await userEvent.click(within(item).getByRole('button', { name: 'Remove Task Manager' }));
-    const dialog = screen.getByRole('alertdialog');
+    await userEvent.click(within(item).getByRole('button', { name: 'Actions for Task Manager' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Remove from list' }));
+    const dialog = await screen.findByRole('alertdialog');
     expect(dialog).toHaveTextContent('files in C:\\work\\tasks are not deleted');
     await userEvent.click(within(dialog).getByRole('button', { name: 'Remove from list' }));
 
@@ -111,8 +114,9 @@ describe('US-017 AC-2: rename and remove', () => {
   it('shows why a removal was refused (active runs)', async () => {
     renderWizard({ onRemove: vi.fn(async () => Promise.reject(new Error('Tasks has 2 active runs. Cancel them first.'))) });
 
-    await userEvent.click(within(row('Task Manager')).getByRole('button', { name: 'Remove Task Manager' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Remove from list' }));
+    await userEvent.click(within(row('Task Manager')).getByRole('button', { name: 'Actions for Task Manager' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Remove from list' }));
+    await userEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Remove from list' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent('2 active runs');
   });
@@ -128,8 +132,9 @@ describe('US-017 AC-3: missing folder', () => {
     await userEvent.click(within(item).getByRole('button', { name: 'Locate Billing' }));
     expect(props.onLocate).toHaveBeenCalledWith('p2');
 
-    await userEvent.click(within(item).getByRole('button', { name: 'Remove Billing' }));
-    await userEvent.click(screen.getByRole('button', { name: 'Remove from list' }));
+    await userEvent.click(within(item).getByRole('button', { name: 'Actions for Billing' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Remove from list' }));
+    await userEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Remove from list' }));
     expect(props.onRemove).toHaveBeenCalledWith('p2');
   });
 });

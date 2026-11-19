@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Commit spec changes (US-023, UC-039, FR-072): uncommitted spec files with diffs, an editable generated message.
+import { Callout, Dialog, Skeleton } from '../components/index.js';
 import { useEffect, useState } from 'react';
 import type { QueryOutput } from '@specforge/ipc-contract';
 import type { CoreSession } from '../core/core-session.js';
@@ -80,15 +81,14 @@ export function CommitSpecDialog({ session, projectId, onDone, onCancel }: Commi
 
   const count = status?.files.length ?? 0;
   return (
-    <div role="dialog" aria-modal="true" aria-labelledby="commit-spec-title" className="dialog commit-spec">
-      <h2 id="commit-spec-title">Commit spec changes</h2>
+    <Dialog title="Commit spec changes" onClose={onCancel} busy={busy} className="commit-spec">
       {error && (
-        <pre role="alert" className="banner banner-warning">
-          {error}
-        </pre>
+        <Callout tone="danger" role="alert">
+          <pre className="callout-pre">{error}</pre>
+        </Callout>
       )}
       {!status ? (
-        <p>Loading…</p>
+        <Skeleton label="Loading the changed files" />
       ) : count === 0 ? (
         <p>No uncommitted specification files.</p>
       ) : (
@@ -104,20 +104,26 @@ export function CommitSpecDialog({ session, projectId, onDone, onCancel }: Commi
           ))}
           <label>
             Commit message
-            <textarea aria-label="Commit message" rows={5} value={message} onChange={(e) => setMessage(e.target.value)} />
+            <textarea
+              className="textarea"
+              aria-label="Commit message"
+              rows={5}
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+            />
           </label>
         </>
       )}
-      <footer>
+      <div className="dialog-footer">
+        <button className="btn btn-secondary" type="button" onClick={onCancel}>
+          Cancel
+        </button>
         {count > 0 && (
-          <button type="button" disabled={busy || message.trim() === ''} onClick={() => void commit()}>
+          <button className="btn btn-primary" type="button" disabled={busy || message.trim() === ''} onClick={() => void commit()}>
             Commit {count} {count === 1 ? 'file' : 'files'}
           </button>
         )}
-        <button type="button" onClick={onCancel}>
-          Cancel
-        </button>
-      </footer>
-    </div>
+      </div>
+    </Dialog>
   );
 }

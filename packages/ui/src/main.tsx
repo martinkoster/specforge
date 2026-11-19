@@ -2,9 +2,11 @@
 // Renderer entry (sandboxed): receives core ports from the preload and renders the app. Verified end-to-end.
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
+import { setNonce } from 'get-nonce';
 import { App } from './App.js';
 import { CoreSession, type CoreStatus } from './core/core-session.js';
-import './styles.css';
+import type { Theme, ThemeBridge } from './settings/AppearanceSettings.js';
+import './styles/index.css';
 
 declare global {
   interface Window {
@@ -17,9 +19,14 @@ declare global {
       acknowledgeClose?(): void;
       confirmClose?(): void;
       cancelClose?(): void;
+      getTheme?(): Promise<string>;
+      setTheme?(theme: string): Promise<string | null>;
     };
   }
 }
+
+// Radix's scroll lock adds a runtime <style> element; it carries the per-session CSP nonce like CodeMirror's.
+if (window.specforgeShell?.styleNonce) setNonce(window.specforgeShell.styleNonce);
 
 const session = new CoreSession();
 
@@ -40,12 +47,26 @@ window.specforgeShell?.onCoreStatus((status) => {
 });
 
 const testMode = new URLSearchParams(window.location.search).get('test') === '1';
+// US-077: the theme preference lives in the main process.
+const shell = window.specforgeShell;
+const theme: ThemeBridge | undefined =
+  shell?.getTheme && shell.setTheme
+    ? {
+        get: async () => (await shell.getTheme!()) as Theme,
+        set: async (next) => {
+          const applied = await shell.setTheme!(next);
+          if (!applied) throw new Error('The theme could not be changed.');
+          return applied as Theme;
+        },
+      }
+    : undefined;
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App
       session={session}
       testMode={testMode}
       {...(window.specforgeShell ? { pickFolder: (title: string) => window.specforgeShell!.pickFolder(title) } : {})}
+      {...(theme ? { theme } : {})}
       {...(window.specforgeShell?.notify ? { notify: (title: string, body: string) => window.specforgeShell!.notify!(title, body) } : {})}
       {...(window.specforgeShell?.onCloseRequested
         ? {

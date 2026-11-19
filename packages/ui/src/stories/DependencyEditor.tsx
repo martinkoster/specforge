@@ -39,7 +39,12 @@ export function DependencyEditor({ storyId, dependencies, storyIds, onAdd, onRem
         {dependencies.map((d) => (
           <li key={`${d.type}:${d.to}`}>
             <span>{describe(d)}</span>
-            <button type="button" aria-label={`Remove dependency on ${d.to}`} onClick={() => void onRemove(d).then(report)}>
+            <button
+              className="btn btn-secondary"
+              type="button"
+              aria-label={`Remove dependency on ${d.to}`}
+              onClick={() => void onRemove(d).then(report)}
+            >
               Remove
             </button>
           </li>
@@ -48,14 +53,14 @@ export function DependencyEditor({ storyId, dependencies, storyIds, onAdd, onRem
       <form onSubmit={(e) => void submit(e)}>
         <label>
           Type
-          <select value={type} onChange={(e) => setType(e.target.value as Dependency['type'])}>
+          <select className="select" value={type} onChange={(e) => setType(e.target.value as Dependency['type'])}>
             <option value="blocking">depends on</option>
             <option value="related">related to</option>
           </select>
         </label>
         <label>
           Story
-          <select value={to} onChange={(e) => setTo(e.target.value)}>
+          <select className="select" value={to} onChange={(e) => setTo(e.target.value)}>
             {candidates.map((id) => (
               <option key={id} value={id}>
                 {id}
@@ -66,10 +71,12 @@ export function DependencyEditor({ storyId, dependencies, storyIds, onAdd, onRem
         {type === 'blocking' && (
           <label>
             Rationale
-            <input value={rationale} onChange={(e) => setRationale(e.target.value)} />
+            <input className="input" value={rationale} onChange={(e) => setRationale(e.target.value)} />
           </label>
         )}
-        <button type="submit">Add dependency</button>
+        <button className="btn btn-secondary" type="submit">
+          Add dependency
+        </button>
       </form>
       {error && <p role="alert">{error}</p>}
     </section>

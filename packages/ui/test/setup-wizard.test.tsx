@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 // @vitest-environment happy-dom
 import type { ContractHandlers } from '@specforge/ipc-contract';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanupChecked } from './styled-controls.js';
 import { SetupWizard } from '../src/setup/SetupWizard.js';
 import { closeFakeCores, fakeCore } from './fake-core.js';
 
 afterEach(() => {
-  cleanup();
+  cleanupChecked();
   closeFakeCores();
 });
 
@@ -227,5 +228,35 @@ describe('US-012 AC-3/AC-4: finish and skip', () => {
 
     expect(calls).toEqual(['skip setup']);
     expect(onDone).toHaveBeenCalled();
+  });
+});
+
+describe('US-073 AC-2/AC-4: setup wizard design', () => {
+  it('step indicator marks done, current and open steps with icons; results as status badges; primary actions are large', async () => {
+    await renderWizard();
+    const steps = within(nav()).getAllByRole('button');
+    expect(steps[0]).toHaveClass('setup-step', 'setup-step-current');
+    expect(steps[2]).toHaveClass('setup-step', 'setup-step-done');
+    expect(steps[3]).toHaveClass('setup-step', 'setup-step-warning');
+    expect(steps[1]).toHaveClass('setup-step', 'setup-step-open');
+    for (const s of steps) expect(s.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
+
+    expect(screen.getByRole('button', { name: 'Next' })).toHaveClass('btn-primary', 'btn-lg');
+    expect(screen.getByRole('button', { name: 'Skip setup' })).toHaveClass('btn-secondary');
+
+    await userEvent.click(step('Ready'));
+    const summary = screen.getByRole('region', { name: 'Ready' });
+    expect(
+      within(summary)
+        .getAllByText(/^(OK|Missing|Warning|Skipped)$/)
+        .every((el) => el.closest('.badge') !== null),
+    ).toBe(true);
+    expect(within(summary).getByRole('button', { name: 'Finish' })).toHaveClass('btn-primary', 'btn-lg');
+  });
+
+  it('shows a skeleton while the setup state loads', async () => {
+    const session = await fakeCore({ 'setup.state': () => new Promise(() => undefined) });
+    render(<SetupWizard session={session} onDone={() => undefined} />);
+    expect(await screen.findByRole('status', { name: 'Loading setup' })).toHaveAttribute('aria-busy', 'true');
   });
 });

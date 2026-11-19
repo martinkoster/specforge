@@ -72,8 +72,7 @@ describe('US-029 over IPC', () => {
 
     const project = await client.command('projects.create', {
       name: 'Q',
-      parentDir: mkdtempSync(join(tmpdir(), 'sf-quality-ws-')),
-      folderName: 'q',
+      path: join(mkdtempSync(join(tmpdir(), 'sf-quality-ws-')), 'q'),
       initGit: false,
     });
     const original = '---\nkind: requirements\n---\n### FR-001: Login\n';

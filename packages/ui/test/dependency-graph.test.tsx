@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // @vitest-environment happy-dom
-import { cleanup, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { cleanupChecked } from './styled-controls.js';
 import { DependencyGraph, graphLayout } from '../src/board/DependencyGraph.js';
 import type { BoardData } from '../src/board/KanbanBoard.js';
 
@@ -13,7 +14,7 @@ beforeAll(() => {
     disconnect() {}
   } as unknown as typeof ResizeObserver;
 });
-afterEach(cleanup);
+afterEach(cleanupChecked);
 
 type Card = BoardData['columns'][number]['cards'][number];
 const card = (storyId: string, status: Card['status'], dependsOn: string[] = [], related: string[] = []): Card => ({

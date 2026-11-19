@@ -36,6 +36,7 @@ Files created / modified:
 - `packages/ui/src/App.tsx` — opens the created project at the Intent phase
 
 Decisions / deviations:
+- Superseded by US-068 (2026-11-18, D24): the dialog is folder-first; location, folder name and `folderNameFor` were removed.
 - Folder names are restricted to one path segment without Windows-invalid or control characters.
 
 ## Test Coverage

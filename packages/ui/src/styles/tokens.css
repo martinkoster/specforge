@@ -1,0 +1,171 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Design tokens (US-069, ui_design_concept.md §2, ADR-023). The only stylesheet with literal colours, shadows and font
+   sizes; everything else uses these custom properties. Light values on :root, dark values under prefers-color-scheme
+   (the main process sets nativeTheme.themeSource for the System / Light / Dark preference, FR-117). Contrast checked:
+   text tokens >= 4.5:1 on --bg, --bg-subtle and --surface; --border-strong and --focus >= 3:1. */
+@layer tokens {
+  :root {
+    color-scheme: light;
+
+    /* Colour */
+    --bg: #ffffff;
+    --bg-subtle: #f7f7f8;
+    --surface: #ffffff;
+    --surface-hover: #f4f4f5;
+    --surface-selected: #eef2ff;
+    --border: #e4e4e7;
+    --border-strong: #8a8a93;
+    --text: #18181b;
+    --text-muted: #52525b;
+    --text-subtle: #6b6b74;
+    --accent: #4f46e5;
+    --accent-hover: #4338ca;
+    --accent-text: #4338ca;
+    --accent-subtle: #eef2ff;
+    --on-accent: #ffffff;
+    --focus: #4f46e5;
+    --success: #15803d;
+    --success-subtle: #f0fdf4;
+    --warning: #a16207;
+    --warning-subtle: #fefce8;
+    --danger: #b91c1c;
+    --danger-subtle: #fef2f2;
+    --info: #0369a1;
+    --info-subtle: #f0f9ff;
+    --review: #7e22ce;
+    --review-subtle: #faf5ff;
+    --overlay: rgb(0 0 0 / 0.4);
+    --highlight: #fef08a;
+    --highlight-strong: #fde047;
+    /* ANSI colours in run logs (AA on --bg-subtle). */
+    --ansi-red: #b91c1c;
+    --ansi-green: #166534;
+    --ansi-yellow: #854d0e;
+    --ansi-blue: #1d4ed8;
+    --ansi-magenta: #a21caf;
+    --ansi-cyan: #0e7490;
+    /* Categorical colours for epics (borders / markers only, never text). */
+    --epic-0: #4f46e5;
+    --epic-1: #15803d;
+    --epic-2: #c2410c;
+    --epic-3: #a21caf;
+    --epic-4: #0e7490;
+    --epic-5: #b91c1c;
+    --epic-6: #71717a;
+    --epic-7: #a16207;
+
+    /* Typography (base 14 px; rem keeps OS zoom and scaling) */
+    --font-sans:
+      'Segoe UI Variable Text', 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Text', Ubuntu, Cantarell, 'Noto Sans',
+      sans-serif;
+    --font-mono: 'Cascadia Code', 'SF Mono', Menlo, Consolas, 'DejaVu Sans Mono', monospace;
+    --font-size-root: 87.5%;
+    --text-xs: 0.8571rem;
+    --leading-xs: 1.1429rem;
+    --text-sm: 0.9286rem;
+    --leading-sm: 1.4286rem;
+    --text-md: 1rem;
+    --leading-md: 1.4286rem;
+    --text-lg: 1.1429rem;
+    --leading-lg: 1.7143rem;
+    --text-xl: 1.4286rem;
+    --leading-xl: 2rem;
+    --text-2xl: 1.7143rem;
+    --leading-2xl: 2.2857rem;
+    --weight-regular: 400;
+    --weight-medium: 500;
+    --weight-semibold: 600;
+
+    /* Spacing (4 px base, 8 px rhythm) */
+    --space-1: 0.2857rem;
+    --space-2: 0.5714rem;
+    --space-3: 0.8571rem;
+    --space-4: 1.1429rem;
+    --space-5: 1.7143rem;
+    --space-6: 2.2857rem;
+    --space-7: 3.4286rem;
+
+    /* Control heights */
+    --control-sm: 2rem;
+    --control-md: 2.2857rem;
+    --control-lg: 2.8571rem;
+
+    /* Radius */
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 8px;
+    --radius-xl: 12px;
+    --radius-full: 9999px;
+
+    /* Elevation */
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.05);
+    --shadow-md: 0 4px 12px rgb(0 0 0 / 0.08), 0 1px 3px rgb(0 0 0 / 0.06);
+    --shadow-lg: 0 16px 40px rgb(0 0 0 / 0.14), 0 4px 12px rgb(0 0 0 / 0.08);
+
+    /* Motion */
+    --duration-fast: 120ms;
+    --duration-normal: 200ms;
+    --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+
+    /* Layers */
+    --z-sticky: 10;
+    --z-drawer: 20;
+    --z-popover: 30;
+    --z-dialog: 40;
+    --z-toast: 50;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+
+      --bg: #0c0c0e;
+      --bg-subtle: #141417;
+      --surface: #18181b;
+      --surface-hover: #232327;
+      --surface-selected: #1e1b4b;
+      --border: #27272a;
+      --border-strong: #71717a;
+      --text: #f4f4f5;
+      --text-muted: #a1a1aa;
+      --text-subtle: #8e8e98;
+      --accent: #4f46e5;
+      --accent-hover: #6366f1;
+      --accent-text: #a5b4fc;
+      --accent-subtle: #1e1b4b;
+      --on-accent: #ffffff;
+      --focus: #818cf8;
+      --success: #4ade80;
+      --success-subtle: #052e16;
+      --warning: #facc15;
+      --warning-subtle: #2a2006;
+      --danger: #f87171;
+      --danger-subtle: #2a0f0f;
+      --info: #38bdf8;
+      --info-subtle: #082f49;
+      --review: #d8b4fe;
+      --review-subtle: #2e1065;
+      --overlay: rgb(0 0 0 / 0.6);
+      --highlight: #713f12;
+      --highlight-strong: #854d0e;
+      --ansi-red: #f87171;
+      --ansi-green: #4ade80;
+      --ansi-yellow: #facc15;
+      --ansi-blue: #60a5fa;
+      --ansi-magenta: #e879f9;
+      --ansi-cyan: #22d3ee;
+      --epic-0: #818cf8;
+      --epic-1: #4ade80;
+      --epic-2: #fb923c;
+      --epic-3: #e879f9;
+      --epic-4: #22d3ee;
+      --epic-5: #f87171;
+      --epic-6: #a1a1aa;
+      --epic-7: #facc15;
+
+      --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+      --shadow-md: 0 4px 12px rgb(0 0 0 / 0.5), 0 1px 3px rgb(0 0 0 / 0.4);
+      --shadow-lg: 0 16px 40px rgb(0 0 0 / 0.6), 0 4px 12px rgb(0 0 0 / 0.5);
+    }
+  }
+}

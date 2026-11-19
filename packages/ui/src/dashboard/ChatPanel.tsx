@@ -17,7 +17,7 @@ export interface ChatPanelProps {
 function MessageView({ message }: { message: Message }) {
   return (
     <li className={`chat-message chat-${message.role}${message.error ? ' chat-error' : ''}`}>
-      <strong>{message.role === 'user' ? 'You' : 'Agent'}</strong>
+      <span className="chat-author">{message.role === 'user' ? 'You' : 'Agent'}</span>
       <p>{message.content}</p>
       {message.toolUses.length > 0 && (
         <details>
@@ -106,13 +106,19 @@ export function ChatPanel({ session, projectId, aiDisabledReason = null }: ChatP
         <ul>
           {threads.map((t) => (
             <li key={t.id}>
-              <button type="button" aria-current={t.id === current ? 'true' : undefined} onClick={() => open(t.id)}>
+              <button
+                className="btn btn-secondary"
+                type="button"
+                aria-current={t.id === current ? 'true' : undefined}
+                onClick={() => open(t.id)}
+              >
                 {t.title}
               </button>
             </li>
           ))}
         </ul>
         <button
+          className="btn btn-secondary"
           type="button"
           onClick={() =>
             void session
@@ -148,6 +154,7 @@ export function ChatPanel({ session, projectId, aiDisabledReason = null }: ChatP
             }}
           >
             <textarea
+              className="textarea"
               aria-label="Message"
               rows={2}
               value={text}
@@ -155,7 +162,7 @@ export function ChatPanel({ session, projectId, aiDisabledReason = null }: ChatP
               title={aiDisabledReason ?? undefined}
               onChange={(e) => setText(e.target.value)}
             />
-            <button type="submit" disabled={disabled || text.trim() === '' || streaming !== null}>
+            <button className="btn btn-secondary" type="submit" disabled={disabled || text.trim() === '' || streaming !== null}>
               Send
             </button>
           </form>

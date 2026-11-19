@@ -1,6 +1,6 @@
 # User Stories — SpecForge
 
-_Last updated: 2026-10-18_
+_Last updated: 2026-11-18_
 
 Scope: **Release 1 (MVP)** per `spec/02_requirements/requirements_summary.md`. Release 2 stories will be generated in a later run.
 
@@ -41,6 +41,7 @@ Status values: `ready for development`, `in progress`, `blocked`, `done`.
 | [US-017](US-017-start-wizard-and-registry.md) | Start wizard with project registry and recent projects | M | done |
 | [US-018](US-018-create-new-project.md) | Create a new project with folder and Git | S | done |
 | [US-019](US-019-open-existing-project.md) | Open an existing project and detect VCS mode | S | done |
+| [US-068](US-068-folder-first-project-creation.md) | Folder-first project creation | S | done |
 | [US-020](US-020-artifact-parser-and-index.md) | Parse workspace artifacts into the index | M | done |
 | [US-021](US-021-file-watcher-reconciliation.md) | Reconcile external edits to artifacts | M | done |
 | [US-022](US-022-app-shell-navigation.md) | Application shell and primary navigation | S | done |
@@ -120,6 +121,22 @@ Status values: `ready for development`, `in progress`, `blocked`, `done`.
 | [US-066](US-066-real-agent-acceptance.md) | Manual MVP acceptance test with real Claude Code | M | ready for development |
 | [US-067](US-067-code-signing.md) | Sign and notarise installers | S | blocked |
 
+### UI design system
+
+Visual concept: `spec/03_design/functional_design/ui_design_concept.md` (intent D25, ADR-023).
+
+| ID | Title | Size | Status |
+|----|-------|------|--------|
+| [US-069](US-069-design-tokens-and-css-foundation.md) | Design tokens, CSS architecture and light/dark foundation | M | done |
+| [US-070](US-070-core-controls-and-icons.md) | Core controls, status badges, callouts and icons | M | done |
+| [US-071](US-071-overlays-dialogs-menus-toasts.md) | Dialogs, menus, tooltips, toasts and drawers | M | done |
+| [US-072](US-072-app-shell-redesign.md) | Redesign the application shell (sidebar, top bar, page header, phase stepper) | M | done |
+| [US-073](US-073-start-and-setup-screens-redesign.md) | Redesign start wizard, setup wizard, empty and loading states | M | done |
+| [US-074](US-074-dashboard-kanban-graph-redesign.md) | Redesign dashboard, Kanban board and dependency graph | M | done |
+| [US-075](US-075-specs-editor-review-redesign.md) | Redesign intent, specifications, editor and review screens | M | done |
+| [US-076](US-076-executions-settings-decisions-redesign.md) | Redesign executions, logs, pending decisions, chat and settings | M | done |
+| [US-077](US-077-theme-setting.md) | Choose the colour theme (System / Light / Dark) | S | done |
+
 ## Dependency summary
 
 | Story | Depends on |
@@ -139,6 +156,7 @@ Status values: `ready for development`, `in progress`, `blocked`, `done`.
 | US-017 Start wizard with project registry and recent projects | US-006, US-007 |
 | US-018 Create a new project with folder and Git | US-017 |
 | US-019 Open an existing project and detect VCS mode | US-017, US-020 |
+| US-068 Folder-first project creation | US-018, US-019 |
 | US-020 Parse workspace artifacts into the index | US-007 |
 | US-021 Reconcile external edits to artifacts | US-020 |
 | US-022 Application shell and primary navigation | US-006 |
@@ -187,6 +205,14 @@ Status values: `ready for development`, `in progress`, `blocked`, `done`.
 | US-065 Performance and accessibility verification | US-054, US-061, US-038 |
 | US-066 Manual MVP acceptance test with real Claude Code | US-063, US-045, US-009 |
 | US-067 Sign and notarise installers | US-009 |
+| US-070 Core controls, status badges, callouts and icons | US-069 |
+| US-071 Dialogs, menus, tooltips, toasts and drawers | US-070 |
+| US-072 Redesign the application shell (sidebar, top bar, page header, phase stepper) | US-070, US-071 |
+| US-073 Redesign start wizard, setup wizard, empty and loading states | US-072 |
+| US-074 Redesign dashboard, Kanban board and dependency graph | US-072 |
+| US-075 Redesign intent, specifications, editor and review screens | US-072 |
+| US-076 Redesign executions, logs, pending decisions, chat and settings | US-072, US-077 |
+| US-077 Choose the colour theme (System / Light / Dark) | US-069 |
 
 **Longest dependency chain (critical path, 11 stories):** US-004 → US-005 → US-006 → US-014 → US-052 → US-027 → US-035 → US-039 → US-061 → US-063 → US-066
 
@@ -194,12 +220,12 @@ Status values: `ready for development`, `in progress`, `blocked`, `done`.
 
 | Wave | Stories |
 |---|---|
-| 1 | US-001, US-002, US-003, US-004 |
-| 2 | US-005, US-007, US-008, US-037, US-044 |
-| 3 | US-006, US-009, US-011, US-020, US-046, US-047 |
-| 4 | US-010, US-014, US-017, US-021, US-022, US-040, US-045, US-067 |
-| 5 | US-012, US-015, US-018, US-019, US-025, US-038, US-042, US-052 |
-| 6 | US-013, US-016, US-023, US-026, US-034, US-041, US-043, US-024, US-048, US-027, US-053, US-056 |
+| 1 | US-001, US-002, US-003, US-004, US-069 |
+| 2 | US-005, US-007, US-008, US-037, US-044, US-070, US-077 |
+| 3 | US-006, US-009, US-011, US-020, US-046, US-047, US-071 |
+| 4 | US-010, US-014, US-017, US-021, US-022, US-040, US-045, US-067, US-072 |
+| 5 | US-012, US-015, US-018, US-019, US-025, US-038, US-042, US-052, US-073, US-074, US-075, US-076 |
+| 6 | US-013, US-016, US-068, US-023, US-026, US-034, US-041, US-043, US-024, US-048, US-027, US-053, US-056 |
 | 7 | US-033, US-049, US-050, US-051, US-028, US-029, US-030, US-031, US-032, US-035, US-054, US-060, US-064 |
 | 8 | US-036, US-039, US-055, US-057 |
 | 9 | US-058, US-059, US-061 |
@@ -211,19 +237,19 @@ Status values: `ready for development`, `in progress`, `blocked`, `done`.
 | Size | Count |
 |---|---|
 | XS | 0 |
-| S | 21 |
-| M | 41 |
+| S | 23 |
+| M | 49 |
 | L | 5 |
 | XL | 0 |
-| **Total** | **67** |
+| **Total** | **77** |
 
 | Status | Count |
 |---|---|
 | blocked | 1 |
-| done | 50 |
-| in progress | 2 |
-| ready for development | 14 |
+| done | 75 |
+| in progress | 0 |
+| ready for development | 1 |
 
 ## Requirement coverage (Release 1)
 
-All 85 Release 1 functional requirements are referenced by at least one story.
+All 86 Release 1 functional requirements are referenced by at least one story (FR-117 by US-077; NFR-033 by US-069 – US-076).

@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Trace panel (US-034, UC-009, FR-016/FR-055): upstream and downstream links of an element, story, run or changed file;
 // links navigate; changed files open as diff or in the default editor; unknown IDs are listed as issues.
+import { Callout } from '../components/index.js';
 import { useEffect, useState } from 'react';
 import type { QueryInput, QueryOutput } from '@specforge/ipc-contract';
 import type { CoreSession } from '../core/core-session.js';
@@ -74,10 +75,11 @@ export function TracePanel({ session, projectId, elements, onNavigate, root }: T
               <span>{n.label}</span>{' '}
               {n.runId && (
                 <>
-                  <button type="button" aria-label={`Diff of ${n.id}`} onClick={() => showDiff(n)}>
+                  <button className="btn btn-secondary" type="button" aria-label={`Diff of ${n.id}`} onClick={() => showDiff(n)}>
                     Diff
                   </button>
                   <button
+                    className="btn btn-secondary"
                     type="button"
                     aria-label={`Open ${n.id} in editor`}
                     onClick={() =>
@@ -107,12 +109,12 @@ export function TracePanel({ session, projectId, elements, onNavigate, root }: T
       <h3>Trace</h3>
       {error && <p role="alert">{error}</p>}
       {stack.length > 0 ? (
-        <button type="button" onClick={() => setStack((s) => s.slice(0, -1))}>
+        <button className="btn btn-secondary" type="button" onClick={() => setStack((s) => s.slice(0, -1))}>
           Back
         </button>
       ) : (
         elements.length > 1 && (
-          <select aria-label="Element" value={element} onChange={(e) => setElement(e.target.value)}>
+          <select className="select" aria-label="Element" value={element} onChange={(e) => setElement(e.target.value)}>
             {elements.map((id) => (
               <option key={id} value={id}>
                 {id}
@@ -132,11 +134,13 @@ export function TracePanel({ session, projectId, elements, onNavigate, root }: T
           <h4>Downstream</h4>
           {trace.downstream.length === 0 ? <p className="hint">None</p> : list('Downstream', trace.downstream)}
           {trace.issues.length > 0 && (
-            <ul aria-label="Issues" className="banner banner-warning">
-              {trace.issues.map((i) => (
-                <li key={i}>{i}</li>
-              ))}
-            </ul>
+            <Callout tone="warning" role="note">
+              <ul aria-label="Issues">
+                {trace.issues.map((i) => (
+                  <li key={i}>{i}</li>
+                ))}
+              </ul>
+            </Callout>
           )}
         </>
       )}

@@ -3,13 +3,14 @@
 import { act, cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanupChecked } from './styled-controls.js';
 import { IpcError, type ContractHandlers, type QueryOutput } from '@specforge/ipc-contract';
 import { ClarificationPanel } from '../src/intent/ClarificationPanel.js';
 import { IntentArea } from '../src/intent/IntentArea.js';
 import { closeFakeCores, fakeCoreWithEvents } from './fake-core.js';
 
 afterEach(() => {
-  cleanup();
+  cleanupChecked();
   closeFakeCores();
 });
 

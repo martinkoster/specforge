@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// Create and open projects (US-018, US-019, UC-001, UC-002, UC-029): structure, Git, registration, VCS detection, indexing.
+// Create and open projects (US-018, US-019, US-068, UC-001, UC-002, UC-029): structure, Git, registration, VCS detection, indexing.
 import { NON_GIT_PROJECT_WARNING } from '@specforge/domain';
 import { ProjectRegistryError } from './project-registry.js';
 
@@ -53,10 +53,16 @@ export interface OpenedProject {
 
 export interface CreateProjectInput {
   name: string;
-  parentDir: string;
-  folderName: string;
+  /** Absolute path of the picked folder (empty or missing; D24). */
+  path: string;
   initGit: boolean;
 }
+
+/** What a picked folder holds (US-068). */
+export type FolderKind = 'project' | 'empty' | 'notEmpty';
+
+/** Hint for folders with other content: adopting existing code is Release 2 (FR-079). */
+export const ADOPT_IN_RELEASE_2 = 'Choose an empty folder — adopting existing code arrives in Release 2.';
 
 export interface ProjectServiceDeps {
   workspace: ProjectWorkspace;
@@ -64,18 +70,10 @@ export interface ProjectServiceDeps {
   store: ProjectStore;
   indexer: { indexAll(projectId: string): Promise<unknown> };
   newId(): string;
-  join(...parts: string[]): string;
+  isAbsolute(path: string): boolean;
 }
 
 const INITIAL_COMMIT = 'Initialise SpecForge project';
-/** Characters not allowed in a folder name (separators and characters invalid on Windows). */
-const INVALID_FOLDER_CHARS = /[<>:"/\\|?*]/;
-
-/** A single folder name: no separators, no traversal, no control or Windows-invalid characters. */
-function isValidFolderName(name: string): boolean {
-  if (name === '' || name === '.' || name === '..' || name.endsWith('.') || name.endsWith(' ')) return false;
-  return !INVALID_FOLDER_CHARS.test(name) && ![...name].some((c) => c.charCodeAt(0) < 32);
-}
 
 export class ProjectService {
   constructor(private readonly deps: ProjectServiceDeps) {}
@@ -87,13 +85,12 @@ export class ProjectService {
   async create(input: CreateProjectInput): Promise<OpenedProject> {
     const name = input.name.trim();
     if (name === '') throw new ProjectRegistryError('INVALID_NAME', 'The project name must not be empty.');
-    const folderName = input.folderName.trim();
-    if (!isValidFolderName(folderName)) {
-      throw new ProjectRegistryError('INVALID_FOLDER', `"${input.folderName}" is not a valid folder name.`);
+    const path = input.path;
+    if (!this.deps.isAbsolute(path)) {
+      throw new ProjectRegistryError('INVALID_FOLDER', `"${path}" is not an absolute folder path.`);
     }
-    const path = this.deps.join(input.parentDir, folderName);
     if (!(await this.deps.workspace.isEmptyOrMissing(path))) {
-      throw new ProjectRegistryError('FOLDER_NOT_EMPTY', `The folder ${path} already exists and is not empty. Choose another name.`);
+      throw new ProjectRegistryError('FOLDER_NOT_EMPTY', `The folder ${path} is not empty. ${ADOPT_IN_RELEASE_2}`);
     }
     const descriptor = { id: this.deps.newId(), name };
     await this.deps.workspace.createStructure(path, descriptor);
@@ -106,13 +103,19 @@ export class ProjectService {
     return this.finishOpen(descriptor, path, vcs);
   }
 
+  /** Classifies a picked folder: SpecForge project, empty (or missing), or other content (US-068). */
+  async inspectFolder(path: string): Promise<{ kind: FolderKind }> {
+    if (await this.deps.workspace.readDescriptor(path)) return { kind: 'project' };
+    return { kind: (await this.deps.workspace.isEmptyOrMissing(path)) ? 'empty' : 'notEmpty' };
+  }
+
   /** Opens (and registers, if needed) the SpecForge project in `path`. */
   async open(path: string): Promise<OpenedProject> {
     const descriptor = await this.deps.workspace.readDescriptor(path);
     if (!descriptor) {
       throw new ProjectRegistryError(
         'NOT_A_PROJECT',
-        `The folder ${path} has no SpecForge metadata (.specforge/project.yaml). Choose a SpecForge project folder or create a new project.`,
+        `The folder ${path} has no SpecForge metadata (.specforge/project.yaml). Choose a SpecForge project folder or an empty folder for a new project; adopting existing code arrives in Release 2.`,
       );
     }
     const vcs = await this.deps.git.detect(path);

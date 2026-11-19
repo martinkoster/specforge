@@ -5,6 +5,7 @@ import { markdown } from '@codemirror/lang-markdown';
 import { EditorState } from '@codemirror/state';
 import { EditorView, keymap, lineNumbers } from '@codemirror/view';
 import { useEffect, useRef } from 'react';
+import { editorAppearance } from './editor-theme.js';
 
 function styleNonce(): string {
   return (window as { specforgeShell?: { styleNonce?: string } }).specforgeShell?.styleNonce ?? '';
@@ -31,6 +32,7 @@ export function MarkdownEditor({ value, onChange, label, focusLine = null }: Mar
         doc: value,
         extensions: [
           lineNumbers(),
+          editorAppearance,
           history(),
           markdown(),
           EditorView.lineWrapping,

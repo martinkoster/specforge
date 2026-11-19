@@ -139,6 +139,7 @@ export function GeneratePanel({ session, projectId, onChanged, aiDisabledReason 
       <label>
         Target{' '}
         <select
+          className="select"
           aria-label="Target"
           value={target}
           onChange={(e) => {
@@ -157,7 +158,13 @@ export function GeneratePanel({ session, projectId, onChanged, aiDisabledReason 
       </label>
       <label>
         Instruction
-        <textarea aria-label="Instruction" value={instruction} onChange={(e) => setInstruction(e.target.value)} rows={3} />
+        <textarea
+          className="textarea"
+          aria-label="Instruction"
+          value={instruction}
+          onChange={(e) => setInstruction(e.target.value)}
+          rows={3}
+        />
       </label>
       {epics.length > 0 && (
         <fieldset aria-label="Epics">
@@ -165,6 +172,7 @@ export function GeneratePanel({ session, projectId, onChanged, aiDisabledReason 
           {epics.map((e) => (
             <label key={e.id}>
               <input
+                className="checkbox"
                 type="checkbox"
                 checked={selectedEpics.includes(e.id)}
                 onChange={(ev) => setSelectedEpics((sel) => (ev.target.checked ? [...sel, e.id] : sel.filter((x) => x !== e.id)))}
@@ -175,6 +183,7 @@ export function GeneratePanel({ session, projectId, onChanged, aiDisabledReason 
         </fieldset>
       )}
       <button
+        className="btn btn-secondary"
         type="button"
         disabled={aiDisabledReason !== null || running || pending || instruction.trim() === ''}
         title={aiDisabledReason ?? undefined}
@@ -192,7 +201,7 @@ export function GeneratePanel({ session, projectId, onChanged, aiDisabledReason 
       {pending && !showReview && (
         <p role="status">
           Changes are waiting for your review.{' '}
-          <button type="button" onClick={() => setShowReview(true)}>
+          <button className="btn btn-secondary" type="button" onClick={() => setShowReview(true)}>
             Review changes
           </button>
         </p>

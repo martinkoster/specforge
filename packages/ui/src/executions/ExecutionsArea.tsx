@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Executions: run list, live streams (tile up to three), cancel, context, result and trace per run (US-054, UC-019, UF-05,
 // US-034).
+import { EmptyState, PageHeader, Skeleton, StatusBadge } from '../components/index.js';
 import { useCallback, useEffect, useState } from 'react';
 import type { QueryOutput } from '@specforge/ipc-contract';
 import type { CoreSession } from '../core/core-session.js';
@@ -94,10 +95,11 @@ export function ExecutionsArea({ session, projectId, now = Date.now, onOpenArtif
 
   return (
     <div className="executions-area">
-      <h1>Executions</h1>
+      <PageHeader title="Executions" description="Agent runs of this project: live logs, results and recovery." />
       {error && <p role="alert">{error}</p>}
       <label>
         <input
+          className="checkbox"
           type="checkbox"
           checked={tile}
           onChange={(e) => {
@@ -108,7 +110,7 @@ export function ExecutionsArea({ session, projectId, now = Date.now, onOpenArtif
         Tile (up to {MAX_TILES} streams)
       </label>
       {rows.length === 0 ? (
-        <p>No runs yet. Move a story to In Progress to start one.</p>
+        <EmptyState title="No runs yet" description="Move a story to In Progress to start one." />
       ) : (
         <table className="run-list" aria-label="Runs">
           <thead>
@@ -137,14 +139,18 @@ export function ExecutionsArea({ session, projectId, now = Date.now, onOpenArtif
                     )}
                   </td>
                   <td>
-                    <span className={`chip chip-${row.status}`}>{STATUS_LABEL[row.status] ?? row.status}</span>
+                    <StatusBadge status={row.status} label={STATUS_LABEL[row.status] ?? row.status} />
                   </td>
                   <td>{elapsed(row, clock)}</td>
                   <td>{row.touchedFiles}</td>
                   <td>{row.pendingPrompts > 0 ? <strong>{row.pendingPrompts}</strong> : 0}</td>
                   <td>
                     {active && row.runId && (
-                      <button type="button" onClick={() => void cancel(row.runId!).catch((e: unknown) => setError(String(e)))}>
+                      <button
+                        className="btn btn-danger btn-sm"
+                        type="button"
+                        onClick={() => void cancel(row.runId!).catch((e: unknown) => setError(String(e)))}
+                      >
                         Cancel {row.storyId ?? 'run'}
                       </button>
                     )}
@@ -181,11 +187,11 @@ function RunPanel({ session, projectId, row, onOpenArtifact }: RunPanelProps) {
     <article className="run-panel" aria-label={`Run ${row.storyId ?? runId}`}>
       <header>
         <h2>
-          {row.storyId ?? row.kind} <span className={`chip chip-${row.status}`}>{STATUS_LABEL[row.status] ?? row.status}</span>
+          {row.storyId ?? row.kind} <StatusBadge status={row.status} label={STATUS_LABEL[row.status] ?? row.status} />
         </h2>
-        <div role="tablist">
+        <div role="tablist" className="tabs">
           {(Object.keys(TAB_LABELS) as Tab[]).map((t) => (
-            <button key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)}>
+            <button className="tab" key={t} type="button" role="tab" aria-selected={tab === t} onClick={() => setTab(t)}>
               {TAB_LABELS[t]}
             </button>
           ))}
@@ -216,7 +222,7 @@ export function RunContext({ session, runId }: { session: CoreSession; runId: st
       .then((r) => setContext(r.context))
       .catch(() => setContext(null));
   }, [session, runId]);
-  if (context === undefined) return <p>Loading…</p>;
+  if (context === undefined) return <Skeleton label="Loading the run context" />;
   if (context === null) return <p>No context was recorded for this run.</p>;
   return <pre className="run-context">{context}</pre>;
 }
@@ -230,7 +236,7 @@ function RunResult({ session, runId }: { session: CoreSession; runId: string }) 
       .then(setResult)
       .catch(() => setResult(null));
   }, [session, runId]);
-  if (result === undefined) return <p>Loading…</p>;
+  if (result === undefined) return <Skeleton label="Loading the run result" />;
   if (result === null) return <p>The run has not produced a result yet.</p>;
   return (
     <div className="run-result">

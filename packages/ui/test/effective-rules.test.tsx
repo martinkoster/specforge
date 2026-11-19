@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: Apache-2.0
 // @vitest-environment happy-dom
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanupChecked } from './styled-controls.js';
 import { EffectiveRules, type EffectiveRuleRow } from '../src/settings/EffectiveRules.js';
 
-afterEach(cleanup);
+afterEach(cleanupChecked);
 
 const rules: EffectiveRuleRow[] = [
   { id: 'g1', effect: 'allow', toolName: 'Read', pattern: null, appliesTo: 'all', origin: 'global', disabled: false },

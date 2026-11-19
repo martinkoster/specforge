@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Renderer root: connects the shell and its areas to the core session (US-017, US-018, US-019, US-022).
+import { Callout, PageHeader, Skeleton } from './components/index.js';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import type { CommandOutput } from '@specforge/ipc-contract';
 import { KanbanArea } from './board/KanbanArea.js';
@@ -13,8 +14,10 @@ import { DashboardArea } from './dashboard/DashboardArea.js';
 import { IntentArea } from './intent/IntentArea.js';
 import { CommitSpecDialog } from './shell/CommitSpecDialog.js';
 import { PhaseStepper, type PhaseStatus } from './shell/PhaseStepper.js';
-import { CreateProjectDialog } from './projects/CreateProjectDialog.js';
+import { ComponentGallery } from './components/ComponentGallery.js';
+import { ADOPT_IN_RELEASE_2, CreateProjectDialog } from './projects/CreateProjectDialog.js';
 import { StartWizard, type RecentProject } from './projects/StartWizard.js';
+import type { ThemeBridge } from './settings/AppearanceSettings.js';
 import { SettingsArea } from './settings/SettingsArea.js';
 import { SetupWizard } from './setup/SetupWizard.js';
 import { AppShell, AREAS, type Area, type ShellState } from './shell/AppShell.js';
@@ -47,10 +50,15 @@ function Diagnostics({ session }: { session: CoreSession }) {
   };
   return (
     <section aria-label="Diagnostics">
-      <button type="button" data-testid="ping" onClick={() => void ping()}>
+      <button className="btn btn-secondary" type="button" data-testid="ping" onClick={() => void ping()}>
         Ping core
       </button>
-      <button type="button" data-testid="crash" onClick={() => void session.client().command('system.crash', {})}>
+      <button
+        className="btn btn-secondary"
+        type="button"
+        data-testid="crash"
+        onClick={() => void session.client().command('system.crash', {})}
+      >
         Crash core
       </button>
       <output data-testid="pong">{pong}</output>
@@ -68,18 +76,22 @@ export interface AppProps {
   isFocused?(): boolean;
   /** Window close handshake with the main process (US-049). */
   closeBridge?: CloseBridge;
+  /** Colour theme preference held by the main process (US-077). */
+  theme?: ThemeBridge;
 }
 
 type Capabilities = QueryOutput<'capabilities.get'>;
 
 const message = (e: unknown): string => (e instanceof Error ? e.message : String(e));
 
-export function App({ session, testMode, pickFolder, notify, isFocused = () => document.hasFocus(), closeBridge }: AppProps) {
+export function App({ session, testMode, pickFolder, notify, isFocused = () => document.hasFocus(), closeBridge, theme }: AppProps) {
   const [status, setStatus] = useState<CoreStatus>(session.currentStatus);
   const [state, setState] = useState<ShellState>(EMPTY_STATE);
   const [active, setActive] = useState<Area>('dashboard');
   const [recent, setRecent] = useState<RecentProject[]>([]);
-  const [creating, setCreating] = useState(false);
+  /** US-068: folder picked for a new project (create dialog open) and an empty folder offered by "Open existing project". */
+  const [createFolder, setCreateFolder] = useState<string | null>(null);
+  const [emptyFolder, setEmptyFolder] = useState<string | null>(null);
   const [gitAvailable, setGitAvailable] = useState(true);
   const [warning, setWarning] = useState<string | null>(null);
   const [error, setError] = useState<string | undefined>();
@@ -101,8 +113,17 @@ export function App({ session, testMode, pickFolder, notify, isFocused = () => d
   const [pending, setPending] = useState<PendingGroups>([]);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const nextToast = useRef(1);
+  const dismissToast = useCallback((id: number) => setToasts((ts) => ts.filter((t) => t.id !== id)), []);
+  /** US-070 AC-5: test-only component gallery (`#gallery`). */
+  const [gallery, setGallery] = useState(() => testMode && window.location.hash === '#gallery');
 
   useEffect(() => session.onStatus(setStatus), [session]);
+  useEffect(() => {
+    if (!testMode) return;
+    const onHash = () => setGallery(window.location.hash === '#gallery');
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, [testMode]);
   useEffect(() => {
     if (status !== 'connected') return;
     session
@@ -204,7 +225,7 @@ export function App({ session, testMode, pickFolder, notify, isFocused = () => d
       client.subscribe('run.finished', (e) => {
         void refresh().catch(() => undefined);
         const text = e.outcome === 'completed' ? `${e.storyId}: run completed — ready for review` : `${e.storyId}: run ${e.outcome}`;
-        alert(text, e.outcome === 'completed' ? 'info' : 'warning', e.notify);
+        alert(text, e.outcome === 'completed' ? 'success' : e.outcome === 'cancelled' ? 'info' : 'danger', e.notify);
       }),
       client.subscribe('permission.requested', (e) =>
         alert(`${e.storyId ?? 'A specification run'} asks to use ${e.toolName}`, 'warning', e.notify),
@@ -217,7 +238,8 @@ export function App({ session, testMode, pickFolder, notify, isFocused = () => d
     const project = await open();
     setWarning(project.isolationWarning);
     setError(undefined);
-    setCreating(false);
+    setCreateFolder(null);
+    setEmptyFolder(null);
     setActive(area);
     await refresh();
   };
@@ -226,14 +248,45 @@ export function App({ session, testMode, pickFolder, notify, isFocused = () => d
     void fn().catch((e: unknown) => setError(message(e)));
   };
 
+  const inspect = async (path: string) => (await session.client().query('projects.inspectFolder', { path })).kind;
+
   const openExisting = guarded(async () => {
     const path = await pickFolder!('Open a SpecForge project');
-    if (path) await opened(() => session.client().command('projects.open', { path }), 'dashboard');
+    if (!path) return;
+    setEmptyFolder(null);
+    // US-068 AC-4: an empty folder can become a new project right here.
+    if ((await inspect(path)) === 'empty') {
+      setError(undefined);
+      setEmptyFolder(path);
+      return;
+    }
+    await opened(() => session.client().command('projects.open', { path }), 'dashboard');
   });
 
-  const startCreate = guarded(async () => {
+  /** US-068 AC-3: picks the folder for a new project; a SpecForge project is opened instead, a non-empty folder is rejected. */
+  const pickCreateFolder = async (): Promise<string | null> => {
+    const path = await pickFolder!('Choose or create an empty folder for the new project');
+    if (!path) return null;
+    const kind = await inspect(path);
+    if (kind === 'project') {
+      await opened(() => session.client().command('projects.open', { path }), 'dashboard');
+      return null;
+    }
+    if (kind === 'notEmpty') throw new Error(`${path} is not empty. ${ADOPT_IN_RELEASE_2}`);
+    return path;
+  };
+
+  const showCreateDialog = async (folder: string): Promise<void> => {
     setGitAvailable((await session.client().query('projects.gitAvailable', {})).available);
-    setCreating(true);
+    setError(undefined);
+    setEmptyFolder(null);
+    setCreateFolder(folder);
+  };
+
+  const startCreate = guarded(async () => {
+    setEmptyFolder(null);
+    const folder = await pickCreateFolder();
+    if (folder) await showCreateDialog(folder);
   });
 
   const openById = (projectId: string): void =>
@@ -263,6 +316,8 @@ export function App({ session, testMode, pickFolder, notify, isFocused = () => d
   }, []);
   const label = AREAS.find((a) => a.id === active)?.label;
 
+  if (gallery) return <ComponentGallery />;
+
   if (showSetup && status === 'connected') {
     return (
       <SetupWizard
@@ -285,9 +340,16 @@ export function App({ session, testMode, pickFolder, notify, isFocused = () => d
   let content: ReactNode;
   if (!setupChecked) {
     // Neither the start wizard nor the setup wizard before the setup state is known.
-    content = <p>Loading…</p>;
+    content = <Skeleton label="Loading" lines={4} />;
   } else if (active === 'settings') {
-    content = <SettingsArea session={session} projectId={state.currentProjectId} onOpenSetup={() => setShowSetup(true)} />;
+    content = (
+      <SettingsArea
+        session={session}
+        projectId={state.currentProjectId}
+        onOpenSetup={() => setShowSetup(true)}
+        {...(theme ? { theme } : {})}
+      />
+    );
   } else if (state.currentProjectId === null) {
     content = (
       <StartWizard
@@ -373,8 +435,37 @@ export function App({ session, testMode, pickFolder, notify, isFocused = () => d
       />
     );
   } else {
-    content = <h1>{label}</h1>;
+    content = <PageHeader title={label} />;
   }
+
+  const banners =
+    (warning && state.currentProjectId !== null) || (capabilities && !capabilities.aiAvailable) ? (
+      <>
+        {warning && state.currentProjectId !== null && (
+          <Callout tone="warning" role="status" className="banner-callout">
+            {warning}
+          </Callout>
+        )}
+        {capabilities && !capabilities.aiAvailable && (
+          <Callout
+            tone="warning"
+            role="region"
+            label="AI functions disabled"
+            className="banner-callout"
+            title="AI functions disabled — complete setup"
+            action={{
+              label: 'Complete setup',
+              onClick: () => {
+                setSetupAtFirstIncomplete(true);
+                setShowSetup(true);
+              },
+            }}
+          >
+            {capabilities.missing}
+          </Callout>
+        )}
+      </>
+    ) : undefined;
 
   return (
     <AppShell
@@ -390,26 +481,18 @@ export function App({ session, testMode, pickFolder, notify, isFocused = () => d
       onCloseProject={closeProject}
       specChanges={specChanges}
       onOpenSpecCommit={() => setCommitting(true)}
+      banners={banners}
     >
-      {warning && state.currentProjectId !== null && (
-        <p role="status" className="banner banner-warning">
-          {warning}
-        </p>
-      )}
       {error && <p role="alert">{error}</p>}
-      {capabilities && !capabilities.aiAvailable && (
-        <section aria-label="AI functions disabled" className="banner banner-warning">
-          <strong>AI functions disabled — complete setup</strong> <span>{capabilities.missing}</span>{' '}
-          <button
-            type="button"
-            onClick={() => {
-              setSetupAtFirstIncomplete(true);
-              setShowSetup(true);
-            }}
-          >
-            Complete setup
-          </button>
-        </section>
+      {emptyFolder !== null && state.currentProjectId === null && (
+        <Callout
+          tone="info"
+          role="region"
+          label="Empty folder"
+          action={{ label: 'Create new project here', onClick: guarded(() => showCreateDialog(emptyFolder)) }}
+        >
+          {emptyFolder} is empty — it has no SpecForge project yet.
+        </Callout>
       )}
       {phases && state.currentProjectId !== null && (active === 'intent' || active === 'specifications' || active === 'kanban') && (
         <PhaseStepper
@@ -426,12 +509,14 @@ export function App({ session, testMode, pickFolder, notify, isFocused = () => d
         />
       )}
       {content}
-      {creating && pickFolder && (
+      {createFolder !== null && pickFolder && (
         <CreateProjectDialog
+          key={createFolder}
+          folder={createFolder}
           gitAvailable={gitAvailable}
-          onPickFolder={() => pickFolder('Choose where to create the project')}
+          onChangeFolder={pickCreateFolder}
           onCreate={(input) => opened(() => session.client().command('projects.create', input), 'intent')}
-          onCancel={() => setCreating(false)}
+          onCancel={() => setCreateFolder(null)}
         />
       )}
       {committing && state.currentProjectId !== null && (
@@ -462,7 +547,7 @@ export function App({ session, testMode, pickFolder, notify, isFocused = () => d
         />
       )}
       {closeBridge && <CloseGuard session={session} bridge={closeBridge} />}
-      <Toasts toasts={toasts} onDismiss={(id) => setToasts((ts) => ts.filter((t) => t.id !== id))} />
+      <Toasts toasts={toasts} onDismiss={dismissToast} />
       {status === 'failed' && session.lastError && <p role="alert">{session.lastError}</p>}
       {testMode && <Diagnostics session={session} />}
     </AppShell>

@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Specifications area: artifacts by type, the split-view editor for the selected one (US-025) and AI generation (US-027).
+import { Callout, PageHeader } from '../components/index.js';
 import { useCallback, useEffect, useState } from 'react';
 import type { CoreSession } from '../core/core-session.js';
 import { ArtifactEditor } from './ArtifactEditor.js';
@@ -85,11 +86,10 @@ export function SpecificationsArea({
 
   return (
     <div className="specifications">
-      <h1>Specifications</h1>
+      <PageHeader title="Specifications" description="Requirements, design and user stories derived from the intent." />
       {error && <p role="alert">{error}</p>}
       {linkIssues.length > 0 && (
-        <section aria-label="Link issues" className="banner banner-warning">
-          <h2>Link issues</h2>
+        <Callout tone="warning" role="region" label="Link issues" title="Link issues">
           <ul>
             {linkIssues.map((issue) => (
               <li key={`${issue.path}:${issue.message}`}>
@@ -97,7 +97,7 @@ export function SpecificationsArea({
               </li>
             ))}
           </ul>
-        </section>
+        </Callout>
       )}
       <GeneratePanel
         session={session}

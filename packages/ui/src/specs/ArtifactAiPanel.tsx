@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // AI actions on the selected artifact: *Refine with AI* (US-030, UC-008) and *Quality check* with findings
 // (US-029, UC-032); proposals are reviewed with the Review-changes dialog (US-027).
+import { StatusBadge, type Tone } from '../components/index.js';
 import { useCallback, useEffect, useState } from 'react';
 import type { QueryOutput } from '@specforge/ipc-contract';
 import type { CoreSession } from '../core/core-session.js';
@@ -9,6 +10,7 @@ import { ReviewChangesDialog, type SpecReview } from './ReviewChangesDialog.js';
 type Finding = QueryOutput<'quality.findings'>[number];
 
 const SEVERITY_ORDER: Record<Finding['severity'], number> = { critical: 0, major: 1, minor: 2, info: 3 };
+const SEVERITY_TONE: Record<Finding['severity'], Tone> = { critical: 'danger', major: 'warning', minor: 'info', info: 'neutral' };
 const STATE_ORDER: Record<Finding['state'], number> = { open: 0, applied: 1, dismissed: 2 };
 const HEADING = /^#{1,6}\s+((?:FR|NFR|CON|UC|BP|UF|ADR|EP|US|FI|TC)-\d{1,4}:\s*.+?)\s*$/;
 
@@ -55,7 +57,7 @@ function FindingItem({
   const [reason, setReason] = useState('');
   return (
     <li data-severity={finding.severity} className={`finding finding-${finding.severity} finding-${finding.state}`}>
-      <strong>{finding.severity}</strong> · {finding.category}{' '}
+      <StatusBadge status={finding.severity} tone={SEVERITY_TONE[finding.severity]} label={finding.severity} /> {finding.category}{' '}
       {finding.elementId && (
         <button type="button" className="link" aria-label={`Go to ${finding.elementId}`} onClick={() => onJump(finding.elementId!)}>
           {finding.elementId}
@@ -67,21 +69,21 @@ function FindingItem({
       {finding.state === 'applied' && <p className="hint">Fix applied.</p>}
       {finding.state === 'open' && !dismissing && (
         <>
-          <button type="button" onClick={onFix}>
+          <button className="btn btn-secondary" type="button" onClick={onFix}>
             Apply fix
           </button>
-          <button type="button" onClick={() => setDismissing(true)}>
+          <button className="btn btn-secondary" type="button" onClick={() => setDismissing(true)}>
             Dismiss
           </button>
         </>
       )}
       {dismissing && (
         <span>
-          <input aria-label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} />
-          <button type="button" disabled={!reason.trim()} onClick={() => onDismiss(reason)}>
+          <input className="input" aria-label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} />
+          <button className="btn btn-secondary" type="button" disabled={!reason.trim()} onClick={() => onDismiss(reason)}>
             Confirm dismiss
           </button>
-          <button type="button" onClick={() => setDismissing(false)}>
+          <button className="btn btn-secondary" type="button" onClick={() => setDismissing(false)}>
             Cancel
           </button>
         </span>
@@ -159,10 +161,10 @@ export function ArtifactAiPanel({
     <section className="artifact-ai" aria-label="AI actions">
       {error && <p role="alert">{error}</p>}
       <h3>
-        Quality{' '}
-        <span className={open > 0 ? 'badge badge-warning' : 'badge'}>{open === 1 ? '1 open finding' : `${open} open findings`}</span>
+        Quality <StatusBadge status={open > 0 ? 'warning' : 'ok'} label={open === 1 ? '1 open finding' : `${open} open findings`} />
       </h3>
       <button
+        className="btn btn-secondary"
         type="button"
         disabled={disabled || checking !== null}
         title={aiDisabledReason ?? undefined}
@@ -199,7 +201,7 @@ export function ArtifactAiPanel({
       <h3>Refine with AI</h3>
       <label>
         Section
-        <select aria-label="Section" value={section} onChange={(e) => setSection(e.target.value)}>
+        <select className="select" aria-label="Section" value={section} onChange={(e) => setSection(e.target.value)}>
           <option value="">Whole artifact</option>
           {sectionsOf(content).map((s) => (
             <option key={s} value={s}>
@@ -210,9 +212,16 @@ export function ArtifactAiPanel({
       </label>
       <label>
         Instruction
-        <textarea aria-label="Refine instruction" rows={3} value={instruction} onChange={(e) => setInstruction(e.target.value)} />
+        <textarea
+          className="textarea"
+          aria-label="Refine instruction"
+          rows={3}
+          value={instruction}
+          onChange={(e) => setInstruction(e.target.value)}
+        />
       </label>
       <button
+        className="btn btn-secondary"
         type="button"
         disabled={disabled || instruction.trim() === '' || proposal !== null}
         title={aiDisabledReason ?? undefined}

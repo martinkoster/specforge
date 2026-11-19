@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Kanban area: the open project's board (or dependency graph) from the core; moves, Re-check and dependency edits
 // (US-038, US-041, US-043, US-040).
+import { Skeleton } from '../components/index.js';
 import { useCallback, useEffect, useState } from 'react';
 import type { CoreSession } from '../core/core-session.js';
 import { DependencyGraph } from './DependencyGraph.js';
@@ -63,11 +64,12 @@ export function KanbanArea({
   };
 
   if (error) return <p role="alert">{error}</p>;
-  if (!board) return <p>Loading the board…</p>;
+  if (!board) return <Skeleton label="Loading the board" lines={6} />;
   return (
     <>
       <h1 className="visually-hidden">Kanban</h1>
       <button
+        className="btn btn-secondary"
         type="button"
         onClick={() =>
           // US-024 AC-1: Refresh re-checks merged branches, then re-reads the board.
@@ -81,23 +83,23 @@ export function KanbanArea({
         Refresh
       </button>
       {(board.lanes?.length ?? 0) > 0 && view === 'board' && (
-        <div role="radiogroup" aria-label="Layout" className="view-toggle">
-          <label>
+        <div role="radiogroup" aria-label="Layout" className="segmented">
+          <label className="segmented-option">
             <input type="radio" name="kanban-layout" checked={(layout ?? 'epic') === 'epic'} onChange={() => setLayout('epic')} />
             By epic
           </label>
-          <label>
+          <label className="segmented-option">
             <input type="radio" name="kanban-layout" checked={layout === 'flat'} onChange={() => setLayout('flat')} />
             Flat
           </label>
         </div>
       )}
-      <div role="radiogroup" aria-label="View" className="view-toggle">
-        <label>
+      <div role="radiogroup" aria-label="View" className="segmented">
+        <label className="segmented-option">
           <input type="radio" name="kanban-view" checked={view === 'board'} onChange={() => setView('board')} />
           Board
         </label>
-        <label>
+        <label className="segmented-option">
           <input type="radio" name="kanban-view" checked={view === 'graph'} onChange={() => setView('graph')} />
           Dependency graph
         </label>

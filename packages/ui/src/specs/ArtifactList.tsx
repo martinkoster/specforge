@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Specifications list grouped by artifact type with approval state (US-025 AC-2).
+import { EmptyState, StatusBadge } from '../components/index.js';
 import type { QueryOutput } from '@specforge/ipc-contract';
 
 export type ArtifactGroups = QueryOutput<'artifacts.list'>;
@@ -13,7 +14,8 @@ export interface ArtifactListProps {
 const fileName = (path: string): string => path.split('/').pop() ?? path;
 
 export function ArtifactList({ groups, selected, onSelect }: ArtifactListProps) {
-  if (groups.length === 0) return <p>No specifications yet — write the intent or generate requirements to get started.</p>;
+  if (groups.length === 0)
+    return <EmptyState compact title="No specifications yet" description="Write the intent or generate requirements to get started." />;
   return (
     <nav aria-label="Specifications" className="artifact-list">
       {groups.map((group) => (
@@ -23,6 +25,7 @@ export function ArtifactList({ groups, selected, onSelect }: ArtifactListProps) 
             {group.artifacts.map((a) => (
               <li key={a.path}>
                 <button
+                  className="artifact-item"
                   type="button"
                   title={a.path}
                   aria-current={a.path === selected ? 'true' : undefined}
@@ -30,10 +33,8 @@ export function ArtifactList({ groups, selected, onSelect }: ArtifactListProps) 
                 >
                   {fileName(a.path)}
                 </button>{' '}
-                <span className={a.approval === 'approved' ? 'badge' : 'badge badge-warning'}>
-                  {a.approval === 'approved' ? 'Approved' : 'Draft'}
-                </span>
-                {a.invalid && <span className="badge badge-warning">Invalid: {a.invalid}</span>}
+                <StatusBadge status={a.approval} label={a.approval === 'approved' ? 'Approved' : 'Draft'} />
+                {a.invalid && <StatusBadge status="failed" label={`Invalid: ${a.invalid}`} />}
               </li>
             ))}
           </ul>

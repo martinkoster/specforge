@@ -409,13 +409,14 @@
 1. System shows *Open existing project*, *Create new project*, *Adopt existing code folder*, and recent projects with phase.
 2. User selects an option.
    - **A – Open existing**: user picks a folder; if `.specforge/project.yaml` exists, system registers/opens it (UC-002) and shows its dashboard (UC-034).
-   - **B – Create new**: user enters project name, parent location, folder name (pre-filled), Git checkbox (on); system creates folder, `git init`, SpecForge structure and initial commit, registers the project and opens the guided process at Intent (UC-031).
+   - **B – Create new** (D24): user picks or creates an empty folder in the native folder picker; system shows the folder, the project name (pre-filled from the folder name, editable) and the Git checkbox (on); on *Create* the system runs `git init`, writes the SpecForge structure and an initial commit, registers the project and opens the guided process at Intent (UC-031).
    - **C – Adopt existing code** (Release 2): see UC-030.
    - **Recent**: opens the project on its dashboard.
 **Alternative Flows**:
-- A-1a. Folder has no SpecForge metadata: system offers *Adopt this folder* (→ C) or, if empty, *Create new project here* (→ B).
-- B-1a. Folder exists and is not empty: error; user chooses another name.
-- B-1b. Git not installed: checkbox disabled with explanation; project created in non-git mode.
+- A-1a. Folder has no SpecForge metadata: if empty, system offers *Create new project here* (→ B with this folder); otherwise it offers *Adopt this folder* (→ C, Release 2; in Release 1 it explains that adopting existing code arrives in Release 2) or *Choose another*.
+- B-1a. Picked folder holds `.specforge/project.yaml`: system opens it as an existing project (→ A).
+- B-1b. Picked folder is not empty and has no metadata: error with a hint to choose or create an empty folder (adopting existing code → C, Release 2); user picks another folder.
+- B-1c. Git not installed: checkbox disabled with explanation; project created in non-git mode.
 - Recent project path missing: *Locate* / *Remove from list*.
 **Postconditions**: A project is open.
 **Related Requirements**: FR-076, FR-077, FR-078, FR-001, FR-002, FR-004
@@ -723,4 +724,4 @@ Generated from each use case's *Related Requirements*.
 | FR-036 | UC-017 | FR-075 | UC-028, UC-038, UF-08 | FR-114 | UC-004 |
 | FR-037 | UC-017 | FR-076 | UC-029 | FR-115 | UC-016, UC-049 |
 | FR-038 | UC-016 | FR-077 | UC-029 | FR-116 | UC-012, UC-015, UC-017, UC-035, UC-039 |
-| FR-039 | UC-015, UC-016 | FR-078 | UC-029 |  |  |
+| FR-039 | UC-015, UC-016 | FR-078 | UC-029 | FR-117 | UF-08 (Appearance), ui_design_concept.md §3 |

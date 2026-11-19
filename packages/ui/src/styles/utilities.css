@@ -1,0 +1,29 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* A few helpers (US-069, ui_design_concept.md §6). */
+@layer utilities {
+  .visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .hint {
+    font-size: var(--text-sm);
+    color: var(--text-subtle);
+  }
+
+  .path,
+  .mono {
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+  }
+
+  .truncate {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}

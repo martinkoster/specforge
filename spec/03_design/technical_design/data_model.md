@@ -225,6 +225,8 @@ Run kind → `applies_to` bucket (ADR-013):
 | exec_defaults | TEXT (JSON) | max run duration, idle timeout, notifications, log retention, log level |
 | last_health_check_at | TEXT | |
 
+**UI preferences (not in SQLite)** — the colour theme (FR-117) is owned by the main process because it must be applied before the window and the core exist (ADR-023): `<userData>/ui-preferences.json` = `{ "theme": "system" | "light" | "dark" }` (default `system`; unknown or unreadable → `system`). Per-viewer conveniences such as the collapsed sidebar stay in renderer `localStorage`. Neither is domain state.
+
 ### 2.2 Workspace index (rebuildable from files)
 
 **artifact**

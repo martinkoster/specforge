@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Permission prompt (US-053 AC-1, FR-032, UF-05): story, run, tool, arguments, working directory, outside-workspace flag;
 // Allow / Deny (with message) / Always allow for this project (never for outside-workspace actions).
+import { Callout } from '../components/index.js';
 import { useState } from 'react';
 import type { CommandInput, CommandOutput, QueryOutput } from '@specforge/ipc-contract';
 
@@ -39,21 +40,27 @@ export function PermissionPrompt({ storyId, permission, onDecide }: PermissionPr
 
   return (
     <div role="group" aria-label={`${who} asks to use ${permission.toolName}`} className="permission-prompt">
-      <p>
-        <strong>{who}</strong> · Run {permission.runId.slice(0, 8)} · <strong>{permission.toolName}</strong>
-        {permission.outsideWorkspace && <span className="badge badge-warning">Outside workspace</span>}
+      <p className="permission-head">
+        <strong>{who}</strong> <span className="hint">· Run {permission.runId.slice(0, 8)} ·</span>{' '}
+        <strong className="mono">{permission.toolName}</strong>
       </p>
+      {permission.outsideWorkspace && (
+        <Callout tone="warning" role="note" title="Outside the workspace">
+          This touches files outside the project. It is never approved automatically.
+        </Callout>
+      )}
       <pre className="permission-args">{argumentsOf(permission)}</pre>
       <p className="hint">Working directory: {permission.cwd}</p>
-      <label>
-        Message to the agent (optional)
-        <input value={message} onChange={(e) => setMessage(e.target.value)} />
+      <label className="field">
+        <span className="field-label">Message to the agent (optional)</span>
+        <input className="input" value={message} onChange={(e) => setMessage(e.target.value)} />
       </label>
       <div className="permission-actions">
-        <button type="button" disabled={busy} onClick={() => void decide({ decision: 'allow' })}>
+        <button className="btn btn-primary" type="button" disabled={busy} onClick={() => void decide({ decision: 'allow' })}>
           Allow
         </button>
         <button
+          className="btn btn-danger"
           type="button"
           disabled={busy}
           onClick={() => void decide(message.trim() ? { decision: 'deny', message: message.trim() } : { decision: 'deny' })}
@@ -61,7 +68,12 @@ export function PermissionPrompt({ storyId, permission, onDecide }: PermissionPr
           Deny
         </button>
         {!permission.outsideWorkspace && (
-          <button type="button" disabled={busy} onClick={() => void decide({ decision: 'allow', alwaysAllow: true })}>
+          <button
+            className="btn btn-secondary"
+            type="button"
+            disabled={busy}
+            onClick={() => void decide({ decision: 'allow', alwaysAllow: true })}
+          >
             Always allow for this project
           </button>
         )}

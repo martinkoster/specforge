@@ -2,10 +2,21 @@
 // @vitest-environment happy-dom
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { cleanupChecked } from './styled-controls.js';
 import { AppShell, type ShellState } from '../src/shell/AppShell.js';
 
-afterEach(cleanup);
+afterEach(cleanupChecked);
+// A wide window (happy-dom defaults to 1024 px, which collapses the sidebar automatically, US-072).
+beforeEach(() => {
+  localStorage.clear();
+  window.matchMedia = ((query: string) => ({
+    matches: false,
+    media: query,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+  })) as unknown as typeof window.matchMedia;
+});
 
 const state = (overrides: Partial<ShellState> = {}): ShellState => ({
   projects: [

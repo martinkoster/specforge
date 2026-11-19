@@ -1,0 +1,241 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Overlays (US-071, ui_design_concept.md §4.1, §5): dialog, drawer, dropdown menu, tooltip, toasts. Radix exposes
+   open/closed state as data-state; motion uses the tokens and is switched off by prefers-reduced-motion (base.css). */
+@layer components {
+  /* Dialog */
+  .dialog-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: var(--z-dialog);
+    background: var(--overlay);
+    animation: fade-in var(--duration-normal) var(--ease-standard);
+  }
+
+  .dialog {
+    position: fixed;
+    top: 12vh;
+    left: 50%;
+    z-index: var(--z-dialog);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    width: min(36rem, calc(100vw - 2 * var(--space-5)));
+    max-height: 76vh;
+    overflow: auto;
+    padding: var(--space-5);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-xl);
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: var(--shadow-lg);
+    transform: translateX(-50%);
+    animation: dialog-in var(--duration-normal) var(--ease-standard);
+  }
+
+  .dialog:focus-visible {
+    outline: none;
+  }
+
+  .dialog-title {
+    margin: 0;
+    font-size: var(--text-lg);
+    line-height: var(--leading-lg);
+    font-weight: var(--weight-semibold);
+  }
+
+  .dialog-description {
+    margin: 0;
+    color: var(--text-muted);
+  }
+
+  .dialog-body {
+    min-width: 0;
+  }
+
+  .dialog-body > :last-child {
+    margin-bottom: 0;
+  }
+
+  .dialog-footer {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+  }
+
+  .dialog-danger .dialog-title {
+    color: var(--danger);
+  }
+
+  /* Drawer (non-modal, right side) */
+  .drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: var(--z-drawer);
+    display: flex;
+    flex-direction: column;
+    width: min(32rem, 90vw);
+    border-left: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: var(--shadow-lg);
+    animation: drawer-in var(--duration-normal) var(--ease-standard);
+  }
+
+  .drawer:focus-visible {
+    outline: none;
+  }
+
+  .drawer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .drawer-title {
+    margin: 0;
+    font-size: var(--text-lg);
+    line-height: var(--leading-lg);
+    font-weight: var(--weight-semibold);
+  }
+
+  .drawer-body {
+    flex: 1;
+    overflow: auto;
+    padding: var(--space-4);
+  }
+
+  /* Dropdown menu */
+  .menu {
+    z-index: var(--z-popover);
+    min-width: 12rem;
+    padding: var(--space-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: var(--shadow-md);
+    animation: fade-in var(--duration-fast) var(--ease-standard);
+  }
+
+  .menu-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: var(--control-sm);
+    padding: 0 var(--space-2);
+    border-radius: var(--radius-sm);
+    font-size: var(--text-md);
+    cursor: pointer;
+    outline: none;
+    user-select: none;
+  }
+
+  .menu-item[data-highlighted] {
+    background: var(--surface-hover);
+  }
+
+  .menu-item[data-disabled] {
+    color: var(--text-subtle);
+    cursor: not-allowed;
+  }
+
+  .menu-item-danger {
+    color: var(--danger);
+  }
+
+  /* Tooltip */
+  .tooltip {
+    z-index: var(--z-popover);
+    max-width: 20rem;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-sm);
+    background: var(--text);
+    color: var(--bg);
+    font-size: var(--text-xs);
+    line-height: var(--leading-xs);
+    box-shadow: var(--shadow-md);
+    animation: fade-in var(--duration-fast) var(--ease-standard);
+  }
+
+  /* Toasts */
+  .toasts {
+    position: fixed;
+    right: var(--space-4);
+    bottom: var(--space-4);
+    z-index: var(--z-toast);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    width: min(24rem, calc(100vw - 2 * var(--space-4)));
+  }
+
+  .toast {
+    --toast-fg: var(--info);
+
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-2) var(--space-2) var(--space-3);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--toast-fg);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: var(--shadow-lg);
+    animation: toast-in var(--duration-normal) var(--ease-standard);
+  }
+
+  .toast-success {
+    --toast-fg: var(--success);
+  }
+
+  .toast-warning {
+    --toast-fg: var(--warning);
+  }
+
+  .toast-danger {
+    --toast-fg: var(--danger);
+  }
+
+  .toast-icon {
+    color: var(--toast-fg);
+  }
+
+  .toast-text {
+    flex: 1;
+    min-width: 0;
+  }
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+  }
+
+  @keyframes dialog-in {
+    from {
+      opacity: 0;
+      transform: translate(-50%, 8px) scale(0.98);
+    }
+  }
+
+  @keyframes drawer-in {
+    from {
+      transform: translateX(100%);
+    }
+  }
+
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+}

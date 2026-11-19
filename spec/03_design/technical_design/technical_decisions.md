@@ -1,7 +1,7 @@
 # SpecForge — Technical Decisions
 
-**Last updated:** 2026-10-14  
-See `c4_architecture.md` for ADR-001 – ADR-022.
+**Last updated:** 2026-11-18  
+See `c4_architecture.md` for ADR-001 – ADR-023.
 
 ## 1. Technology stack
 
@@ -10,7 +10,7 @@ See `c4_architecture.md` for ADR-001 – ADR-022.
 | Language | TypeScript 6.0.x (strict) everywhere | One language across UI, core and adapter; Agent SDK is TS (ADR-001/006); 6.0 pinned because TS 7 lacks the compiler API needed by lint/layering tooling (ADR-022) |
 | Desktop shell | Electron (current stable), `utilityProcess` for core | Cross-platform parity (CON-009), process isolation (ADR-002) |
 | UI framework | React 19 + Vite | Ecosystem for rich clients |
-| UI components | Radix UI primitives + Tailwind CSS | Accessible primitives (NFR-020), consistent styling |
+| UI components & styling | Design tokens (CSS custom properties) + plain CSS in cascade layers; Radix UI primitives for dialogs, menus, popovers, tooltips; Lucide icons (ISC) | Modern developer-tool look with light/dark themes under a strict CSP (D25, ADR-023, `ui_design_concept.md`); accessible primitives (NFR-020); Tailwind not adopted — 2026-11-18 |
 | Kanban DnD | dnd-kit | Accessible drag & drop incl. keyboard (NFR-020) |
 | Dependency graph | React Flow (xyflow) + dagre layout | Interactive graph view (FR-064); dagre (MIT) instead of elkjs (EPL-2.0 OR GPL-3.0, flagged for licence review) — 2026-10-16, US-041 |
 | Markdown edit / render | CodeMirror 6 / unified (remark + rehype) | Fast editor; same parser as indexer |
@@ -129,7 +129,7 @@ SpecForge is licensed under **Apache License 2.0** (CON-015).
 | NFR-017 Graceful degradation | Adapter error mapping, core restart by main |
 | NFR-018 Discoverability | Guided empty states, next-step buttons (user_flows) |
 | NFR-019 Transparency | Draft badges, run references, diffs |
-| NFR-020 Accessibility | Radix, dnd-kit keyboard support, contrast checks |
+| NFR-020 Accessibility | Radix, dnd-kit keyboard support, contrast checks in light and dark theme |
 | NFR-021 Modularity | ADR-003, dependency-cruiser |
 | NFR-022 Extensible adapters | ADR-008, MockAdapter contract tests |
 | NFR-023 Tests | §5 |
@@ -142,6 +142,7 @@ SpecForge is licensed under **Apache License 2.0** (CON-015).
 | NFR-030 Dashboard freshness | Event-driven dashboard read model, indexed aggregates (DashboardService) |
 | NFR-031 Chat change traceability (Release 2) | `chat_change` with before-content, revert (ADR-016) |
 | NFR-032 Feature capture effort (Release 2) | Add-feature split button + shortcuts, resumable wizard, trace-first impact (ADR-021) |
+| NFR-033 Consistent modern visual design | Design tokens + component layer (ADR-023, `ui_design_concept.md`), token-literal lint check, contrast check in both themes |
 
 ## 9. Technical spikes (to run first)
 

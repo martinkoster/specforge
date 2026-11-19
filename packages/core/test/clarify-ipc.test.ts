@@ -66,8 +66,7 @@ describe('US-028 over IPC', () => {
 
     const project = await client.command('projects.create', {
       name: 'C',
-      parentDir: mkdtempSync(join(tmpdir(), 'sf-clarify-ws-')),
-      folderName: 'c',
+      path: join(mkdtempSync(join(tmpdir(), 'sf-clarify-ws-')), 'c'),
       initGit: false,
     });
     await client.command('projects.openById', { projectId: project.id });

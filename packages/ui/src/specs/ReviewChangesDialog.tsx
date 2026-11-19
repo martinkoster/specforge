@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Review changes of a specification run (US-027 AC-3/AC-4, ADR-014): diffs, validation issues, Keep / Discard / fix.
+import { Callout, Dialog } from '../components/index.js';
 import { useState } from 'react';
 import type { QueryOutput } from '@specforge/ipc-contract';
 
@@ -46,8 +47,7 @@ export function ReviewChangesDialog({ review, onKeep, onDiscard, onFix, onClose 
   };
 
   return (
-    <div role="dialog" aria-modal="true" aria-labelledby="review-changes-title" className="dialog review-changes">
-      <h2 id="review-changes-title">Review changes in {review.target}</h2>
+    <Dialog title={`Review changes in ${review.target}`} onClose={onClose} busy={busy} className="review-changes">
       {review.state !== 'open' && review.reason && (
         <p role="status">
           The run {review.state === 'failed' ? 'failed' : 'was cancelled'}: {review.reason}
@@ -55,8 +55,7 @@ export function ReviewChangesDialog({ review, onKeep, onDiscard, onFix, onClose 
       )}
       {error && <p role="alert">{error}</p>}
       {review.issues.length > 0 && (
-        <section aria-label="Validation issues">
-          <h3>Validation issues</h3>
+        <Callout tone="warning" role="region" label="Validation issues" title="Validation issues">
           <ul>
             {review.issues.map((issue, i) => (
               <li key={i}>
@@ -64,10 +63,10 @@ export function ReviewChangesDialog({ review, onKeep, onDiscard, onFix, onClose 
               </li>
             ))}
           </ul>
-          <button type="button" disabled={busy} onClick={act(onFix)}>
+          <button className="btn btn-secondary btn-sm" type="button" disabled={busy} onClick={act(onFix)}>
             Ask agent to fix
           </button>
-        </section>
+        </Callout>
       )}
       <section aria-label="Changed files">
         <h3>
@@ -82,17 +81,17 @@ export function ReviewChangesDialog({ review, onKeep, onDiscard, onFix, onClose 
           </details>
         ))}
       </section>
-      <footer>
-        <button type="button" disabled={busy} onClick={act(onKeep)}>
-          Keep
-        </button>
-        <button type="button" disabled={busy} onClick={act(onDiscard)}>
-          Discard
-        </button>
-        <button type="button" onClick={onClose}>
+      <div className="dialog-footer">
+        <button className="btn btn-ghost" type="button" onClick={onClose}>
           Decide later
         </button>
-      </footer>
-    </div>
+        <button className="btn btn-danger" type="button" disabled={busy} onClick={act(onDiscard)}>
+          Discard
+        </button>
+        <button className="btn btn-primary" type="button" disabled={busy} onClick={act(onKeep)}>
+          Keep
+        </button>
+      </div>
+    </Dialog>
   );
 }

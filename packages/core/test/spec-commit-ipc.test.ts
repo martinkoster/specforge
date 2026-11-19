@@ -37,8 +37,7 @@ describe('US-023 over IPC', () => {
     const client = await connectClient(wrap(port1));
     const project = await client.command('projects.create', {
       name: 'Commit',
-      parentDir: mkdtempSync(join(tmpdir(), 'sf-commit-ws-')),
-      folderName: 'commit',
+      path: join(mkdtempSync(join(tmpdir(), 'sf-commit-ws-')), 'commit'),
       initGit: true,
     });
     const git = (...args: string[]) => execFileSync('git', args, { cwd: project.path, encoding: 'utf8' }).trim();

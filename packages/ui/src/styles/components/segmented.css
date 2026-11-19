@@ -1,0 +1,57 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Segmented control (ui_design_concept.md §5): a radio group shown as joined buttons; native radios keep keyboard and
+   screen-reader behaviour (arrow keys move the selection). */
+@layer components {
+  .segmented {
+    display: inline-flex;
+    gap: 2px;
+    padding: 2px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--bg-subtle);
+  }
+
+  .segmented-option {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    min-height: calc(var(--control-sm) - 4px);
+    padding: 0 var(--space-3);
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+    cursor: pointer;
+    transition:
+      background var(--duration-fast) var(--ease-standard),
+      color var(--duration-fast) var(--ease-standard);
+  }
+
+  .segmented-option:hover {
+    color: var(--text);
+  }
+
+  .segmented-option input {
+    position: absolute;
+    inset: 0;
+    margin: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .segmented-option:has(input:checked) {
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .segmented-option:has(input:focus-visible) {
+    outline: 2px solid var(--focus);
+    outline-offset: 1px;
+  }
+
+  .segmented-option:has(input:disabled) {
+    cursor: default;
+    opacity: 0.6;
+  }
+}

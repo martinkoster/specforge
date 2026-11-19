@@ -71,8 +71,7 @@ describe('US-036 over IPC', () => {
 
     const project = await client.command('projects.create', {
       name: 'S',
-      parentDir: mkdtempSync(join(tmpdir(), 'sf-storygen-ws-')),
-      folderName: 's',
+      path: join(mkdtempSync(join(tmpdir(), 'sf-storygen-ws-')), 's'),
       initGit: false,
     });
     const ws = project.path;

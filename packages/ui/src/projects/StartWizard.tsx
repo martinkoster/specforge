@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Start wizard: open or create a project, reopen recent projects, rename/remove/locate (US-017, UC-029, UF-01b).
+import { FolderOpen, FolderPlus, History, type LucideIcon } from 'lucide-react';
+import { Dialog, EmptyState, Menu, StatusBadge } from '../components/index.js';
+import { Icon } from '../components/icons.js';
 import { useState, type FormEvent } from 'react';
 import type { QueryOutput } from '@specforge/ipc-contract';
 
@@ -37,10 +40,12 @@ function RecentItem({ project, props, onAskRemove }: { project: RecentProject; p
   return (
     <li aria-label={project.name} className={project.missing ? 'recent recent-missing' : 'recent'}>
       {editing ? (
-        <form onSubmit={submit}>
-          <input aria-label="Project name" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
-          <button type="submit">Save</button>
-          <button type="button" onClick={() => setEditing(false)}>
+        <form className="recent-rename" onSubmit={submit}>
+          <input className="input" aria-label="Project name" value={name} onChange={(e) => setName(e.target.value)} autoFocus />
+          <button className="btn btn-primary btn-sm" type="submit">
+            Save
+          </button>
+          <button className="btn btn-ghost btn-sm" type="button" onClick={() => setEditing(false)}>
             Cancel
           </button>
         </form>
@@ -49,7 +54,7 @@ function RecentItem({ project, props, onAskRemove }: { project: RecentProject; p
       ) : (
         <button
           type="button"
-          className="recent-name"
+          className="link recent-name"
           aria-label={`Open ${project.name}`}
           disabled={!props.onOpenRecent}
           title={props.onOpenRecent ? undefined : UNAVAILABLE}
@@ -58,16 +63,17 @@ function RecentItem({ project, props, onAskRemove }: { project: RecentProject; p
           {project.name}
         </button>
       )}
-      <span className="recent-path">{project.path}</span>
+      <span className="recent-path path">{project.path}</span>
       {project.missing ? (
-        <span className="badge badge-warning">Folder not found</span>
+        <StatusBadge status="missing" tone="warning" label="Folder not found" />
       ) : (
-        <span className="badge">{project.phaseLabel}</span>
+        project.phaseLabel && <StatusBadge status={project.phase?.state ?? 'not_started'} label={project.phaseLabel} />
       )}
       <span className="recent-opened">{lastOpened(project.lastOpenedAt)}</span>
       <span className="recent-actions">
-        {project.missing ? (
+        {project.missing && (
           <button
+            className="btn btn-secondary btn-sm"
             type="button"
             aria-label={`Locate ${project.name}`}
             disabled={!props.onLocate}
@@ -76,16 +82,51 @@ function RecentItem({ project, props, onAskRemove }: { project: RecentProject; p
           >
             Locate
           </button>
-        ) : (
-          <button type="button" aria-label={`Rename ${project.name}`} onClick={() => setEditing(true)}>
-            Rename
-          </button>
         )}
-        <button type="button" aria-label={`Remove ${project.name}`} onClick={onAskRemove}>
-          Remove from list
-        </button>
+        <Menu
+          label={`Actions for ${project.name}`}
+          items={[
+            ...(project.missing ? [] : [{ label: 'Rename', onSelect: () => setEditing(true) }]),
+            { label: 'Remove from list', onSelect: onAskRemove, danger: true },
+          ]}
+        />
       </span>
     </li>
+  );
+}
+
+/** Large interactive card: the title is the accessible name, the explanation its description. */
+function StartCard({
+  id,
+  icon,
+  title,
+  text,
+  onClick,
+}: {
+  id: string;
+  icon: LucideIcon;
+  title: string;
+  text: string;
+  onClick?: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className="start-card"
+      aria-labelledby={`start-${id}-title`}
+      aria-describedby={`start-${id}-text`}
+      disabled={!onClick}
+      title={onClick ? undefined : UNAVAILABLE}
+      onClick={() => onClick?.()}
+    >
+      <Icon icon={icon} size={24} className="start-card-icon" />
+      <span id={`start-${id}-title`} className="start-card-title">
+        {title}
+      </span>
+      <span id={`start-${id}-text`} className="start-card-text">
+        {text}
+      </span>
+    </button>
   );
 }
 
@@ -107,48 +148,53 @@ export function StartWizard(props: StartWizardProps) {
 
   return (
     <section className="start-wizard" aria-label="Start">
+      <header className="start-header">
+        <h1>Welcome to SpecForge</h1>
+        <p className="page-description">Turn an idea into specifications and let AI agents build it — you decide what and when.</p>
+      </header>
       <div className="start-cards">
-        <button
-          type="button"
-          className="start-card"
-          disabled={!props.onOpenExisting}
-          title={props.onOpenExisting ? undefined : UNAVAILABLE}
-          onClick={() => props.onOpenExisting?.()}
-        >
-          Open existing project
-        </button>
-        <button
-          type="button"
-          className="start-card"
-          disabled={!props.onCreateNew}
-          title={props.onCreateNew ? undefined : UNAVAILABLE}
-          onClick={() => props.onCreateNew?.()}
-        >
-          Create new project
-        </button>
+        <StartCard
+          id="open"
+          icon={FolderOpen}
+          title="Open existing project"
+          text="Continue a SpecForge project from a folder or a cloned repository."
+          {...(props.onOpenExisting ? { onClick: props.onOpenExisting } : {})}
+        />
+        <StartCard
+          id="create"
+          icon={FolderPlus}
+          title="Create new project"
+          text="Pick or create an empty folder and start with the intent."
+          {...(props.onCreateNew ? { onClick: props.onCreateNew } : {})}
+        />
       </div>
-      <h2>Recent projects</h2>
-      {error && <p role="alert">{error}</p>}
-      {props.recent.length === 0 ? (
-        <p>No recent projects</p>
-      ) : (
-        <ul className="recent-list">
-          {props.recent.map((p) => (
-            <RecentItem key={p.id} project={p} props={props} onAskRemove={() => setRemoving(p)} />
-          ))}
-        </ul>
-      )}
+      <section aria-label="Recent projects" className="recent-projects">
+        <h2>
+          <Icon icon={History} /> Recent projects
+        </h2>
+        {error && <p role="alert">{error}</p>}
+        {props.recent.length === 0 ? (
+          <EmptyState compact icon={History} title="No recent projects" description="Projects you open or create appear here." />
+        ) : (
+          <ul className="recent-list">
+            {props.recent.map((p) => (
+              <RecentItem key={p.id} project={p} props={props} onAskRemove={() => setRemoving(p)} />
+            ))}
+          </ul>
+        )}
+      </section>
       {removing && (
-        <div role="alertdialog" aria-modal="true" aria-labelledby="remove-title" aria-describedby="remove-text" className="dialog">
-          <h3 id="remove-title">Remove {removing.name}?</h3>
-          <p id="remove-text">The project is removed from SpecForge; files in {removing.path} are not deleted.</p>
-          <button type="button" onClick={() => void confirmRemove()}>
-            Remove from list
-          </button>
-          <button type="button" onClick={() => setRemoving(undefined)}>
-            Cancel
-          </button>
-        </div>
+        <Dialog role="alertdialog" tone="danger" title={<>Remove {removing.name}?</>} onClose={() => setRemoving(undefined)}>
+          <p>The project is removed from SpecForge; files in {removing.path} are not deleted.</p>
+          <div className="dialog-footer">
+            <button className="btn btn-secondary" type="button" onClick={() => setRemoving(undefined)}>
+              Cancel
+            </button>
+            <button className="btn btn-danger" type="button" onClick={() => void confirmRemove()}>
+              Remove from list
+            </button>
+          </div>
+        </Dialog>
       )}
     </section>
   );

@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 // @vitest-environment happy-dom
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanupChecked } from './styled-controls.js';
 import { App } from '../src/App.js';
 import { KanbanArea } from '../src/board/KanbanArea.js';
 import { closeFakeCores, fakeCore } from './fake-core.js';
 
 afterEach(() => {
-  cleanup();
+  cleanupChecked();
   closeFakeCores();
 });
 

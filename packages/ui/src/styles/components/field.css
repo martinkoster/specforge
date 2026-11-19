@@ -1,0 +1,171 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Form fields (US-070 AC-2, ui_design_concept.md §4.2, §5): label above, hint below, error with aria-invalid; native
+   checkboxes, radios and switches with accent colour. */
+@layer components {
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-1);
+    margin-bottom: var(--space-3);
+    max-width: 40rem;
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+  }
+
+  .field-label {
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-medium);
+  }
+
+  .field-hint {
+    color: var(--text-subtle);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-regular);
+  }
+
+  .field-error {
+    color: var(--danger);
+    font-size: var(--text-sm);
+    font-weight: var(--weight-regular);
+  }
+
+  .input,
+  .select,
+  .textarea {
+    width: 100%;
+    min-height: var(--control-md);
+    padding: 0 var(--space-3);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    color: var(--text);
+    font-size: var(--text-md);
+    font-weight: var(--weight-regular);
+    transition: border-color var(--duration-fast) var(--ease-standard);
+  }
+
+  .textarea {
+    min-height: 6rem;
+    padding: var(--space-2) var(--space-3);
+    line-height: var(--leading-md);
+    resize: vertical;
+  }
+
+  .input:hover,
+  .select:hover,
+  .textarea:hover {
+    border-color: var(--text-subtle);
+  }
+
+  .input:focus-visible,
+  .select:focus-visible,
+  .textarea:focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 0;
+    border-color: var(--focus);
+  }
+
+  .input::placeholder,
+  .textarea::placeholder {
+    color: var(--text-subtle);
+  }
+
+  .input[aria-invalid='true'],
+  .select[aria-invalid='true'],
+  .textarea[aria-invalid='true'] {
+    border-color: var(--danger);
+  }
+
+  .input:disabled,
+  .select:disabled,
+  .textarea:disabled {
+    background: var(--bg-subtle);
+    color: var(--text-subtle);
+    cursor: not-allowed;
+  }
+
+  .input:read-only:not(:disabled),
+  .textarea:read-only:not(:disabled) {
+    background: var(--bg-subtle);
+  }
+
+  .checkbox,
+  .radio,
+  .switch {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: var(--control-sm);
+    color: var(--text);
+    cursor: pointer;
+  }
+
+  .checkbox input,
+  .radio input,
+  input.checkbox,
+  input.radio {
+    width: 1rem;
+    height: 1rem;
+    margin: 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+
+  /* On/off switch built from a native checkbox (role="switch"). */
+  .switch input {
+    appearance: none;
+    position: relative;
+    width: 2.25rem;
+    height: 1.25rem;
+    margin: 0;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-full);
+    background: var(--bg-subtle);
+    cursor: pointer;
+    transition: background var(--duration-fast) var(--ease-standard);
+  }
+
+  .switch input::after {
+    content: '';
+    position: absolute;
+    top: 1px;
+    left: 1px;
+    width: calc(1.25rem - 4px);
+    height: calc(1.25rem - 4px);
+    border-radius: var(--radius-full);
+    background: var(--text-muted);
+    transition: transform var(--duration-fast) var(--ease-standard);
+  }
+
+  .switch input:checked {
+    border-color: var(--accent);
+    background: var(--accent);
+  }
+
+  .switch input:checked::after {
+    background: var(--on-accent);
+    transform: translateX(1rem);
+  }
+
+  .checkbox:has(input:disabled),
+  .radio:has(input:disabled),
+  .switch:has(input:disabled) {
+    color: var(--text-subtle);
+    cursor: not-allowed;
+  }
+
+  fieldset {
+    margin: 0 0 var(--space-4);
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+  }
+
+  legend {
+    padding: 0 var(--space-1);
+    color: var(--text-muted);
+    font-weight: var(--weight-medium);
+  }
+}

@@ -71,4 +71,68 @@
   .edge-related path {
     stroke-dasharray: 4 4;
   }
+
+  /* Implementation plan (US-103, UF-14): waves as columns, cards coloured by board state, the critical path bold. */
+  .plan-view {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .plan-waves,
+  .plan-groups {
+    display: grid;
+    grid-auto-columns: minmax(12rem, 1fr);
+    grid-auto-flow: column;
+    gap: var(--space-3);
+    overflow-x: auto;
+  }
+
+  .plan-wave,
+  .plan-group {
+    display: grid;
+    align-content: start;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+  }
+
+  .plan-wave ul,
+  .plan-group ul,
+  .plan-epics {
+    display: grid;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .plan-card {
+    padding: var(--space-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface-hover);
+  }
+
+  .plan-card-ready {
+    background: var(--info-subtle);
+  }
+
+  .plan-card-in_progress {
+    background: var(--warning-subtle);
+  }
+
+  .plan-card-review {
+    background: var(--review-subtle);
+  }
+
+  .plan-card-critical {
+    border-width: 2px;
+    border-color: var(--accent);
+    font-weight: 600;
+  }
+
+  .lane-depends {
+    margin-inline-start: var(--space-2);
+  }
 }

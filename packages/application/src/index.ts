@@ -19,6 +19,7 @@ export * from './permissions/permission-broker.js';
 export * from './scheduling/ports.js';
 export * from './scheduling/scheduler.js';
 export * from './board/board-service.js';
+export * from './board/plan-service.js';
 export * from './specs/artifact-service.js';
 export * from './settings/settings-service.js';
 export * from './setup/setup-service.js';

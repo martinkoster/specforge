@@ -307,6 +307,7 @@ describe('US-039 AC-1/AC-4: epic lanes', () => {
         status: 'not_started',
         progress: { done: 0, total: 1, doneWeight: 0, totalWeight: 3 },
         colour: 1,
+        dependsOn: [],
       },
       {
         epicId: 'EP-001',
@@ -314,6 +315,7 @@ describe('US-039 AC-1/AC-4: epic lanes', () => {
         status: 'in_progress',
         progress: { done: 1, total: 2, doneWeight: 2, totalWeight: 7 },
         colour: 0,
+        dependsOn: [],
       },
       {
         epicId: null,
@@ -321,6 +323,7 @@ describe('US-039 AC-1/AC-4: epic lanes', () => {
         status: 'not_started',
         progress: { done: 0, total: 1, doneWeight: 0, totalWeight: 3 },
         colour: null,
+        dependsOn: [],
       },
     ]);
     expect(board.columns.flatMap((c) => c.cards).map((c) => [c.storyId, c.epicId])).toEqual([
@@ -392,5 +395,35 @@ describe('US-092: rework stories on the board', () => {
     expect(stories.get('US-023')!.status).toBe('in_progress');
     expect(transitions).toEqual([['US-023', 'startImplementation']]);
     expect(stories.get('US-008')!.status).toBe('done');
+  });
+});
+
+describe('US-101 AC-2: lane headers show derived epic dependencies', () => {
+  it('a lane depends on the epics its stories block on (FR-097 acceptance)', () => {
+    const rows = [story('US-003', 'done', { epicId: 'EP-001' }), story('US-012', 'backlog', { epicId: 'EP-002' })];
+    const index: BoardIndex = {
+      stories: () => rows,
+      storyPath: () => undefined,
+      setSubState: () => undefined,
+      setOrder: () => undefined,
+      setAuthorisedAt: () => undefined,
+      dependencies: () => [{ from: 'US-012', to: 'US-003', type: 'blocking' }],
+    };
+    const service = new BoardService({
+      index,
+      files: () => ({ read: async () => undefined, writeAtomic: async () => '' }),
+      reindex: async () => undefined,
+      now: () => 't',
+      onTransition: () => undefined,
+      epics: () => [
+        { id: 'EP-001', title: 'Accounts', laneOrder: 1, reviewOutcome: null },
+        { id: 'EP-002', title: 'Tasks', laneOrder: 2, reviewOutcome: null },
+      ],
+    });
+    expect(service.board('p1').lanes.map((l) => [l.epicId, l.dependsOn])).toEqual([
+      ['EP-001', []],
+      ['EP-002', ['EP-001']],
+      [null, []],
+    ]);
   });
 });

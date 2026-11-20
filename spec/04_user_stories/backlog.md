@@ -6,10 +6,10 @@ _Last updated: 2026-11-20_
 
 | Status | Count |
 |--------|-------|
-| ready for development | 15 |
+| ready for development | 12 |
 | in progress | 0 |
 | blocked | 1 |
-| done | 98 |
+| done | 101 |
 | **Total** | **114** |
 
 ## Stories
@@ -116,9 +116,9 @@ _Last updated: 2026-11-20_
 | US-098 | Track chat changes per message | Chat changes | M | done |
 | US-099 | Revert chat changes | Chat changes | S | done |
 | US-100 | Turn chat conversations into features and ideas | Chat changes | S | done |
-| US-101 | Derived epic dependencies | Epics & planning | S | ready for development |
-| US-102 | Start an epic | Epics & planning | S | ready for development |
-| US-103 | Implementation plan view | Epics & planning | M | ready for development |
+| US-101 | Derived epic dependencies | Epics & planning | S | done |
+| US-102 | Start an epic | Epics & planning | S | done |
+| US-103 | Implementation plan view | Epics & planning | M | done |
 | US-104 | Epic review | Epics & planning | M | ready for development |
 | US-105 | AI completeness check in the epic review | Epics & planning | S | ready for development |
 | US-106 | Artifact history and revision compare | Change awareness | M | ready for development |

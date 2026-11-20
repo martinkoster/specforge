@@ -190,9 +190,9 @@ Design refresh for Release 2: intent D26/D27, ADR-024 – ADR-026 (`spec/03_desi
 
 | ID | Title | Size | Status |
 |----|-------|------|--------|
-| [US-101](US-101-derived-epic-dependencies.md) | Derived epic dependencies | S | ready for development |
-| [US-102](US-102-start-epic.md) | Start an epic | S | ready for development |
-| [US-103](US-103-implementation-plan-view.md) | Implementation plan view | M | ready for development |
+| [US-101](US-101-derived-epic-dependencies.md) | Derived epic dependencies | S | done |
+| [US-102](US-102-start-epic.md) | Start an epic | S | done |
+| [US-103](US-103-implementation-plan-view.md) | Implementation plan view | M | done |
 | [US-104](US-104-epic-review.md) | Epic review | M | ready for development |
 | [US-105](US-105-epic-ai-completeness-check.md) | AI completeness check in the epic review | S | ready for development |
 

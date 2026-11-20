@@ -12,6 +12,7 @@ import {
   type StoryDependency,
   deriveEpicStatus,
   reworkedBy,
+  epicDependencies,
   type EpicProgress,
   type EpicStatus,
 } from '@specforge/domain';
@@ -70,6 +71,8 @@ export interface BoardLane {
   progress: EpicProgress;
   /** Colour index of the epic tag (0–7); null for "No epic". */
   colour: number | null;
+  /** Epics this epic depends on, derived from blocking story dependencies (US-101, FR-097). */
+  dependsOn: string[];
 }
 
 export interface Board {
@@ -155,24 +158,34 @@ export class BoardService {
         status,
         cards: sortColumn(rows.filter((r) => r.status === status)).map((r) => toCard(r, dependencies, impacts, inFlight, reworked)),
       })),
-      lanes: this.lanes(projectId, rows),
+      lanes: this.lanes(projectId, rows, dependencies),
       queue: this.deps.queueOrder?.(projectId) ?? [],
       slots: this.deps.slots?.(projectId) ?? { active: 0, limit: 0 },
     };
   }
 
-  private lanes(projectId: string, rows: readonly BoardStoryRow[]): BoardLane[] {
+  private lanes(projectId: string, rows: readonly BoardStoryRow[], dependencies: readonly StoryDependency[]): BoardLane[] {
     const epics = this.deps.epics?.(projectId) ?? [];
     if (epics.length === 0) return [];
     // Colours follow the epic IDs, so an epic keeps its colour when lanes are reordered.
     const colourOf = new Map([...epics].sort((a, b) => a.id.localeCompare(b.id)).map((e, i) => [e.id, i % 8]));
+    const epicEdges = epicDependencies(
+      rows.map((r) => ({ id: r.storyId, epicId: r.epicId ?? null })),
+      dependencies,
+    );
     const lane = (epicId: string | null, title: string, reviewOutcome: string | null): BoardLane => {
       const stories = rows.filter((r) => (r.epicId ?? null) === epicId);
       const derived = deriveEpicStatus(
         stories.map((r) => ({ status: r.status, size: r.size, merged: this.deps.merged?.(projectId, r.storyId) ?? false })),
         reviewOutcome,
       );
-      return { epicId, title, ...derived, colour: epicId ? colourOf.get(epicId)! : null };
+      return {
+        epicId,
+        title,
+        ...derived,
+        colour: epicId ? colourOf.get(epicId)! : null,
+        dependsOn: epicEdges.filter((e) => e.from === epicId).map((e) => e.to),
+      };
     };
     const ordered = [...epics].sort((a, b) => (a.laneOrder ?? Infinity) - (b.laneOrder ?? Infinity) || a.id.localeCompare(b.id));
     return [...ordered.map((e) => lane(e.id, e.title, e.reviewOutcome)), lane(null, 'No epic', null)];

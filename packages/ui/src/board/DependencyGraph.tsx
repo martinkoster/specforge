@@ -4,6 +4,7 @@
 import dagre from '@dagrejs/dagre';
 import { Background, Controls, ReactFlow, type Edge, type Node } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import { useState } from 'react';
 import { COLUMN_LABELS, type BoardData } from './types.js';
 
 type Status = BoardData['columns'][number]['status'];
@@ -13,7 +14,39 @@ type DependencyEdge = Edge<{ type: 'blocking' | 'related' }>;
 const NODE_WIDTH = 180;
 const NODE_HEIGHT = 56;
 
-export function graphLayout(board: BoardData): { nodes: StoryNode[]; edges: DependencyEdge[] } {
+/** US-101 AC-2: one node per epic and the derived epic dependencies as edges (predecessor → dependent). */
+function epicLayout(board: BoardData): { nodes: StoryNode[]; edges: DependencyEdge[] } {
+  const lanes = (board.lanes ?? []).filter((l) => l.epicId !== null);
+  const edges: DependencyEdge[] = lanes.flatMap((l) =>
+    (l.dependsOn ?? []).map((to) => ({
+      id: `e:${to}->${l.epicId}`,
+      source: to,
+      target: l.epicId!,
+      data: { type: 'blocking' as const },
+      className: 'edge-blocking',
+    })),
+  );
+  const graph = new dagre.graphlib.Graph();
+  graph.setGraph({ rankdir: 'LR', nodesep: 24, ranksep: 64 });
+  graph.setDefaultEdgeLabel(() => ({}));
+  for (const l of lanes) graph.setNode(l.epicId!, { width: NODE_WIDTH, height: NODE_HEIGHT });
+  for (const e of edges) graph.setEdge(e.source, e.target);
+  dagre.layout(graph);
+  const nodes: StoryNode[] = lanes.map((l) => {
+    const { x, y } = graph.node(l.epicId!);
+    const status: Status = l.status === 'done' || l.status === 'merged' ? 'done' : l.status === 'not_started' ? 'backlog' : 'in_progress';
+    return {
+      id: l.epicId!,
+      position: { x: x - NODE_WIDTH / 2, y: y - NODE_HEIGHT / 2 },
+      data: { label: `${l.epicId} · ${l.title}`, status },
+      className: `graph-node graph-node-${status}`,
+    };
+  });
+  return { nodes, edges };
+}
+
+export function graphLayout(board: BoardData, options: { byEpic?: boolean } = {}): { nodes: StoryNode[]; edges: DependencyEdge[] } {
+  if (options.byEpic) return epicLayout(board);
   const cards = board.columns.flatMap((c) => c.cards);
   const known = new Set(cards.map((c) => c.storyId));
   const edges: DependencyEdge[] = [];
@@ -59,9 +92,16 @@ export function graphLayout(board: BoardData): { nodes: StoryNode[]; edges: Depe
 }
 
 export function DependencyGraph({ board }: { board: BoardData }) {
-  const { nodes, edges } = graphLayout(board);
+  const [byEpic, setByEpic] = useState(false);
+  const { nodes, edges } = graphLayout(board, { byEpic });
   return (
     <section aria-label="Dependency graph" className="dependency-graph">
+      {(board.lanes?.length ?? 0) > 0 && (
+        <label className="checkbox-label">
+          <input className="checkbox" type="checkbox" checked={byEpic} onChange={(e) => setByEpic(e.target.checked)} />
+          Group by epic
+        </label>
+      )}
       <ul aria-label="Legend" className="graph-legend">
         {(Object.keys(COLUMN_LABELS) as Status[]).map((s) => (
           <li key={s} className={`graph-node-${s}`}>

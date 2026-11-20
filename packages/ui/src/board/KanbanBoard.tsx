@@ -113,6 +113,8 @@ export interface KanbanBoardProps {
   /** Initial epic filter (an epic clicked on the dashboard, US-061 AC-3). */
   initialEpicFilter?: string | null;
   onRecheck?(storyId: string): Promise<MoveOutcome>;
+  /** *Start epic* in the lane header (US-102). */
+  onStartEpic?(epicId: string): void;
   onAddDependency?(storyId: string, dependency: Dependency & { rationale?: string }): ReturnType<DependencyEditorProps['onAdd']>;
   onRemoveDependency?(storyId: string, dependency: Dependency): ReturnType<DependencyEditorProps['onRemove']>;
 }
@@ -131,6 +133,7 @@ export function KanbanBoard({
   onSetEpic,
   onReorderLanes,
   initialEpicFilter = null,
+  onStartEpic,
 }: KanbanBoardProps) {
   const [rejection, setRejection] = useState<string | undefined>();
   /** US-039: collapsed lanes, epic filter, lane being dragged, pending lane change of a card. */
@@ -348,6 +351,21 @@ export function KanbanBoard({
                       {done}/{total} done · {doneWeight}/{totalWeight} points
                     </span>
                     <progress value={doneWeight} max={Math.max(totalWeight, 1)} aria-label={`Progress of ${name}`} />
+                    {(lane.dependsOn?.length ?? 0) > 0 && (
+                      <span className="hint lane-depends">depends on {lane.dependsOn!.join(', ')}</span>
+                    )}
+                    {lane.epicId && onStartEpic && (
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        type="button"
+                        aria-label={`Start epic ${lane.epicId}`}
+                        disabled={aiDisabledReason !== null}
+                        title={aiDisabledReason ?? undefined}
+                        onClick={() => onStartEpic(lane.epicId!)}
+                      >
+                        Start epic
+                      </button>
+                    )}
                     {lane.epicId && (
                       <>
                         <button

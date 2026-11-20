@@ -6,6 +6,8 @@ import { useCallback, useEffect, useState } from 'react';
 import type { CoreSession } from '../core/core-session.js';
 import { DependencyGraph } from './DependencyGraph.js';
 import { KanbanBoard, type BoardData } from './KanbanBoard.js';
+import { PlanView } from './PlanView.js';
+import { StartStoriesDialog, type StartPreview } from './StartStoriesDialog.js';
 import { ReviewPanel } from '../review/ReviewPanel.js';
 import { RejectedBranches } from '../review/RejectedBranches.js';
 import { RunRecoveryDialog } from './RunRecoveryDialog.js';
@@ -36,7 +38,10 @@ export function KanbanArea({
   refreshKey,
 }: KanbanAreaProps) {
   const [board, setBoard] = useState<BoardData | undefined>();
-  const [view, setView] = useState<'board' | 'graph'>('board');
+  const [view, setView] = useState<'board' | 'graph' | 'plan'>('board');
+  /** US-102: the *Start epic* confirmation. */
+  const [starting, setStarting] = useState<{ epicId: string; preview: StartPreview } | null>(null);
+  const [startNotice, setStartNotice] = useState<string | null>(null);
   /** US-039: board by epic (default when epics exist) or flat. */
   const [layout, setLayout] = useState<'epic' | 'flat' | null>(null);
   const [error, setError] = useState<string | undefined>();
@@ -103,8 +108,15 @@ export function KanbanArea({
           <input type="radio" name="kanban-view" checked={view === 'graph'} onChange={() => setView('graph')} />
           Dependency graph
         </label>
+        <label className="segmented-option">
+          <input type="radio" name="kanban-view" checked={view === 'plan'} onChange={() => setView('plan')} />
+          Plan
+        </label>
       </div>
-      {view === 'graph' ? (
+      {startNotice && <p role="status">{startNotice}</p>}
+      {view === 'plan' ? (
+        <PlanView session={session} projectId={projectId} refreshKey={refreshKey} onChanged={() => void load().then(onChanged)} />
+      ) : view === 'graph' ? (
         <DependencyGraph board={board} />
       ) : (
         <KanbanBoard
@@ -119,6 +131,13 @@ export function KanbanArea({
           }
           aiDisabledReason={aiDisabledReason}
           onRecover={setRecovering}
+          onStartEpic={(epicId) =>
+            void session
+              .client()
+              .query('board.startEpicPreview', { projectId, epicId })
+              .then((preview) => setStarting({ epicId, preview }))
+              .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
+          }
           renderReview={(storyId) => (
             <ReviewPanel
               key={storyId}
@@ -159,6 +178,30 @@ export function KanbanArea({
           onRemoveDependency={(from, d) =>
             change(() => session.client().command('stories.removeDependency', { projectId, from, to: d.to, type: d.type }))
           }
+        />
+      )}
+      {starting && (
+        <StartStoriesDialog
+          title={`Start epic ${starting.epicId}`}
+          preview={starting.preview}
+          onCancel={() => setStarting(null)}
+          onConfirm={() => {
+            const { epicId } = starting;
+            setStarting(null);
+            void session
+              .client()
+              .command('board.startEpic', { projectId, epicId })
+              .then(async (r) => {
+                setStartNotice(
+                  [r.started.length ? `Started ${r.started.join(', ')}` : '', ...r.failed.map((f) => `${f.storyId}: ${f.reason}`)]
+                    .filter(Boolean)
+                    .join(' · ') || 'Nothing was started.',
+                );
+                await load();
+                onChanged();
+              })
+              .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)));
+          }}
         />
       )}
       {recovering && (

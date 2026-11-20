@@ -465,6 +465,24 @@ export const CONTRACT = {
       input: z.object({ projectId: z.string().min(1), draft: WizardDraft, sourceIdea: z.string().min(1).optional() }),
       output: FeatureWizard,
     },
+    /** US-102: moves the Ready stories of an epic to In Progress, each a human authorisation. */
+    'board.startEpic': {
+      input: z.object({ projectId: z.string().min(1), epicId: z.string().min(1) }),
+      output: z.object({
+        started: z.array(z.string()),
+        failed: z.array(z.object({ storyId: z.string(), reason: z.string() })),
+        skipped: z.array(z.object({ storyId: z.string(), status: BoardStatus })),
+      }),
+    },
+    /** US-103 AC-3: moves the Ready stories of a wave (0-based) to In Progress. */
+    'plan.startWave': {
+      input: z.object({ projectId: z.string().min(1), wave: z.number().int().nonnegative() }),
+      output: z.object({
+        started: z.array(z.string()),
+        failed: z.array(z.object({ storyId: z.string(), reason: z.string() })),
+        skipped: z.array(z.object({ storyId: z.string(), status: BoardStatus })),
+      }),
+    },
     /** US-096 AC-2: creates the spec baseline tag on the base branch. */
     'baselines.create': {
       input: z.object({ projectId: z.string().min(1), tag: z.string().min(1).max(200) }),
@@ -975,6 +993,38 @@ export const CONTRACT = {
       }),
       output: ChangeSetView.nullable(),
     },
+    'board.startEpicPreview': {
+      input: z.object({ projectId: z.string().min(1), epicId: z.string().min(1) }),
+      output: z.object({ start: z.array(z.string()), skipped: z.array(z.object({ storyId: z.string(), status: BoardStatus })) }),
+    },
+    /** US-103: implementation waves, critical path and the derived epic graph. */
+    'plan.get': {
+      input: z.object({ projectId: z.string().min(1) }),
+      output: z.object({
+        limit: z.number().int(),
+        waves: z.array(
+          z.object({
+            index: z.number().int(),
+            size: z.number(),
+            stories: z.array(
+              z.object({
+                id: z.string(),
+                title: z.string(),
+                status: BoardStatus,
+                epicId: z.string().nullable(),
+                size: z.string().nullable(),
+              }),
+            ),
+          }),
+        ),
+        criticalPath: z.array(z.string()),
+        epicEdges: z.array(z.object({ from: z.string(), to: z.string() })),
+      }),
+    },
+    'plan.wavePreview': {
+      input: z.object({ projectId: z.string().min(1), wave: z.number().int().nonnegative() }),
+      output: z.object({ start: z.array(z.string()), skipped: z.array(z.object({ storyId: z.string(), status: BoardStatus })) }),
+    },
     'baselines.offer': {
       input: z.object({ projectId: z.string().min(1) }),
       output: z.object({
@@ -1243,6 +1293,8 @@ export const CONTRACT = {
               status: z.enum(['not_started', 'in_progress', 'ready_for_review', 'done', 'merged']),
               progress: z.object({ done: z.number(), total: z.number(), doneWeight: z.number(), totalWeight: z.number() }),
               colour: z.number().int().nullable(),
+              /** Derived epic dependencies (US-101): "depends on EP-001". */
+              dependsOn: z.array(z.string()).optional(),
             }),
           )
           .optional(),

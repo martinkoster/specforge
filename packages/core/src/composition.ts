@@ -18,6 +18,7 @@ import {
   FeatureError,
   IdeaError,
   IdeaService,
+  PlanService,
   BaselineError,
   BaselineService,
   type WorkspaceBaselines,
@@ -472,6 +473,23 @@ export async function createCore(options: CoreOptions): Promise<Core> {
   /** zod's optional fields may be present as undefined; drafts store only the given fields. */
   const compact = (draft: { [K in keyof WizardDraft]: WizardDraft[K] | undefined }): WizardDraft =>
     Object.fromEntries(Object.entries(draft).filter(([, v]) => v !== undefined)) as unknown as WizardDraft;
+  // US-102/US-103: Start epic, implementation waves and Start wave (each move a human authorisation, FR-022).
+  const plans = new PlanService({
+    stories: (projectId) =>
+      index
+        .stories(projectId)
+        .map((s) => ({ storyId: s.storyId, title: s.title, status: s.status, epicId: s.epicId ?? null, size: s.size })),
+    dependencies: (projectId) => index.dependencies(projectId),
+    limit: (projectId) => projectSettings.limit(projectId, vcsModes.get(projectId) ?? 'git'),
+    move: (projectId, storyId) => board.move(projectId, storyId, 'in_progress', null),
+  });
+  const planCall = async <T>(fn: () => T | Promise<T>): Promise<T> => {
+    try {
+      return await fn();
+    } catch (e) {
+      throw new IpcError('INVALID_REQUEST', e instanceof Error ? e.message : String(e));
+    }
+  };
   // US-095: the idea inbox in `01_intent/ideas.md`.
   const ideas = new IdeaService({
     files: (projectId) => workspaceFiles(projectId),
@@ -1549,6 +1567,9 @@ export async function createCore(options: CoreOptions): Promise<Core> {
     'impact.view': async ({ projectId, featureId }) => impact.view(projectId, featureId),
     'delta.changeSet': async ({ projectId, featureId, phase }) => deltas.view(projectId, featureId, phase) ?? null,
     'ideas.list': async ({ projectId }) => ideas.list(projectId),
+    'board.startEpicPreview': async ({ projectId, epicId }) => plans.epicPreview(projectId, epicId),
+    'plan.get': async ({ projectId }) => plans.plan(projectId),
+    'plan.wavePreview': ({ projectId, wave }) => planCall(() => plans.wavePreview(projectId, wave)),
     'baselines.offer': ({ projectId }) => baselineCall(() => baselines.offer(projectId)),
     'baselines.list': async ({ projectId }) => baselines.list(projectId),
     'baselines.compare': ({ projectId, tag, path }) => baselineCall(() => baselines.compare(projectId, tag, path)),
@@ -1669,6 +1690,8 @@ export async function createCore(options: CoreOptions): Promise<Core> {
     },
     'board.recheck': ({ projectId, storyId }) => board.recheck(projectId, storyId),
     'board.move': ({ projectId, storyId, to, beforeStoryId }) => board.move(projectId, storyId, to, beforeStoryId),
+    'board.startEpic': ({ projectId, epicId }) => plans.startEpic(projectId, epicId),
+    'plan.startWave': ({ projectId, wave }) => planCall(() => plans.startWave(projectId, wave)),
     'projects.gitAvailable': async () => ({ available: await service.gitAvailable() }),
     'projects.inspectFolder': ({ path }) => service.inspectFolder(path),
     'projects.checkSpecRoot': async ({ path, specRoot }) => ({ problem: await service.specRootProblem(path, specRoot) }),

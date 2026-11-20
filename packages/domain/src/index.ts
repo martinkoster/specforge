@@ -18,3 +18,4 @@ export * from './settings/agent-settings.js';
 export * from './settings/project-settings.js';
 export * from './feature/feature-status.js';
 export * from './feature/feature-phases.js';
+export * from './planning/plan.js';

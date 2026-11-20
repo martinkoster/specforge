@@ -17,6 +17,7 @@ const status: PhaseStatus = {
     { phase: 'kanban', state: 'not_started', step: 'write', enabled: false, unapprovedInputs: ['requirements', 'design', 'stories'] },
   ],
   recommended: 'requirements',
+  maintenance: false,
 };
 
 describe('US-033: phase stepper', () => {

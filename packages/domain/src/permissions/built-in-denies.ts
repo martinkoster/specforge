@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Built-in permission denies, evaluated before any rule (ADR-013, FR-089, FR-116).
+import { specLayout } from '../project/spec-layout.js';
 
 export interface PermissionContext {
   runKind: string;
@@ -17,17 +18,15 @@ export interface PermissionContext {
   readOnly?: boolean;
   /** Written paths that do not exist yet (new story files may start in Backlog, US-036). */
   newFiles?: readonly string[];
+  /** The project's specification root (US-078, ADR-024); default `spec`. */
+  specRoot?: string;
 }
 
 export const FILE_WRITE_TOOLS: ReadonlySet<string> = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
 export const SHELL_TOOLS: ReadonlySet<string> = new Set(['Bash', 'PowerShell']);
 const IMPLEMENTATION_KINDS = new Set(['implement', 'correct']);
-const STORY_FILE = /^spec\/04_user_stories\/(.+\/)?[^/]+\.md$/;
 const STATUS_LINE = /^\s*status\s*:/m;
 const STATUS_VALUES = /^\s*status\s*:\s*['"]?([\w-]+)/gm;
-
-const isSpecPath = (path: string): boolean =>
-  path === 'spec' || path.startsWith('spec/') || path === '.specforge' || path.startsWith('.specforge/');
 
 /** Text a file tool would write (Write content, Edit/MultiEdit new strings). */
 function writtenText(input: Record<string, unknown>): string {
@@ -40,12 +39,13 @@ function writtenText(input: Record<string, unknown>): string {
 export function builtInDenial(ctx: PermissionContext): string | undefined {
   const fileWrite = FILE_WRITE_TOOLS.has(ctx.toolName);
   const mayWrite = fileWrite || SHELL_TOOLS.has(ctx.toolName);
+  const layout = specLayout(ctx.specRoot);
 
   if (ctx.runKind === 'chat' && mayWrite) {
     return 'The project chat is read-only in this release; write requests and shell commands are denied.';
   }
-  if (IMPLEMENTATION_KINDS.has(ctx.runKind) && ctx.writes.some(isSpecPath)) {
-    return 'Implementation runs may not change specifications (spec/**, .specforge/**); report missing changes in the result instead.';
+  if (IMPLEMENTATION_KINDS.has(ctx.runKind) && ctx.writes.some(layout.isSpecPath)) {
+    return `Implementation runs may not change specifications (${layout.root}/**, .specforge/**); report missing changes in the result instead.`;
   }
   if (ctx.readOnly && mayWrite) {
     return 'This run is read-only: file changes and shell commands are denied. Report your results in the structured result instead.';
@@ -57,7 +57,7 @@ export function builtInDenial(ctx: PermissionContext): string | undefined {
       return `This specification run may only change files in ${scope}.`;
     }
   }
-  const storyWrites = ctx.writes.filter((p) => STORY_FILE.test(p));
+  const storyWrites = ctx.writes.filter(layout.isStoryFile);
   const newStories = storyWrites.length > 0 && storyWrites.every((p) => ctx.newFiles?.includes(p));
   const text = writtenText(ctx.input);
   const backlogOnly = [...text.matchAll(STATUS_VALUES)].every((m) => m[1] === 'backlog');

@@ -145,24 +145,24 @@ Design refresh for Release 2: intent D26/D27, ADR-024 – ADR-026 (`spec/03_desi
 
 | ID | Title | Size | Status |
 |----|-------|------|--------|
-| [US-078](US-078-specification-root.md) | Per-project specification root | M | ready for development |
-| [US-079](US-079-adopt-existing-folder.md) | Adopt an existing code folder | M | ready for development |
-| [US-080](US-080-codebase-analysis-run.md) | Analyse an adopted codebase into draft specifications | M | ready for development |
+| [US-078](US-078-specification-root.md) | Per-project specification root | M | done |
+| [US-079](US-079-adopt-existing-folder.md) | Adopt an existing code folder | M | done |
+| [US-080](US-080-codebase-analysis-run.md) | Analyse an adopted codebase into draft specifications | M | done |
 
 ### Feature workflow (Release 2)
 
 | ID | Title | Size | Status |
 |----|-------|------|--------|
-| [US-081](US-081-feature-intent-artifact.md) | Feature intent artifact, index and lifecycle | M | ready for development |
-| [US-082](US-082-feature-wizard-describe-save.md) | Add feature: entry points and wizard (describe, save, resume) | M | ready for development |
-| [US-083](US-083-feature-wizard-ai-review.md) | Feature wizard: AI review and clarification | M | ready for development |
-| [US-084](US-084-feature-page-stepper.md) | Feature page with feature-scoped phase stepper | M | ready for development |
-| [US-085](US-085-active-features-dashboard.md) | Active features on the dashboard | S | ready for development |
-| [US-087](US-087-feature-trace-impact.md) | Feature impact: trace-based analysis and confirmation | M | ready for development |
-| [US-088](US-088-feature-ai-impact.md) | Feature impact: AI analysis of specs and code | S | ready for development |
-| [US-089](US-089-delta-change-sets.md) | Delta generation as reviewable change sets | M | ready for development |
-| [US-090](US-090-apply-change-sets.md) | Apply accepted changes with stable IDs and feature links | M | ready for development |
-| [US-091](US-091-in-flight-protection.md) | In-flight protection when applying changes | M | ready for development |
+| [US-081](US-081-feature-intent-artifact.md) | Feature intent artifact, index and lifecycle | M | done |
+| [US-082](US-082-feature-wizard-describe-save.md) | Add feature: entry points and wizard (describe, save, resume) | M | done |
+| [US-083](US-083-feature-wizard-ai-review.md) | Feature wizard: AI review and clarification | M | done |
+| [US-084](US-084-feature-page-stepper.md) | Feature page with feature-scoped phase stepper | M | done |
+| [US-085](US-085-active-features-dashboard.md) | Active features on the dashboard | S | done |
+| [US-087](US-087-feature-trace-impact.md) | Feature impact: trace-based analysis and confirmation | M | done |
+| [US-088](US-088-feature-ai-impact.md) | Feature impact: AI analysis of specs and code | S | done |
+| [US-089](US-089-delta-change-sets.md) | Delta generation as reviewable change sets | M | done |
+| [US-090](US-090-apply-change-sets.md) | Apply accepted changes with stable IDs and feature links | M | done |
+| [US-091](US-091-in-flight-protection.md) | In-flight protection when applying changes | M | done |
 | [US-092](US-092-rework-stories.md) | Rework stories for Done functionality | S | ready for development |
 | [US-093](US-093-feature-epic-stories.md) | Feature epic and story breakdown | M | ready for development |
 | [US-094](US-094-feature-completion-withdrawal.md) | Feature completion and withdrawal | S | ready for development |
@@ -173,7 +173,7 @@ Design refresh for Release 2: intent D26/D27, ADR-024 – ADR-026 (`spec/03_desi
 
 | ID | Title | Size | Status |
 |----|-------|------|--------|
-| [US-086](US-086-potentially-impacted-flags.md) | Potentially impacted flags | M | ready for development |
+| [US-086](US-086-potentially-impacted-flags.md) | Potentially impacted flags | M | done |
 | [US-106](US-106-artifact-history.md) | Artifact history and revision compare | M | ready for development |
 | [US-107](US-107-overlap-detection.md) | Overlap warnings between parallel runs | S | ready for development |
 
@@ -376,9 +376,9 @@ US-086 (*Potentially impacted* flags, FR-017/FR-071) is a Should-have of wave 4 
 | Status | Count |
 |---|---|
 | blocked | 1 |
-| done | 75 |
+| done | 89 |
 | in progress | 0 |
-| ready for development | 38 |
+| ready for development | 24 |
 
 ## Requirement coverage (Release 1)
 

@@ -275,3 +275,20 @@ describe('US-059: request corrections', () => {
     expect(request).toHaveBeenCalledWith(expect.objectContaining({ feedback: 'Fix it.', fresh: true }));
   });
 });
+
+describe('US-091 AC-4: pending in-flight feedback pre-fills Request corrections', () => {
+  it('fills the feedback from an Apply in corrections decision; the user still sends it', async () => {
+    const requested = vi.fn(async () => ({ ok: true as const }));
+    const panel = await renderPanel({
+      'inflight.feedback': async () => ({ feedback: 'FI-001 changed the specifications: changed FR-020.' }),
+      'review.correctionOptions': async () => ({ resumable: true, reason: null }),
+      'review.requestCorrections': requested,
+    });
+    await userEvent.click(within(panel).getByRole('button', { name: 'Request corrections…' }));
+    const box = await within(panel).findByRole('textbox', { name: 'Feedback for the agent' });
+    await vi.waitFor(() => expect(box).toHaveValue('FI-001 changed the specifications: changed FR-020.'));
+    expect(requested).not.toHaveBeenCalled();
+    await userEvent.click(within(panel).getByRole('button', { name: 'Send to the agent' }));
+    expect(requested).toHaveBeenCalledWith(expect.objectContaining({ feedback: 'FI-001 changed the specifications: changed FR-020.' }));
+  });
+});

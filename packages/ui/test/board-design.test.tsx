@@ -168,3 +168,39 @@ describe('US-073 AC-3: no stories yet', () => {
     expect(within(stories).getByRole('button', { name: 'Go to User stories' })).toBeInTheDocument();
   });
 });
+
+describe('US-086 AC-4: potentially impacted cards', () => {
+  it('shows the flag with its source and reason on the card', () => {
+    const flagged = {
+      ...board,
+      columns: board.columns.map((c) =>
+        c.status === 'backlog'
+          ? {
+              ...c,
+              cards: [card('US-001', 'backlog', { impact: { sourceRef: 'FR-003', reason: 'FR-003 changed after it was approved.' } })],
+            }
+          : c,
+      ),
+    };
+    render(<KanbanBoard board={flagged as never} onMove={vi.fn(async () => ({ ok: true }))} />);
+    const us1 = screen.getByRole('article', { name: 'US-001 Story US-001' });
+    expect(within(us1).getByText('Potentially impacted')).toBeInTheDocument();
+    expect(within(us1).getByText('FR-003 changed after it was approved.')).toBeInTheDocument();
+  });
+});
+
+describe('US-091 AC-5: in-flight decisions on cards', () => {
+  it('shows the latest in-flight decision with its feature', () => {
+    const flagged = {
+      ...board,
+      columns: board.columns.map((c) =>
+        c.status === 'review'
+          ? { ...c, cards: [card('US-012', 'review', { inFlight: { decision: 'apply_in_corrections', featureId: 'FI-001' } })] }
+          : c,
+      ),
+    };
+    render(<KanbanBoard board={flagged as never} onMove={vi.fn(async () => ({ ok: true }))} />);
+    const us12 = screen.getByRole('article', { name: 'US-012 Story US-012' });
+    expect(us12).toHaveTextContent('FI-001: Apply in corrections');
+  });
+});

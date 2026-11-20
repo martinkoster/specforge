@@ -5,12 +5,24 @@ import type {
   BoardIndex,
   BoardStoryRow,
   DependencyIndex,
+  ElementChange,
   IndexedArtifact,
   IndexStore,
   IndexedStory,
   ParsedArtifact,
   StoryStatusIndex,
 } from '@specforge/application';
+import type { FeatureStatus } from '@specforge/domain';
+
+export interface IndexedFeature {
+  id: string;
+  title: string;
+  approval: 'draft' | 'approved';
+  status: FeatureStatus;
+  sourceIdea: string | null;
+  baseline: string | null;
+  path: string;
+}
 import {
   SPEC_PHASES,
   type BoardStatus,
@@ -46,17 +58,26 @@ export class IndexRepository implements IndexStore, DependencyIndex, StoryStatus
         values (@projectId, @path, 'other', 'draft', @hash, 'invalid', @error, @now)
         on conflict (project_id, path) do update set content_hash = excluded.content_hash, parse_state = 'invalid',
           parse_error = excluded.parse_error, indexed_at = excluded.indexed_at`),
-      ownedIds: prepare(`select element_id from element where project_id = ? and artifact_path = ? and type in ('story', 'epic')`),
+      ownedIds: prepare(
+        `select element_id from element where project_id = ? and artifact_path = ? and type in ('story', 'epic', 'feature_intent')`,
+      ),
       deleteElements: prepare('delete from element where project_id = ? and artifact_path = ?'),
       deleteLinks: prepare('delete from trace_link where project_id = ? and artifact_path = ?'),
       deleteStory: prepare('delete from story where project_id = ? and story_id = ?'),
       deleteDeps: prepare('delete from story_dependency where project_id = ? and from_story = ?'),
       deleteEpic: prepare('delete from epic where project_id = ? and epic_id = ?'),
+      deleteFeature: prepare('delete from feature_intent where project_id = ? and feature_id = ?'),
+      insertFeature:
+        prepare(`insert or replace into feature_intent (project_id, feature_id, title, approval_state, status, source_idea, baseline_tag)
+        values (?, ?, ?, ?, ?, ?, ?)`),
       deleteArtifact: prepare('delete from artifact where project_id = ? and path = ?'),
-      insertElement: prepare(`insert or replace into element (project_id, element_id, type, title, artifact_path, anchor)
-        values (?, ?, ?, ?, ?, ?)`),
+      insertElement: prepare(`insert or replace into element (project_id, element_id, type, title, artifact_path, anchor, content_hash)
+        values (?, ?, ?, ?, ?, ?, ?)`),
+      elementState: prepare(`select e.element_id, e.type, e.content_hash, a.approval_state from element e
+        join artifact a on a.project_id = e.project_id and a.path = e.artifact_path
+        where e.project_id = ? and e.artifact_path = ?`),
       insertLink: prepare(`insert into trace_link (project_id, artifact_path, source_ref, target_ref, link_type, origin)
-        values (?, ?, ?, ?, 'references', 'ws')`),
+        values (?, ?, ?, ?, ?, 'ws')`),
       insertStory:
         prepare(`insert or replace into story (project_id, story_id, epic_id, feature_id, title, board_status, approval_state, size, branch, reworks)
         values (@projectId, @id, @epicId, @featureId, @title, @status, @approval, @size, @branch, @reworks)`),
@@ -74,7 +95,8 @@ export class IndexRepository implements IndexStore, DependencyIndex, StoryStatus
       execSubState: prepare('select exec_substate from story_state where project_id = ? and story_id = ?'),
       setStoryStatus: prepare('update story set board_status = ? where project_id = ? and story_id = ?'),
       phaseArtifacts: prepare(`select a.kind, a.approval_state,
-          exists (select 1 from element e where e.project_id = a.project_id and e.artifact_path = a.path and e.impact_flag = 1) as impacted
+          exists (select 1 from element e join impact_flag f on f.project_id = e.project_id and f.element_id = e.element_id
+            where e.project_id = a.project_id and e.artifact_path = a.path) as impacted
         from artifact a where a.project_id = ? and a.parse_state <> 'invalid'`),
       artifacts: prepare('select path, kind, approval_state, parse_state, parse_error from artifact where project_id = ? order by path'),
       boardStories: prepare(`select s.story_id, s.title, s.size, s.approval_state, s.board_status, s.epic_id,
@@ -95,7 +117,16 @@ export class IndexRepository implements IndexStore, DependencyIndex, StoryStatus
     };
   }
 
+  /** US-086: called with the elements whose content changed on re-indexing (not on the first index of a file). */
+  onElementsChanged?: (projectId: string, changes: ElementChange[], path: string) => void;
+
   save(projectId: string, path: string, hash: string, artifact: ParsedArtifact): void {
+    const before = this.s.elementState!.all(projectId, path) as {
+      element_id: string;
+      type: string;
+      content_hash: string | null;
+      approval_state: 'draft' | 'approved';
+    }[];
     this.clear(projectId, path);
     this.s.upsertArtifact!.run({
       projectId,
@@ -107,8 +138,13 @@ export class IndexRepository implements IndexStore, DependencyIndex, StoryStatus
       error: null,
       now: new Date().toISOString(),
     });
-    for (const e of artifact.elements) this.s.insertElement!.run(projectId, e.id, e.type, e.title, path, e.anchor);
-    for (const l of artifact.links) this.s.insertLink!.run(projectId, path, l.source, l.target);
+    const hashes = artifact.elementHashes ?? {};
+    for (const e of artifact.elements) this.s.insertElement!.run(projectId, e.id, e.type, e.title, path, e.anchor, hashes[e.id] ?? null);
+    const changes = before
+      .filter((b) => b.content_hash !== null && hashes[b.element_id] !== undefined && hashes[b.element_id] !== b.content_hash)
+      .map((b) => ({ elementId: b.element_id, type: b.type, wasApproved: b.approval_state === 'approved' }));
+    if (changes.length > 0) this.onElementsChanged?.(projectId, changes, path);
+    for (const l of artifact.links) this.s.insertLink!.run(projectId, path, l.source, l.target, l.type ?? 'references');
     if (artifact.story) {
       const st = artifact.story;
       this.s.insertStory!.run({
@@ -129,6 +165,10 @@ export class IndexRepository implements IndexStore, DependencyIndex, StoryStatus
     if (artifact.epic) {
       const ep = artifact.epic;
       this.s.insertEpic!.run(projectId, ep.id, ep.featureId, ep.title, ep.approval, ep.reviewOutcome);
+    }
+    if (artifact.feature) {
+      const fi = artifact.feature;
+      this.s.insertFeature!.run(projectId, fi.id, fi.title, fi.approval, fi.status, fi.sourceIdea, fi.baseline);
     }
   }
 
@@ -256,11 +296,12 @@ export class IndexRepository implements IndexStore, DependencyIndex, StoryStatus
     path: string;
     laneOrder: number | null;
     reviewOutcome: string | null;
+    featureId: string | null;
   }[] {
     return this.sqlite
       .prepare(
         `select ep.epic_id as id, ep.title as title, ep.approval_state as approval, el.artifact_path as path, l.lane_order as laneOrder,
-           ep.review_outcome as reviewOutcome
+           ep.review_outcome as reviewOutcome, ep.feature_id as featureId
          from epic ep
          join element el on el.project_id = ep.project_id and el.element_id = ep.epic_id and el.type = 'epic'
          left join epic_layout l on l.project_id = ep.project_id and l.epic_id = ep.epic_id
@@ -274,6 +315,7 @@ export class IndexRepository implements IndexStore, DependencyIndex, StoryStatus
       path: string;
       laneOrder: number | null;
       reviewOutcome: string | null;
+      featureId: string | null;
     }[];
   }
 
@@ -290,9 +332,81 @@ export class IndexRepository implements IndexStore, DependencyIndex, StoryStatus
   impactedPaths(projectId: string): string[] {
     return (
       this.sqlite
-        .prepare('select distinct artifact_path from element where project_id = ? and impact_flag = 1 order by artifact_path')
+        .prepare(
+          `select distinct e.artifact_path from element e join impact_flag f on f.project_id = e.project_id and f.element_id = e.element_id
+           where e.project_id = ? order by e.artifact_path`,
+        )
         .all(projectId) as { artifact_path: string }[]
     ).map((r) => r.artifact_path);
+  }
+
+  /** All elements with their artifact (delta generation, US-089). */
+  elementPaths(projectId: string): { id: string; path: string; title: string }[] {
+    return this.sqlite
+      .prepare('select element_id as id, artifact_path as path, title from element where project_id = ? order by element_id')
+      .all(projectId) as { id: string; path: string; title: string }[];
+  }
+
+  /** Stories that depend on `storyId` (FR-071, US-086). */
+  dependents(projectId: string, storyId: string): { id: string; status: BoardStatus }[] {
+    return this.sqlite
+      .prepare(
+        `select d.from_story as id, s.board_status as status from story_dependency d
+         join story s on s.project_id = d.project_id and s.story_id = d.from_story
+         where d.project_id = ? and d.to_story = ? and d.type = 'blocking' order by d.from_story`,
+      )
+      .all(projectId, storyId) as { id: string; status: BoardStatus }[];
+  }
+
+  elementPath(projectId: string, elementId: string): string | undefined {
+    return (
+      this.sqlite.prepare('select artifact_path from element where project_id = ? and element_id = ?').get(projectId, elementId) as
+        { artifact_path: string } | undefined
+    )?.artifact_path;
+  }
+
+  /** Elements of the given types (context of the feature review, US-083). */
+  elementsOfTypes(projectId: string, types: readonly string[]): { id: string; type: string; title: string }[] {
+    if (types.length === 0) return [];
+    return this.sqlite
+      .prepare(
+        `select element_id as id, type, title from element where project_id = ? and type in (${types.map(() => '?').join(', ')}) order by element_id`,
+      )
+      .all(projectId, ...types) as { id: string; type: string; title: string }[];
+  }
+
+  /** Feature intents (US-081). */
+  features(projectId: string): IndexedFeature[] {
+    return this.sqlite
+      .prepare(
+        `select f.feature_id as id, f.title, f.approval_state as approval, f.status, f.source_idea as sourceIdea,
+           f.baseline_tag as baseline, e.artifact_path as path
+         from feature_intent f
+         join element e on e.project_id = f.project_id and e.element_id = f.feature_id and e.type = 'feature_intent'
+         where f.project_id = ? order by f.feature_id`,
+      )
+      .all(projectId) as IndexedFeature[];
+  }
+
+  /** Stories linked to a feature with `feature: FI-xxx` (US-081 AC-4). */
+  featureStories(projectId: string, featureId: string): { id: string; status: BoardStatus; approval: 'draft' | 'approved' }[] {
+    return this.sqlite
+      .prepare(
+        'select story_id as id, board_status as status, approval_state as approval from story where project_id = ? and feature_id = ? order by story_id',
+      )
+      .all(projectId, featureId) as { id: string; status: BoardStatus; approval: 'draft' | 'approved' }[];
+  }
+
+  /** Type of the link between two IDs (`references`, or a feature trace type, US-081 AC-3). */
+  linkType(projectId: string, sourceRef: string, targetRef: string): string | undefined {
+    return (
+      this.sqlite
+        .prepare(
+          `select link_type from trace_link where project_id = ? and source_ref = ? and target_ref = ?
+           order by case link_type when 'references' then 1 else 0 end limit 1`,
+        )
+        .get(projectId, sourceRef, targetRef) as { link_type: string } | undefined
+    )?.link_type;
   }
 
   /** Elements that reference `targetRef` (downstream links, US-034). */
@@ -418,6 +532,7 @@ export class IndexRepository implements IndexStore, DependencyIndex, StoryStatus
       this.s.deleteStory!.run(projectId, id);
       this.s.deleteDeps!.run(projectId, id);
       this.s.deleteEpic!.run(projectId, id);
+      this.s.deleteFeature!.run(projectId, id);
     }
     this.s.deleteElements!.run(projectId, path);
     this.s.deleteLinks!.run(projectId, path);

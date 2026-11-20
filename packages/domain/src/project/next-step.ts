@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Recommended next step (domain_model.md NextStep, ADR-017, FR-086): a pure function with a fixed priority list.
+import { featureNextStep, type FeatureProgress, type FeatureStepCode } from '../feature/feature-phases.js';
 import { SPEC_PHASES, phaseState, type PhaseInputs, type SpecPhase } from './phase.js';
 
 export interface NextStepInput {
@@ -21,12 +22,15 @@ export interface NextStepInput {
   approvedUnmerged: number;
   storyCount: number;
   doneStories: number;
+  /** Feature intents in progress (US-084, FR-105); their steps follow the project phases, oldest feature first. */
+  features?: readonly FeatureProgress[];
 }
 
 export type NextStepTarget =
   | { area: 'setup' | 'pending' | 'intent' | 'decisions' }
   | { area: 'kanban'; storyId?: string }
-  | { area: 'specifications'; generate?: SpecPhase };
+  | { area: 'specifications'; generate?: SpecPhase }
+  | { area: 'feature'; featureId: string };
 
 export type NextStepCode =
   | 'complete_setup'
@@ -45,7 +49,8 @@ export type NextStepCode =
   | 'start_stories'
   | 'merge_branches'
   | 'plan_next_increment'
-  | 'prepare_stories';
+  | 'prepare_stories'
+  | FeatureStepCode;
 
 export interface NextStep {
   code: NextStepCode;
@@ -173,6 +178,11 @@ export function nextStep(input: NextStepInput): NextStep {
   }
   const phase = phaseAction(input);
   if (phase) return phase;
+  const features = [...(input.features ?? [])].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  for (const feature of features) {
+    const step = featureNextStep(feature);
+    if (step) return step;
+  }
   if (input.openDecisions > 0) {
     return {
       code: 'decide_items',

@@ -23,7 +23,8 @@ async function keepReview(page: Page, target: string): Promise<void> {
 
 async function approveArtifact(page: Page, fileName: string): Promise<void> {
   await page.getByRole('button', { name: fileName, exact: true }).click();
-  await page.getByText(`spec/`, { exact: false }).first().waitFor();
+  // The editor toolbar shows the path relative to the specification root (US-078 AC-3).
+  await page.locator('.artifact-toolbar .path').filter({ hasText: fileName }).waitFor();
   const approve = page.getByRole('button', { name: 'Approve', exact: true });
   await approve.click();
   await approve.waitFor({ state: 'detached' });

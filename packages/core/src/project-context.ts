@@ -7,6 +7,7 @@ import {
   WorkspaceIndexer,
   type ReconcileEvent,
 } from '@specforge/application';
+import { DEFAULT_SPEC_ROOT } from '@specforge/domain';
 import { IpcError } from '@specforge/ipc-contract';
 import type { IndexRepository } from '@specforge/sqlite';
 import { WorkspaceFiles, watchWorkspace, type WorkspaceWatcher } from '@specforge/workspace-fs';
@@ -14,6 +15,8 @@ import { WorkspaceFiles, watchWorkspace, type WorkspaceWatcher } from '@specforg
 export interface ProjectContext {
   projectId: string;
   root: string;
+  /** Specification root of the project (US-078). */
+  specRoot: string;
   files: WorkspaceFiles;
   indexer: WorkspaceIndexer;
   dependencies: StoryDependencyService;
@@ -43,16 +46,18 @@ export class ProjectContexts {
     return this.active;
   }
 
-  async activate(projectId: string, root: string): Promise<ProjectContext> {
+  async activate(projectId: string, root: string, specRoot: string = DEFAULT_SPEC_ROOT): Promise<ProjectContext> {
     await this.close();
     const selfWrites = new SelfWriteRegistry();
-    const files = new WorkspaceFiles(root, { onWrite: (path, hash) => selfWrites.register(path, hash) });
+    const artifactRoots = [specRoot, '.specforge'];
+    const files = new WorkspaceFiles(root, { onWrite: (path, hash) => selfWrites.register(path, hash), artifactRoots });
     const indexer = new WorkspaceIndexer(files, this.options.index);
     await indexer.indexAll(projectId);
     const running = new Set<Promise<void>>();
     const context: Active = {
       projectId,
       root,
+      specRoot,
       files,
       indexer,
       dependencies: new StoryDependencyService(files, this.options.index, indexer),
@@ -63,7 +68,7 @@ export class ProjectContexts {
       const reconciler = new ExternalChangeReconciler(files, indexer, this.options.index, selfWrites, (event) =>
         this.options.onReconcile?.(projectId, event),
       );
-      context.watcher = await watchWorkspace(root, {}, (paths) => {
+      context.watcher = await watchWorkspace(root, { artifactRoots }, (paths) => {
         const job = reconciler
           .handle(projectId, paths)
           .then(() => this.options.onIndexed?.(projectId))

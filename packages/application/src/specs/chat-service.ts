@@ -2,6 +2,7 @@
 // Read-only project chat (US-062, UC-035, ADR-016, FR-089/FR-092): each thread is a resumable `chat` agent session
 // in the main workspace with project context; writes are denied by the built-in policy; proposed story transitions or
 // run starts are only shown as recommendation cards.
+import { specLayout } from '@specforge/domain';
 import { z } from 'zod';
 import type { AgentAdapter, AgentEvent } from '../ports/agent-adapter.js';
 import type { NewRun, RunStatus } from '../scheduling/ports.js';
@@ -47,7 +48,7 @@ export interface ChatStore extends AgentRunStore {
 export interface ChatDeps extends Omit<AgentRunDeps, 'store'> {
   store: ChatStore;
   adapter: AgentAdapter | undefined;
-  workspace(projectId: string): { root: string; nonGit: boolean };
+  workspace(projectId: string): { root: string; nonGit: boolean; specRoot?: string };
   aiDisabledReason?(): string | null;
   newId(): string;
   /** A thread got a new message (UI refresh). */
@@ -72,14 +73,15 @@ export function splitChatAnswer(text: string): { content: string; recommendation
   }
 }
 
-const CONTEXT = [
-  'You are the SpecForge project assistant. The current directory is the project workspace: specifications in spec/',
-  '(intent, requirements, design, user stories and epics), code elsewhere. This chat is read-only: do not change files or run',
-  'shell commands (such requests are denied). You cannot move stories or start runs; if you recommend one, add a final block:',
-  '```specforge-result',
-  '{"recommendations":[{"type":"start_story|approve_story|reject_story|other","storyId":"US-001","text":"…"}]}',
-  '```',
-].join('\n');
+const context = (specRoot: string): string =>
+  [
+    `You are the SpecForge project assistant. The current directory is the project workspace: specifications in ${specRoot}/`,
+    '(intent, requirements, design, user stories and epics), code elsewhere. This chat is read-only: do not change files or run',
+    'shell commands (such requests are denied). You cannot move stories or start runs; if you recommend one, add a final block:',
+    '```specforge-result',
+    '{"recommendations":[{"type":"start_story|approve_story|reject_story|other","storyId":"US-001","text":"…"}]}',
+    '```',
+  ].join('\n');
 
 export class ChatService {
   private readonly active = new Map<string, Promise<void>>();
@@ -153,7 +155,7 @@ export class ChatService {
         kind: 'chat',
         cwd: space.root,
         nonGit: space.nonGit,
-        prompt: resume ? text : `${CONTEXT}\n\n${text}`,
+        prompt: resume ? text : `${context(specLayout(space.specRoot).root)}\n\n${text}`,
         ...(resume ? { resumeSessionId: resume } : {}),
       },
     );

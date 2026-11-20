@@ -94,3 +94,31 @@ describe('US-034 AC-1: a story, run or file as the trace root', () => {
     expect(within(panel).queryByRole('button', { name: 'Back' })).not.toBeInTheDocument();
   });
 });
+
+describe('US-081 AC-3: feature trace types', () => {
+  it('labels introduces / changes / reworks links of a feature intent', async () => {
+    traces['element:FI-003'] = {
+      node: { kind: 'element', id: 'FI-003', label: 'FI-003: Comments', path: 'spec/01_intent/FI-003-comments.md', exists: true },
+      upstream: [],
+      downstream: [
+        { kind: 'element', id: 'FR-012', label: 'FR-012: Tasks', path: 'x', exists: true, linkType: 'changes' },
+        { kind: 'story', id: 'US-020', label: 'US-020: Comment list', path: 'y', exists: true, linkType: 'introduces' },
+        { kind: 'element', id: 'UC-004', label: 'UC-004: Discuss', path: 'z', exists: true },
+      ],
+      issues: [],
+    };
+    const session = await fakeCore({ 'trace.get': async ({ target }) => traces[`${target.kind}:${target.id}`] as never });
+    render(<TracePanel session={session} projectId="p1" elements={['FI-003']} onNavigate={() => undefined} />);
+
+    const down = await screen.findByRole('list', { name: 'Downstream' });
+    expect(
+      within(down)
+        .getAllByRole('listitem')
+        .map((li) => li.textContent),
+    ).toEqual(['FR-012: Tasks changes', 'US-020: Comment list introduces', 'UC-004: Discuss']);
+  });
+
+  it('extracts the feature intent id from its front-matter', () => {
+    expect(elementIdsOf('---\nkind: feature_intent\nid: FI-003\n---\n## Problem')).toEqual(['FI-003']);
+  });
+});

@@ -10,6 +10,7 @@ import { AppearanceSettings, type ThemeBridge } from './AppearanceSettings.js';
 import { EffectiveRules, type EffectiveRuleRow } from './EffectiveRules.js';
 import { ExecDefaultsForm } from './ExecDefaultsForm.js';
 import { ProjectSettingsForm, type ProjectSettingsView } from './ProjectSettingsForm.js';
+import { useSpecLayout } from '../specs/spec-layout-context.js';
 
 type SettingsData = QueryOutput<'settings.get'>;
 
@@ -38,6 +39,7 @@ export function SettingsNav({ sections, onSelect }: { sections: readonly { id: s
 const scrollToSection = (id: string): void => document.getElementById(`settings-${id}`)?.scrollIntoView?.({ block: 'start' });
 
 export function SettingsArea({ session, projectId, onOpenSetup, theme }: SettingsAreaProps) {
+  const layout = useSpecLayout();
   const [data, setData] = useState<SettingsData | undefined>();
   const [rules, setRules] = useState<EffectiveRuleRow[]>([]);
   const [project, setProject] = useState<ProjectSettingsView | undefined>();
@@ -135,6 +137,9 @@ export function SettingsArea({ session, projectId, onOpenSetup, theme }: Setting
           )}
           {projectId && project && (
             <div id="settings-project" className="settings-card">
+              <p className="field-hint">
+                Specification folder: <code>{layout.root}/</code> (set when the project was created or adopted)
+              </p>
               <ProjectSettingsForm
                 view={project}
                 onSave={(settings) => session.client().command('projectSettings.save', { projectId, settings })}

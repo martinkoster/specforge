@@ -62,6 +62,120 @@ const TraceNode = z.object({
   path: z.string().optional(),
   runId: z.string().optional(),
   exists: z.boolean(),
+  linkType: z.string().optional(),
+  impact: z.string().optional(),
+});
+/** US-087: the feature impact list. */
+const ImpactItem = z.object({
+  id: z.string(),
+  projectId: z.string(),
+  featureId: z.string(),
+  category: z.enum(['requirement', 'design', 'adr', 'epic', 'story_not_started', 'story_in_flight', 'story_done', 'run', 'code_area']),
+  targetRef: z.string(),
+  reason: z.string(),
+  confidence: z.enum(['high', 'medium', 'low']),
+  origin: z.enum(['trace', 'agent', 'user']),
+  confirmed: z.boolean(),
+});
+const ImpactView = z.object({
+  state: z.enum(['not_started', 'analysing', 'proposed', 'confirmed']),
+  items: z.array(ImpactItem),
+  columns: z.object({ specs: z.array(ImpactItem), work: z.array(ImpactItem), code: z.array(ImpactItem) }),
+  analysing: z.boolean(),
+});
+/** US-089: a delta change set with its items. */
+const ChangeSetView = z.object({
+  id: z.string(),
+  projectId: z.string(),
+  featureId: z.string(),
+  phase: z.enum(['requirements', 'design']),
+  runId: z.string(),
+  state: z.enum(['running', 'open', 'failed', 'discarded', 'applied']),
+  reason: z.string().nullable(),
+  createdAt: z.string(),
+  items: z.array(
+    z.object({
+      id: z.string(),
+      changeSetId: z.string(),
+      path: z.string(),
+      elementId: z.string().nullable(),
+      kind: z.enum(['new', 'modified', 'deprecated']),
+      before: z.string().nullable(),
+      after: z.string(),
+      patch: z.string(),
+      state: z.enum(['open', 'accepted', 'discarded', 'applied']),
+    }),
+  ),
+});
+const FeaturePhase = z.enum(['intent', 'impact', 'requirements', 'design', 'stories', 'kanban', 'epic_review']);
+const FeatureView = z.object({
+  id: z.string(),
+  title: z.string(),
+  approval: z.enum(['draft', 'approved']),
+  status: z.enum(['draft', 'approved', 'in_delivery', 'done', 'withdrawn']),
+  sourceIdea: z.string().nullable(),
+  baseline: z.string().nullable(),
+  path: z.string(),
+  storyCount: z.number().int(),
+  /** US-084/US-085: feature-scoped stepper with soft gates, the current phase, next step and story progress. */
+  phases: z.array(
+    z.object({
+      phase: FeaturePhase,
+      state: z.enum(['not_started', 'in_progress', 'awaiting_approval', 'approved', 'impacted']),
+      unapprovedEarlier: z.array(FeaturePhase),
+      enabled: z.boolean(),
+    }),
+  ),
+  current: FeaturePhase,
+  nextStep: z.string().nullable(),
+  progress: z.object({ done: z.number().int(), total: z.number().int() }),
+});
+const WizardDraft = z.object({
+  text: z.string().max(20_000),
+  motivation: z.string().max(5_000).optional(),
+  targetUsers: z.string().max(1_000).optional(),
+  priority: z.enum(['must', 'should', 'could']).optional(),
+  epicId: z.string().optional(),
+  title: z.string().max(200).optional(),
+});
+const WizardStep = z.enum(['describe', 'review', 'clarify', 'save']);
+/** US-083: the AI review of a wizard draft (maintained by the core). */
+const FeatureReview = z.object({
+  state: z.enum(['running', 'ready', 'failed']),
+  runId: z.string(),
+  reason: z.string().nullable(),
+  parts: z.array(
+    z.object({
+      id: z.string(),
+      section: z.enum(['problem', 'goal', 'in_scope', 'out_of_scope', 'success', 'constraints', 'assumptions']),
+      text: z.string(),
+      origin: z.enum(['user', 'ai']),
+      removed: z.boolean(),
+    }),
+  ),
+  overlaps: z.array(z.object({ ref: z.string(), text: z.string() })),
+  conflicts: z.array(z.object({ ref: z.string(), text: z.string() })),
+  suggestedEpic: z.object({ id: z.string(), reason: z.string() }).nullable(),
+  covered: z.object({ ref: z.string(), text: z.string(), dismissed: z.boolean() }).nullable(),
+  questions: z.array(
+    z.object({
+      id: z.string(),
+      text: z.string(),
+      why: z.string(),
+      options: z.array(z.string()),
+      answer: z.string().nullable(),
+      deferred: z.boolean(),
+    }),
+  ),
+  done: z.boolean(),
+});
+const FeatureWizard = z.object({
+  id: z.string(),
+  projectId: z.string(),
+  step: WizardStep,
+  draft: WizardDraft.extend({ review: FeatureReview.optional() }),
+  featureId: z.string().nullable(),
+  updatedAt: z.string(),
 });
 const ChatMessageView = z.object({
   id: z.string(),
@@ -79,7 +193,15 @@ const SpecDecision = z.union([z.object({ ok: z.literal(true) }), z.object({ ok: 
 export const CONTRACT_VERSION = '1.0.0';
 
 const Vcs = z.union([z.object({ mode: z.literal('git'), branch: z.string().nullable() }), z.object({ mode: z.literal('none') })]);
-const OpenedProject = z.object({ id: z.string(), name: z.string(), path: z.string(), vcs: Vcs, isolationWarning: z.string().nullable() });
+const OpenedProject = z.object({
+  id: z.string(),
+  name: z.string(),
+  path: z.string(),
+  vcs: Vcs,
+  /** Specification root, workspace-relative (US-078, ADR-024). */
+  specRoot: z.string().optional(),
+  isolationWarning: z.string().nullable(),
+});
 const BoardStatus = z.enum(['backlog', 'ready', 'in_progress', 'review', 'done']);
 const ExecSubState = z.enum(['none', 'queued', 'blocked_conflict', 'preparing', 'running', 'awaiting_permission', 'failed', 'interrupted']);
 const MoveOutcome = z.union([z.object({ ok: z.literal(true) }), z.object({ ok: z.literal(false), reason: z.string() })]);
@@ -154,6 +276,11 @@ export const CONTRACT = {
     },
     'projects.create': {
       input: z.object({ name: z.string(), path: z.string().min(1), initGit: z.boolean() }),
+      output: OpenedProject,
+    },
+    // US-079: bring a folder with existing code under SpecForge (UC-030).
+    'projects.adopt': {
+      input: z.object({ name: z.string(), path: z.string().min(1), specRoot: z.string(), initGit: z.boolean() }),
       output: OpenedProject,
     },
     'projects.open': {
@@ -274,6 +401,89 @@ export const CONTRACT = {
         instruction: z.string().trim().min(1).max(20_000),
       }),
       output: SpecStart,
+    },
+    /** Codebase analysis of an adopted project into draft specifications (US-080, UC-030). */
+    'specs.analyze': {
+      input: z.object({ projectId: z.string().min(1), limitTo: z.array(z.string().min(1)).optional() }),
+      output: SpecStart,
+    },
+    /** Feature wizard (US-082, UC-043): drafts stored after every step (ADR-025), saved as FI-xxx-<slug>.md. */
+    'features.wizard.create': {
+      input: z.object({ projectId: z.string().min(1), draft: WizardDraft }),
+      output: FeatureWizard,
+    },
+    'features.wizard.update': {
+      input: z.object({ wizardId: z.string().min(1), step: WizardStep, draft: WizardDraft }),
+      output: FeatureWizard,
+    },
+    'features.wizard.discard': { input: z.object({ wizardId: z.string().min(1) }), output: z.object({}) },
+    /** Feature impact (US-087): propose the trace items, edit, approve. */
+    'impact.propose': { input: z.object({ projectId: z.string().min(1), featureId: z.string().min(1) }), output: ImpactView },
+    'impact.add': {
+      input: z.object({ projectId: z.string().min(1), featureId: z.string().min(1), ref: z.string().max(500) }),
+      output: ImpactView,
+    },
+    'impact.remove': {
+      input: z.object({ projectId: z.string().min(1), featureId: z.string().min(1), itemId: z.string().min(1) }),
+      output: ImpactView,
+    },
+    'impact.approve': { input: z.object({ projectId: z.string().min(1), featureId: z.string().min(1) }), output: ImpactView },
+    /** US-089: delta generation as a change set; accept / discard per item. */
+    'delta.generate': {
+      input: z.object({ projectId: z.string().min(1), featureId: z.string().min(1), phase: z.enum(['requirements', 'design']) }),
+      output: SpecStart,
+    },
+    'delta.decide': { input: z.object({ itemId: z.string().min(1), decision: z.enum(['accept', 'discard']) }), output: ChangeSetView },
+    'delta.acceptAll': { input: z.object({ changeSetId: z.string().min(1) }), output: ChangeSetView },
+    /** US-090: applies the accepted items; files changed since the generation are conflicts (nothing of them applied). */
+    'delta.apply': {
+      input: z.object({
+        changeSetId: z.string().min(1),
+        /** US-091: a decision per affected in-flight story. */
+        decisions: z.record(z.string(), z.enum(['continue', 'cancel', 'apply_in_corrections'])).optional(),
+      }),
+      output: z.union([
+        z.object({ applied: z.array(z.string()), conflicts: z.array(z.string()) }),
+        z.object({
+          needsDecision: z.array(
+            z.object({ storyId: z.string(), title: z.string(), status: z.string(), subState: z.string(), changes: z.array(z.string()) }),
+          ),
+        }),
+      ]),
+    },
+    /** US-088: the read-only `impact` agent run (background), cancel. */
+    'impact.analyse': { input: z.object({ projectId: z.string().min(1), featureId: z.string().min(1) }), output: SpecStart },
+    'impact.cancel': { input: z.object({ projectId: z.string().min(1), featureId: z.string().min(1) }), output: z.object({}) },
+    /** *Clear flag* of a potentially impacted element or story (US-086). */
+    'impact.clear': { input: z.object({ projectId: z.string().min(1), elementId: z.string().min(1) }), output: z.object({}) },
+    /** US-083: AI review and clarification of a wizard draft. */
+    'features.wizard.review': { input: z.object({ wizardId: z.string().min(1) }), output: SpecStart },
+    'features.wizard.answer': {
+      input: z.object({ wizardId: z.string().min(1), answers: z.record(z.string(), z.string().max(5_000)) }),
+      output: SpecStart,
+    },
+    'features.wizard.editPart': {
+      input: z.object({
+        wizardId: z.string().min(1),
+        partId: z.string().min(1),
+        removed: z.boolean().optional(),
+        text: z.string().max(5_000).optional(),
+      }),
+      output: FeatureWizard,
+    },
+    'features.wizard.deferQuestion': {
+      input: z.object({ wizardId: z.string().min(1), questionId: z.string().min(1) }),
+      output: FeatureWizard,
+    },
+    'features.wizard.dismissCovered': { input: z.object({ wizardId: z.string().min(1) }), output: FeatureWizard },
+    'features.wizard.withdraw': { input: z.object({ wizardId: z.string().min(1) }), output: z.object({}) },
+    'features.wizard.merge': {
+      input: z.object({ wizardId: z.string().min(1), featureId: z.string().min(1) }),
+      output: z.object({ path: z.string() }),
+    },
+    'features.wizard.save': {
+      input: z.object({ wizardId: z.string().min(1), title: z.string(), approve: z.boolean() }),
+      output: z.object({ featureId: z.string(), path: z.string() }),
     },
     'specs.keep': { input: z.object({ runId: z.string().min(1) }), output: SpecDecision },
     'specs.discard': { input: z.object({ runId: z.string().min(1) }), output: SpecDecision },
@@ -443,10 +653,20 @@ export const CONTRACT = {
       input: z.object({}),
       output: z.object({ available: z.boolean() }),
     },
-    // US-068: what a picked folder holds (SpecForge project, empty, or other content).
+    // US-068: what a picked folder holds (SpecForge project, empty, or other content);
+    // US-079: other content also reports its Git state and a suggested specification folder.
     'projects.inspectFolder': {
       input: z.object({ path: z.string().min(1) }),
-      output: z.object({ kind: z.enum(['project', 'empty', 'notEmpty']) }),
+      output: z.object({
+        kind: z.enum(['project', 'empty', 'notEmpty']),
+        git: z.enum(['none', 'root', 'subfolder']).optional(),
+        suggestedSpecRoot: z.string().optional(),
+      }),
+    },
+    // US-079 AC-3: why a specification folder cannot be used for adopting `path` (null: valid).
+    'projects.checkSpecRoot': {
+      input: z.object({ path: z.string().min(1), specRoot: z.string() }),
+      output: z.object({ problem: z.string().nullable() }),
     },
     'artifacts.list': {
       input: z.object({ projectId: z.string().min(1) }),
@@ -454,7 +674,14 @@ export const CONTRACT = {
         z.object({
           kind: z.string(),
           label: z.string(),
-          artifacts: z.array(z.object({ path: z.string(), approval: z.enum(['draft', 'approved']), invalid: z.string().nullable() })),
+          artifacts: z.array(
+            z.object({
+              path: z.string(),
+              approval: z.enum(['draft', 'approved']),
+              invalid: z.string().nullable(),
+              impacted: z.boolean().optional(),
+            }),
+          ),
         }),
       ),
     },
@@ -478,6 +705,10 @@ export const CONTRACT = {
       }),
     },
     'specs.review': { input: z.object({ runId: z.string().min(1) }), output: SpecReview.nullable() },
+    /** The running or undecided codebase analysis (US-080). */
+    'specs.openAnalysis': { input: z.object({ projectId: z.string().min(1) }), output: SpecReview.nullable() },
+    /** US-080 AC-1: the workspace holds code besides the specifications (offers *Analyse codebase*). */
+    'specs.analysisAvailable': { input: z.object({ projectId: z.string().min(1) }), output: z.object({ available: z.boolean() }) },
     /** The running or not yet decided specification run of a target (to resume the review). */
     'specs.openReview': {
       input: z.object({ projectId: z.string().min(1), target: z.enum(['requirements', 'design', 'epics', 'stories', 'test_concepts']) }),
@@ -558,6 +789,8 @@ export const CONTRACT = {
           }),
         ),
         recommended: z.enum(['intent', 'requirements', 'design', 'stories', 'kanban']),
+        /** US-084 AC-4: all initial epics are Done. */
+        maintenance: z.boolean(),
       }),
     },
     'clarify.current': { input: z.object({ projectId: z.string().min(1), path: z.string().min(1) }), output: Clarification.nullable() },
@@ -599,6 +832,55 @@ export const CONTRACT = {
         /** Must-have requirements not covered by any epic (coverage strip, US-035 AC-2). */
         uncovered: z.array(z.string()),
       }),
+    },
+    /** Feature intents with their derived lifecycle (US-081, FR-104). */
+    /** Potentially impacted elements and stories (US-086, FR-017/FR-071); orphaned = the ID no longer exists. */
+    'impact.flags': {
+      input: z.object({ projectId: z.string().min(1) }),
+      output: z.array(
+        z.object({
+          elementId: z.string(),
+          sourceRef: z.string(),
+          reason: z.string(),
+          flaggedAt: z.string(),
+          path: z.string().nullable(),
+          orphaned: z.boolean(),
+        }),
+      ),
+    },
+    'impact.view': { input: z.object({ projectId: z.string().min(1), featureId: z.string().min(1) }), output: ImpactView },
+    /** US-091: pending correction feedback from *Apply in corrections*. */
+    'inflight.feedback': {
+      input: z.object({ projectId: z.string().min(1), storyId: z.string().min(1) }),
+      output: z.object({ feedback: z.string().nullable() }),
+    },
+    'delta.changeSet': {
+      input: z.object({ projectId: z.string().min(1), featureId: z.string().min(1), phase: z.enum(['requirements', 'design']) }),
+      output: ChangeSetView.nullable(),
+    },
+    'features.list': {
+      input: z.object({ projectId: z.string().min(1) }),
+      output: z.array(FeatureView),
+    },
+    'features.wizard.get': { input: z.object({ wizardId: z.string().min(1) }), output: FeatureWizard.nullable() },
+    'features.wizard.drafts': {
+      input: z.object({ projectId: z.string().min(1) }),
+      output: z.array(z.object({ id: z.string(), title: z.string(), step: WizardStep, updatedAt: z.string() })),
+    },
+    'features.wizard.preview': {
+      input: z.object({ wizardId: z.string().min(1), title: z.string().optional() }),
+      output: z.object({ featureId: z.string(), title: z.string(), path: z.string(), content: z.string() }),
+    },
+    'features.get': {
+      input: z.object({ projectId: z.string().min(1), featureId: z.string().min(1) }),
+      output: FeatureView.extend({
+        links: z.array(z.object({ id: z.string(), type: z.string() })),
+        impact: ImpactView.nullable(),
+        /** US-091: in-flight decisions of the feature. */
+        decisions: z.array(
+          z.object({ storyId: z.string(), decision: z.enum(['continue', 'cancel', 'apply_in_corrections']), decidedAt: z.string() }),
+        ),
+      }).nullable(),
     },
     /** Dashboard (US-061): statistics, runs, decisions, activity, artifacts per phase and epics. */
     'dashboard.get': {
@@ -759,6 +1041,13 @@ export const CONTRACT = {
                 related: z.array(z.string()),
                 /** Epic of the story (US-039); null = No epic. */
                 epicId: z.string().nullable().optional(),
+                /** Potentially impacted flag (US-086). */
+                impact: z.object({ sourceRef: z.string(), reason: z.string() }).nullable().optional(),
+                /** Latest in-flight decision (US-091). */
+                inFlight: z
+                  .object({ decision: z.enum(['continue', 'cancel', 'apply_in_corrections']), featureId: z.string() })
+                  .nullable()
+                  .optional(),
               }),
             ),
           }),
@@ -824,6 +1113,8 @@ export const CONTRACT = {
       output: z.object({
         projects: z.array(z.object({ id: z.string(), name: z.string() })),
         currentProjectId: z.string().nullable(),
+        /** Specification root of the open project (US-078); null without an open project. */
+        specRoot: z.string().nullable().optional(),
         vcs: Vcs.nullable(),
         runs: z.object({ running: z.number().int().nonnegative(), queued: z.number().int().nonnegative() }),
         pendingDecisions: z.number().int().nonnegative(),
@@ -834,7 +1125,12 @@ export const CONTRACT = {
             code: z.string(),
             label: z.string(),
             reason: z.string(),
-            target: z.object({ area: z.string(), storyId: z.string().optional(), generate: z.string().optional() }),
+            target: z.object({
+              area: z.string(),
+              storyId: z.string().optional(),
+              generate: z.string().optional(),
+              featureId: z.string().optional(),
+            }),
           })
           .nullable()
           .optional(),
@@ -871,6 +1167,12 @@ export const CONTRACT = {
     'capabilities.changed': Capabilities,
     /** A specification run ended; its changes await Keep / Discard (US-027). */
     'spec.reviewReady': z.object({ projectId: z.string(), runId: z.string(), state: z.string() }),
+    /** A delta change set of a feature changed (US-089). */
+    'features.deltaUpdated': z.object({ projectId: z.string(), featureId: z.string() }),
+    /** The impact list of a feature changed (agent items, US-088). */
+    'features.impactUpdated': z.object({ projectId: z.string(), featureId: z.string() }),
+    /** A feature wizard draft changed (AI review finished, US-083). */
+    'features.wizardUpdated': z.object({ projectId: z.string(), wizardId: z.string() }),
   },
 } as const;
 

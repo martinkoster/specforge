@@ -64,7 +64,8 @@ const ResultSchema = z.object({
 
 /** Phase-specific review criteria (FR-082). */
 export function qualityCriteria(artifactPath: string): string[] {
-  const folder = artifactPath.split('/')[1] ?? '';
+  // The phase folder (`01_intent`, `02_requirements`, …) below the specification root, whatever the root is (US-078).
+  const folder = artifactPath.split('/').find((segment) => /^\d\d_/.test(segment)) ?? '';
   const common = ['Clarity and unambiguous wording', 'Consistency with upstream artifacts and with itself', 'Completeness'];
   const specific: Record<string, string[]> = {
     '01_intent': [

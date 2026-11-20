@@ -1,18 +1,21 @@
 // SPDX-License-Identifier: Apache-2.0
 // Project dashboard (US-061, UC-034, UF-12): phase stepper, next step with action, story statistics and progress,
-// runs, pending decisions, recent activity, artifacts per phase, epics and the Kanban link.
+// runs, pending decisions, recent activity, artifacts per phase, epics and the Kanban link; ＋ Add feature and the
+// feature wizard drafts (US-082, UF-12).
 import { ArrowRightCircle } from 'lucide-react';
 import { Icon } from '../components/icons.js';
-import { EmptyState, PageHeader, Skeleton, StatusBadge } from '../components/index.js';
+import { EmptyState, Menu, PageHeader, Skeleton, StatusBadge } from '../components/index.js';
 import { useEffect, useState } from 'react';
 import type { QueryOutput } from '@specforge/ipc-contract';
 import type { CoreSession } from '../core/core-session.js';
 import { COLUMN_LABELS } from '../board/types.js';
 import { PhaseStepper, type GuidedPhase, type PhaseStatus } from '../shell/PhaseStepper.js';
+import { useSpecLayout } from '../specs/spec-layout-context.js';
 import { ChatPanel } from './ChatPanel.js';
 
 type Dashboard = QueryOutput<'dashboard.get'>;
 type NextStep = NonNullable<QueryOutput<'shell.state'>['nextStep']>;
+type Feature = QueryOutput<'features.list'>[number];
 
 const PHASE_LABEL = { intent: 'Intent', requirements: 'Requirements', design: 'Design', stories: 'User stories' } as const;
 const KANBAN_HINT = 'No user stories yet — generate or write stories first';
@@ -34,9 +37,88 @@ export interface DashboardAreaProps {
   refreshKey?: unknown;
   /** Limited mode disables the chat input (US-062 AC-4). */
   aiDisabledReason?: string | null;
+  /** US-082 AC-1: features are added once the main intent is approved. */
+  intentApproved?: boolean;
+  /** Opens the feature wizard: a new feature (null) or a stored draft. */
+  onAddFeature?(resumeId: string | null): void;
+  /** *Edit specs directly* (Specifications area). */
+  onEditSpecs?(): void;
+  /** Opens a feature page (US-084). */
+  onOpenFeature?(featureId: string): void;
 }
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+
+const FEATURE_STATUS: Record<Feature['status'], string> = {
+  draft: 'Draft',
+  approved: 'Approved',
+  in_delivery: 'In delivery',
+  done: 'Done',
+  withdrawn: 'Withdrawn',
+};
+const FEATURE_PHASE: Record<Feature['current'], string> = {
+  intent: 'Feature intent',
+  impact: 'Impact',
+  requirements: 'Requirements (delta)',
+  design: 'Design (delta)',
+  stories: 'Epic & stories',
+  kanban: 'Kanban',
+  epic_review: 'Epic review',
+};
+
+/** Active features widget (US-085, UF-12 1b): mini stepper, story progress and next step per feature. */
+function ActiveFeatures({ features, onOpen }: { features: readonly Feature[]; onOpen(featureId: string): void }) {
+  const active = features.filter((f) => f.status !== 'done' && f.status !== 'withdrawn');
+  const done = features.filter((f) => f.status === 'done');
+  return (
+    <section aria-label="Active features" className="card active-features">
+      <h2>Active features</h2>
+      {active.length > 0 && (
+        <ul className="feature-list">
+          {active.map((f) => (
+            <li key={f.id} aria-label={`${f.id} ${f.title}`} className="feature-card">
+              <button className="link" type="button" aria-label={`Open ${f.id} ${f.title}`} onClick={() => onOpen(f.id)}>
+                {f.id} {f.title}
+              </button>{' '}
+              <StatusBadge status={f.status} label={FEATURE_STATUS[f.status]} />
+              <ol aria-label={`${f.id} phases`} className="mini-stepper">
+                {f.phases.map((p) => (
+                  <li
+                    key={p.phase}
+                    aria-current={p.phase === f.current ? 'step' : undefined}
+                    className={p.state === 'approved' ? 'mini-step mini-step-done' : 'mini-step'}
+                    title={`${FEATURE_PHASE[p.phase]} · ${p.state.replace(/_/g, ' ')}`}
+                  >
+                    {FEATURE_PHASE[p.phase]}
+                  </li>
+                ))}
+              </ol>
+              <p className="feature-card-meta">
+                {f.progress.total > 0 ? `${f.progress.done} of ${plural(f.progress.total, 'story', 'stories')} done` : 'No stories yet'}
+                {f.nextStep ? ` · Next: ${f.nextStep}` : ''}
+              </p>
+            </li>
+          ))}
+        </ul>
+      )}
+      {done.length > 0 && (
+        <details>
+          <summary>Done features ({done.length})</summary>
+          <ul className="feature-list">
+            {done.map((f) => (
+              <li key={f.id}>
+                <button className="link" type="button" onClick={() => onOpen(f.id)}>
+                  {f.id} {f.title}
+                  {f.baseline ? ` · ${f.baseline}` : ''}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
+    </section>
+  );
+}
 
 export function DashboardArea({
   session,
@@ -51,8 +133,31 @@ export function DashboardArea({
   onOpenPhase,
   refreshKey,
   aiDisabledReason = null,
+  intentApproved = false,
+  onAddFeature,
+  onEditSpecs,
+  onOpenFeature,
 }: DashboardAreaProps) {
+  const layout = useSpecLayout();
   const [data, setData] = useState<Dashboard | null>(null);
+  const [drafts, setDrafts] = useState<QueryOutput<'features.wizard.drafts'>>([]);
+  const [features, setFeatures] = useState<QueryOutput<'features.list'>>([]);
+
+  useEffect(() => {
+    if (!onOpenFeature) return;
+    void session
+      .client()
+      .query('features.list', { projectId })
+      .then(setFeatures, () => setFeatures([]));
+  }, [session, projectId, refreshKey, onOpenFeature]);
+
+  useEffect(() => {
+    if (!onAddFeature) return;
+    void session
+      .client()
+      .query('features.wizard.drafts', { projectId })
+      .then(setDrafts, () => setDrafts([]));
+  }, [session, projectId, refreshKey, onAddFeature]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -70,7 +175,50 @@ export function DashboardArea({
 
   return (
     <div className="dashboard">
-      <PageHeader title="Dashboard" />
+      <PageHeader
+        title="Dashboard"
+        {...(onAddFeature
+          ? {
+              actions: intentApproved ? (
+                <span className="add-feature">
+                  <button className="btn btn-primary" type="button" onClick={() => onAddFeature(null)}>
+                    ＋ Add feature
+                  </button>
+                  <Menu
+                    label="More ways to add a feature"
+                    trigger="▾"
+                    items={[
+                      { label: 'Add feature', onSelect: () => onAddFeature(null) },
+                      ...(onEditSpecs ? [{ label: 'Edit specs directly', onSelect: onEditSpecs }] : []),
+                    ]}
+                  />
+                </span>
+              ) : (
+                <button className="btn btn-secondary" type="button" onClick={() => onOpenPhase('intent')}>
+                  Approve the main intent to add features
+                </button>
+              ),
+            }
+          : {})}
+      />
+      {features.some((f) => f.status !== 'withdrawn') && onOpenFeature && <ActiveFeatures features={features} onOpen={onOpenFeature} />}
+      {drafts.length > 0 && onAddFeature && (
+        <ul aria-label="Draft features" className="feature-drafts">
+          {drafts.map((d) => (
+            <li key={d.id}>
+              Draft feature: {d.title} —{' '}
+              <button
+                className="btn btn-secondary btn-sm"
+                type="button"
+                aria-label={`Resume ${d.title}`}
+                onClick={() => onAddFeature(d.id)}
+              >
+                resume
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
       {error && <p role="alert">{error}</p>}
       {phases && <PhaseStepper status={phases} current={null} onOpen={onOpenPhase} />}
       <ChatPanel session={session} projectId={projectId} aiDisabledReason={aiDisabledReason} />
@@ -175,7 +323,7 @@ export function DashboardArea({
                       {group.items.map((a) => (
                         <li key={a.path}>
                           <button type="button" className="link" onClick={() => onOpenArtifact(a.path)}>
-                            {a.path} — {a.approval === 'approved' ? 'Approved' : 'Draft'}
+                            {layout.display(a.path)} — {a.approval === 'approved' ? 'Approved' : 'Draft'}
                             {a.impacted ? ' · potentially impacted' : ''}
                           </button>
                         </li>

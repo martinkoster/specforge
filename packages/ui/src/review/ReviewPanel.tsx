@@ -57,6 +57,12 @@ function Corrections({
   useEffect(() => {
     if (!open) return;
     void session.client().query('review.correctionOptions', { projectId, storyId }).then(setOptions, onFail);
+    // US-091 AC-4: feedback stored by *Apply in corrections* is pre-filled; the user still sends it.
+    void session
+      .client()
+      .query('inflight.feedback', { projectId, storyId })
+      .then((r) => r.feedback && setFeedback((current) => (current.trim() === '' ? r.feedback! : current)))
+      .catch(() => undefined);
   }, [open, session, projectId, storyId]);
 
   if (!open) {

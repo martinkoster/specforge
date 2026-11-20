@@ -186,3 +186,12 @@ describe('US-062 AC-4: limited mode', () => {
     });
   });
 });
+
+describe('US-078: the chat context names the specification root', () => {
+  it('points the agent to the configured specification folder', async () => {
+    const { service, adapter } = setup({ workspace: () => ({ root: '/ws', nonGit: false, specRoot: 'docs/spec' }) });
+    const thread = service.createThread('p1', 'Q');
+    await service.send(thread.id, 'Where are the requirements?');
+    expect(adapter.requests[0]!.prompt).toContain('specifications in docs/spec/');
+  });
+});

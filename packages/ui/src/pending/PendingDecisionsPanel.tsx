@@ -7,8 +7,13 @@ import { PermissionPrompt, type PermissionDecision, type PermissionPromptProps }
 
 export type PendingGroups = QueryOutput<'pending.list'>;
 
+export type ImpactFlags = QueryOutput<'impact.flags'>;
+
 export interface PendingDecisionsPanelProps {
   groups: PendingGroups;
+  /** Potentially impacted elements and stories (US-086). */
+  impacts?: ImpactFlags;
+  onClearImpact?(elementId: string): Promise<void>;
   onDecide(permissionId: string, decision: PermissionDecision): ReturnType<PermissionPromptProps['onDecide']>;
   onOpenBoard(storyId: string): void;
   onClose(): void;
@@ -22,11 +27,35 @@ const LABELS: Record<'failed' | 'interrupted' | 'blocked' | 'review' | 'recommen
   recommendation: 'Recommendation',
 };
 
-export function PendingDecisionsPanel({ groups, onDecide, onOpenBoard, onClose }: PendingDecisionsPanelProps) {
-  const count = groups.reduce((n, g) => n + g.items.length, 0);
+export function PendingDecisionsPanel({ groups, impacts = [], onClearImpact, onDecide, onOpenBoard, onClose }: PendingDecisionsPanelProps) {
+  const count = groups.reduce((n, g) => n + g.items.length, 0) + impacts.length;
   return (
     <Drawer title="Pending decisions" label={`Pending decisions (${count})`} onClose={onClose}>
-      {groups.length === 0 && (
+      {impacts.length > 0 && (
+        <section aria-label="Potentially impacted" className="pending-group">
+          <h3>Potentially impacted</h3>
+          {impacts.map((f) => (
+            <div key={f.elementId} className="pending-item">
+              <span className="badge badge-warning">Impacted</span>{' '}
+              <span>
+                {f.elementId}
+                {f.orphaned ? ' (no longer exists)' : ''} — {f.reason}
+              </span>{' '}
+              {onClearImpact && (
+                <button
+                  className="btn btn-secondary btn-sm"
+                  type="button"
+                  aria-label={`Clear flag of ${f.elementId}`}
+                  onClick={() => void onClearImpact(f.elementId)}
+                >
+                  Clear flag
+                </button>
+              )}
+            </div>
+          ))}
+        </section>
+      )}
+      {groups.length === 0 && impacts.length === 0 && (
         <EmptyState compact title="Nothing is waiting for you." description="Permission requests, reviews and failed runs appear here." />
       )}
       {groups.map((group) => {

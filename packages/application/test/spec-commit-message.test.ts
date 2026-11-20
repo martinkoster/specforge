@@ -29,3 +29,15 @@ describe('US-023 AC-2: generated commit message', () => {
     );
   });
 });
+
+describe('US-078: commit message areas below a nested specification root', () => {
+  it('names the phase folders, not the root', () => {
+    expect(
+      specCommitMessage([
+        { path: 'docs/spec/02_requirements/fr.md', change: 'M' },
+        { path: 'docs/spec/03_design/c4.md', change: 'A' },
+        { path: '.specforge/instructions.md', change: 'M' },
+      ]).split('\n')[0],
+    ).toBe('Update specification: 02_requirements, 03_design, project settings');
+  });
+});

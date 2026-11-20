@@ -1,15 +1,15 @@
 # Product Backlog
 
-_Last updated: 2026-11-19_
+_Last updated: 2026-11-20_
 
 ## Summary
 
 | Status | Count |
 |--------|-------|
-| ready for development | 38 |
+| ready for development | 24 |
 | in progress | 0 |
 | blocked | 1 |
-| done | 75 |
+| done | 89 |
 | **Total** | **114** |
 
 ## Stories
@@ -93,20 +93,20 @@ _Last updated: 2026-11-19_
 | US-075 | Redesign intent, specifications, editor and review screens | UI design system | M | done |
 | US-076 | Redesign executions, logs, pending decisions, chat and settings | UI design system | M | done |
 | US-077 | Choose the colour theme (System / Light / Dark) | UI design system | S | done |
-| US-078 | Per-project specification root | Brownfield onboarding | M | ready for development |
-| US-079 | Adopt an existing code folder | Brownfield onboarding | M | ready for development |
-| US-080 | Analyse an adopted codebase into draft specifications | Brownfield onboarding | M | ready for development |
-| US-081 | Feature intent artifact, index and lifecycle | Feature workflow | M | ready for development |
-| US-082 | Add feature: entry points and wizard (describe, save, resume) | Feature workflow | M | ready for development |
-| US-083 | Feature wizard: AI review and clarification | Feature workflow | M | ready for development |
-| US-084 | Feature page with feature-scoped phase stepper | Feature workflow | M | ready for development |
-| US-085 | Active features on the dashboard | Feature workflow | S | ready for development |
-| US-086 | Potentially impacted flags | Change awareness | M | ready for development |
-| US-087 | Feature impact: trace-based analysis and confirmation | Feature workflow | M | ready for development |
-| US-088 | Feature impact: AI analysis of specs and code | Feature workflow | S | ready for development |
-| US-089 | Delta generation as reviewable change sets | Feature workflow | M | ready for development |
-| US-090 | Apply accepted changes with stable IDs and feature links | Feature workflow | M | ready for development |
-| US-091 | In-flight protection when applying changes | Feature workflow | M | ready for development |
+| US-078 | Per-project specification root | Brownfield onboarding | M | done |
+| US-079 | Adopt an existing code folder | Brownfield onboarding | M | done |
+| US-080 | Analyse an adopted codebase into draft specifications | Brownfield onboarding | M | done |
+| US-081 | Feature intent artifact, index and lifecycle | Feature workflow | M | done |
+| US-082 | Add feature: entry points and wizard (describe, save, resume) | Feature workflow | M | done |
+| US-083 | Feature wizard: AI review and clarification | Feature workflow | M | done |
+| US-084 | Feature page with feature-scoped phase stepper | Feature workflow | M | done |
+| US-085 | Active features on the dashboard | Feature workflow | S | done |
+| US-086 | Potentially impacted flags | Change awareness | M | done |
+| US-087 | Feature impact: trace-based analysis and confirmation | Feature workflow | M | done |
+| US-088 | Feature impact: AI analysis of specs and code | Feature workflow | S | done |
+| US-089 | Delta generation as reviewable change sets | Feature workflow | M | done |
+| US-090 | Apply accepted changes with stable IDs and feature links | Feature workflow | M | done |
+| US-091 | In-flight protection when applying changes | Feature workflow | M | done |
 | US-092 | Rework stories for Done functionality | Feature workflow | S | ready for development |
 | US-093 | Feature epic and story breakdown | Feature workflow | M | ready for development |
 | US-094 | Feature completion and withdrawal | Feature workflow | S | ready for development |

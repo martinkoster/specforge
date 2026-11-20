@@ -58,7 +58,7 @@ describe('US-018/US-019/US-068 end-to-end: create, restart, restore', () => {
 
     await stubFolderPicker(app, code);
     await page.getByRole('button', { name: 'Create new project' }).click();
-    await page.getByRole('alert').getByText('adopting existing code arrives in Release 2', { exact: false }).waitFor();
+    await page.getByRole('alert').getByText('use "Adopt existing code"', { exact: false }).waitFor();
     expect(await page.getByRole('dialog', { name: 'Create new project' }).count()).toBe(0);
     expect(existsSync(join(code, '.specforge'))).toBe(false);
 

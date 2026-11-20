@@ -6,10 +6,11 @@ export interface SpecChange {
   change: 'A' | 'M' | 'D';
 }
 
-/** Spec area of a path: the phase folder below spec/, or "project settings" for .specforge/. */
+/** Spec area of a path: the phase folder below the specification root, or "project settings" for .specforge/. */
 function areaOf(path: string): string {
-  const [root, folder] = path.split('/');
-  return root === '.specforge' ? 'project settings' : (folder ?? path);
+  const segments = path.split('/');
+  if (segments[0] === '.specforge') return 'project settings';
+  return segments.find((segment) => /^\d\d_/.test(segment)) ?? segments[1] ?? path;
 }
 
 export function specCommitMessage(files: readonly SpecChange[]): string {

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-// VCS port on the system Git (US-018, US-019): availability, mode/branch detection, init and initial commit.
-import type { VcsInfo, VcsPort } from '@specforge/application';
+// VCS port on the system Git (US-018, US-019, US-079): availability, mode/branch detection, repository location, init and initial commit.
+import type { GitLocation, VcsInfo, VcsPort } from '@specforge/application';
 import { GitClient } from './git-client.js';
 
 /** Used only when the user has no Git identity configured, so the initial commit cannot fail. */
@@ -33,8 +33,23 @@ export class GitVcs implements VcsPort {
     await this.git.run(path, ['init']);
   }
 
+  async location(path: string): Promise<GitLocation> {
+    const prefix = await this.git.raw(path, ['rev-parse', '--show-prefix']);
+    if (prefix.code !== 0) return 'none';
+    return prefix.stdout === '' ? 'root' : 'subfolder';
+  }
+
   async commitAll(path: string, message: string): Promise<void> {
     await this.git.run(path, ['add', '-A']);
+    await this.commit(path, message);
+  }
+
+  async commitPaths(path: string, paths: readonly string[], message: string): Promise<void> {
+    await this.git.run(path, ['add', '--', ...paths]);
+    await this.commit(path, message);
+  }
+
+  private async commit(path: string, message: string): Promise<void> {
     const email = await this.git.raw(path, ['config', 'user.email']);
     const identity = email.code === 0 && email.stdout !== '' ? [] : FALLBACK_IDENTITY;
     await this.git.run(path, [...identity, 'commit', '-q', '-m', message]);

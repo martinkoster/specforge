@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
+import { DEFAULT_SPEC_ROOT } from '@specforge/domain';
 import type { Kysely, Transaction } from 'kysely';
 import type { DatabaseSchema, ProjectTable } from './schema.js';
 
@@ -19,11 +20,13 @@ export interface Project {
   workspacePath: string;
   vcsMode: 'git' | 'none';
   baseBranch: string | null;
+  /** Cached from `.specforge/project.yaml` (US-078). */
+  specRoot: string;
   createdAt: string;
   lastOpenedAt: string | null;
 }
 
-export type NewProject = Pick<Project, 'id' | 'name' | 'workspacePath' | 'vcsMode' | 'baseBranch'>;
+export type NewProject = Pick<Project, 'id' | 'name' | 'workspacePath' | 'vcsMode' | 'baseBranch'> & { specRoot?: string };
 
 function toProject(row: ProjectTable): Project {
   return {
@@ -32,6 +35,7 @@ function toProject(row: ProjectTable): Project {
     workspacePath: row.workspace_path,
     vcsMode: row.vcs_mode,
     baseBranch: row.base_branch,
+    specRoot: row.spec_root,
     createdAt: row.created_at,
     lastOpenedAt: row.last_opened_at,
   };
@@ -52,6 +56,7 @@ export class ProjectRepository extends KyselyRepository<ProjectRepository> {
         workspace_path: project.workspacePath,
         vcs_mode: project.vcsMode,
         base_branch: project.baseBranch,
+        spec_root: project.specRoot ?? DEFAULT_SPEC_ROOT,
         created_at: new Date().toISOString(),
         last_opened_at: null,
       })
@@ -102,6 +107,11 @@ export class ProjectRepository extends KyselyRepository<ProjectRepository> {
 
   async setBaseBranch(id: string, baseBranch: string): Promise<void> {
     await this.db.updateTable('project').set({ base_branch: baseBranch }).where('id', '=', id).execute();
+  }
+
+  /** Caches the specification root read from `project.yaml` (US-078). */
+  async setSpecRoot(id: string, specRoot: string): Promise<void> {
+    await this.db.updateTable('project').set({ spec_root: specRoot }).where('id', '=', id).execute();
   }
 
   /** Points the project at its moved workspace folder. */

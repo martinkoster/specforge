@@ -2,7 +2,7 @@
 // Dashboard read model (US-061, UC-034, FR-085/FR-087/FR-088/FR-101): story statistics and progress, runs, pending
 // decisions, unmerged branches, recent activity, artifacts per phase and epics. The next step and the phase stepper
 // come from the domain (ADR-017).
-import { BOARD_STATUSES, type BoardStatus, type EpicProgress, type EpicStatus, type SpecPhase } from '@specforge/domain';
+import { BOARD_STATUSES, specLayout, type BoardStatus, type EpicProgress, type EpicStatus, type SpecPhase } from '@specforge/domain';
 
 export interface DashboardInput {
   stories: ReadonlyArray<{ storyId: string; status: BoardStatus }>;
@@ -12,6 +12,8 @@ export interface DashboardInput {
   unmerged: number;
   artifacts: ReadonlyArray<{ path: string; kind: string; approval: 'draft' | 'approved'; impacted: boolean }>;
   lanes: ReadonlyArray<{ epicId: string | null; title: string; status: EpicStatus; progress: EpicProgress; colour: number | null }>;
+  /** The project's specification root (US-078); `spec` when absent. */
+  specRoot?: string;
 }
 
 export interface Dashboard {
@@ -27,15 +29,11 @@ export interface Dashboard {
 }
 
 const ACTIVE = new Set(['preparing', 'running', 'awaiting_approval']);
-const PHASE_FOLDERS: [SpecPhase, string][] = [
-  ['intent', 'spec/01_intent/'],
-  ['requirements', 'spec/02_requirements/'],
-  ['design', 'spec/03_design/'],
-  ['stories', 'spec/04_user_stories/'],
-];
+const PHASES: SpecPhase[] = ['intent', 'requirements', 'design', 'stories'];
 const KIND_LABEL: Record<string, string> = { implement: 'implementation', correct: 'correction' };
 
 export function buildDashboard(input: DashboardInput): Dashboard {
+  const layout = specLayout(input.specRoot);
   const storyCounts = Object.fromEntries(BOARD_STATUSES.map((s) => [s, 0])) as Record<BoardStatus, number>;
   for (const s of input.stories) storyCounts[s.status] += 1;
   const activity = [...input.runs]
@@ -56,10 +54,10 @@ export function buildDashboard(input: DashboardInput): Dashboard {
     pendingDecisions: input.pendingDecisions,
     unmerged: input.unmerged,
     activity,
-    artifacts: PHASE_FOLDERS.map(([phase, folder]) => ({
+    artifacts: PHASES.map((phase) => ({
       phase,
       items: input.artifacts
-        .filter((a) => a.path.startsWith(folder))
+        .filter((a) => a.path.startsWith(`${layout.folders[phase]}/`))
         .map((a) => ({ path: a.path, approval: a.approval, impacted: a.impacted })),
     })),
     epics: input.lanes

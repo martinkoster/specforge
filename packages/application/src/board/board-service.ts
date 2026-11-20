@@ -49,6 +49,10 @@ export type BoardCard = Omit<BoardStoryRow, 'order' | 'authorisedAt' | 'epicId'>
   dependsOn: string[];
   /** Related stories in either direction (`related_to`). */
   related: string[];
+  /** Potentially impacted flag of the story (US-086), or null. */
+  impact: { sourceRef: string; reason: string } | null;
+  /** Latest in-flight decision of the story (US-091), or null. */
+  inFlight: { decision: 'continue' | 'cancel' | 'apply_in_corrections'; featureId: string } | null;
 };
 
 /** A swimlane of the board by epic (US-039, FR-096). */
@@ -81,6 +85,10 @@ export interface BoardServiceDeps {
   onTransition(projectId: string, storyId: string, command: StoryCommand): void | Promise<void>;
   queueOrder?(projectId: string): string[];
   slots?(projectId: string): { active: number; limit: number };
+  /** Potentially impacted flags by story (US-086). */
+  impacts?(projectId: string): ReadonlyMap<string, { sourceRef: string; reason: string }>;
+  /** Latest in-flight decision by story (US-091). */
+  inFlight?(projectId: string): ReadonlyMap<string, NonNullable<BoardCard['inFlight']>>;
   /** Epics in lane order with the stored epic-review outcome (US-039). */
   epics?(projectId: string): { id: string; title: string; laneOrder: number | null; reviewOutcome: string | null }[];
   /** The story branch was merged (FR-115). */
@@ -100,9 +108,16 @@ function sortColumn(rows: BoardStoryRow[]): BoardStoryRow[] {
   });
 }
 
-const toCard = ({ order: _o, authorisedAt: _a, epicId, ...card }: BoardStoryRow, deps: readonly StoryDependency[]): BoardCard => ({
+const toCard = (
+  { order: _o, authorisedAt: _a, epicId, ...card }: BoardStoryRow,
+  deps: readonly StoryDependency[],
+  impacts: ReadonlyMap<string, { sourceRef: string; reason: string }>,
+  inFlight: ReadonlyMap<string, NonNullable<BoardCard['inFlight']>>,
+): BoardCard => ({
   ...card,
   epicId: epicId ?? null,
+  impact: impacts.get(card.storyId) ?? null,
+  inFlight: inFlight.get(card.storyId) ?? null,
   dependsOn: deps.filter((d) => d.type === 'blocking' && d.from === card.storyId).map((d) => d.to),
   related: [
     ...new Set(
@@ -122,10 +137,12 @@ export class BoardService {
   board(projectId: string): Board {
     const rows = this.deps.index.stories(projectId);
     const dependencies = this.deps.index.dependencies(projectId);
+    const impacts = this.deps.impacts?.(projectId) ?? new Map<string, { sourceRef: string; reason: string }>();
+    const inFlight = this.deps.inFlight?.(projectId) ?? new Map<string, NonNullable<BoardCard['inFlight']>>();
     return {
       columns: BOARD_STATUSES.map((status) => ({
         status,
-        cards: sortColumn(rows.filter((r) => r.status === status)).map((r) => toCard(r, dependencies)),
+        cards: sortColumn(rows.filter((r) => r.status === status)).map((r) => toCard(r, dependencies, impacts, inFlight)),
       })),
       lanes: this.lanes(projectId, rows),
       queue: this.deps.queueOrder?.(projectId) ?? [],

@@ -124,3 +124,10 @@ describe('US-059 AC-2/AC-3: correction context', () => {
     expect(prompt).toContain('## Summary of the previous run\nSignup with welcome mail.');
   });
 });
+
+describe('US-078: the implementation prompt names the specification root', () => {
+  it('tells the agent not to modify the configured specification folder', () => {
+    expect(assembleContext(input({ specRoot: 'docs/spec' })).systemAppend).toContain('Do not modify files in docs/spec/ or .specforge/');
+    expect(assembleContext(input()).systemAppend).toContain('Do not modify files in spec/ or .specforge/');
+  });
+});

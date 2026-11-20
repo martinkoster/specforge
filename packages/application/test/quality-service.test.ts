@@ -239,3 +239,10 @@ describe('US-029 AC-3/AC-4: apply fix, dismiss, open count', () => {
     expect(s.service.findings('p1', PATH)[0]!.fixRunId).toBeNull();
   });
 });
+
+describe('US-078: quality criteria for any specification root', () => {
+  it('finds the phase folder below a nested root', () => {
+    expect(qualityCriteria('docs/spec/02_requirements/fr.md')).toContain('Priority (MoSCoW) and release are set');
+    expect(qualityCriteria('docs/spec/04_user_stories/US-001.md')).toContain('Stories satisfy INVEST');
+  });
+});

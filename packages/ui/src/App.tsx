@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 // Renderer root: connects the shell and its areas to the core session (US-017, US-018, US-019, US-022).
 import { Callout, PageHeader, Skeleton } from './components/index.js';
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { specLayout } from '@specforge/domain';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { CommandOutput } from '@specforge/ipc-contract';
 import { KanbanArea } from './board/KanbanArea.js';
 import { ExecutionsArea } from './executions/ExecutionsArea.js';
 import type { QueryOutput } from '@specforge/ipc-contract';
 import type { CoreSession, CoreStatus } from './core/core-session.js';
-import { PendingDecisionsPanel, type PendingGroups } from './pending/PendingDecisionsPanel.js';
+import { type ImpactFlags, PendingDecisionsPanel, type PendingGroups } from './pending/PendingDecisionsPanel.js';
 import { Toasts, type Toast } from './pending/Toasts.js';
 import { CloseGuard, type CloseBridge } from './shell/CloseGuard.js';
 import { DashboardArea } from './dashboard/DashboardArea.js';
@@ -15,13 +16,17 @@ import { IntentArea } from './intent/IntentArea.js';
 import { CommitSpecDialog } from './shell/CommitSpecDialog.js';
 import { PhaseStepper, type PhaseStatus } from './shell/PhaseStepper.js';
 import { ComponentGallery } from './components/ComponentGallery.js';
-import { ADOPT_IN_RELEASE_2, CreateProjectDialog } from './projects/CreateProjectDialog.js';
+import { FeaturePage } from './features/FeaturePage.js';
+import { FeatureWizard } from './features/FeatureWizard.js';
+import { AdoptProjectDialog, type AdoptFolder } from './projects/AdoptProjectDialog.js';
+import { ADOPT_HINT, CreateProjectDialog } from './projects/CreateProjectDialog.js';
 import { StartWizard, type RecentProject } from './projects/StartWizard.js';
 import type { ThemeBridge } from './settings/AppearanceSettings.js';
 import { SettingsArea } from './settings/SettingsArea.js';
 import { SetupWizard } from './setup/SetupWizard.js';
 import { AppShell, AREAS, type Area, type ShellState } from './shell/AppShell.js';
 import { SpecificationsArea } from './specs/SpecificationsArea.js';
+import { SpecLayoutContext } from './specs/spec-layout-context.js';
 
 const EMPTY_STATE: ShellState = {
   projects: [],
@@ -92,6 +97,9 @@ export function App({ session, testMode, pickFolder, notify, isFocused = () => d
   /** US-068: folder picked for a new project (create dialog open) and an empty folder offered by "Open existing project". */
   const [createFolder, setCreateFolder] = useState<string | null>(null);
   const [emptyFolder, setEmptyFolder] = useState<string | null>(null);
+  // US-079: a folder with existing code — offered for adoption, or shown in the adopt dialog.
+  const [codeFolder, setCodeFolder] = useState<AdoptFolder | null>(null);
+  const [adoptFolder, setAdoptFolder] = useState<AdoptFolder | null>(null);
   const [gitAvailable, setGitAvailable] = useState(true);
   const [warning, setWarning] = useState<string | null>(null);
   const [error, setError] = useState<string | undefined>();
@@ -102,6 +110,8 @@ export function App({ session, testMode, pickFolder, notify, isFocused = () => d
   /** US-013: AI actions are disabled while capabilities are missing (unknown = not restricted). */
   const [capabilities, setCapabilities] = useState<Capabilities | null>(null);
   const [pendingOpen, setPendingOpen] = useState(false);
+  /** US-086: potentially impacted flags, shown with the pending decisions. */
+  const [impacts, setImpacts] = useState<ImpactFlags>([]);
   const [specChanges, setSpecChanges] = useState(0);
   /** US-033: phase stepper of the open project and the phase chosen in it. */
   const [phases, setPhases] = useState<PhaseStatus | null>(null);
@@ -110,6 +120,10 @@ export function App({ session, testMode, pickFolder, notify, isFocused = () => d
   const [openArtifact, setOpenArtifact] = useState<string | null>(null);
   const [boardEpic, setBoardEpic] = useState<string | null>(null);
   const [committing, setCommitting] = useState(false);
+  /** US-082: the feature wizard (new feature or a stored draft) and the last saved feature intent. */
+  const [wizard, setWizard] = useState<{ resumeId: string | null } | null>(null);
+  /** US-084: the open feature page (shown instead of the area content). */
+  const [featureView, setFeatureView] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingGroups>([]);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const nextToast = useRef(1);
@@ -198,6 +212,12 @@ export function App({ session, testMode, pickFolder, notify, isFocused = () => d
   const loadPending = useCallback(async (): Promise<void> => {
     if (!projectId) return setPending([]);
     setPending(await session.client().query('pending.list', { projectId }));
+    setImpacts(
+      await session
+        .client()
+        .query('impact.flags', { projectId })
+        .catch(() => []),
+    );
   }, [session, projectId]);
 
   // US-053 AC-3: in-app toasts; an OS notification when the window is not focused and notifications are enabled.
@@ -240,6 +260,8 @@ export function App({ session, testMode, pickFolder, notify, isFocused = () => d
     setError(undefined);
     setCreateFolder(null);
     setEmptyFolder(null);
+    setCodeFolder(null);
+    setAdoptFolder(null);
     setActive(area);
     await refresh();
   };
@@ -248,20 +270,71 @@ export function App({ session, testMode, pickFolder, notify, isFocused = () => d
     void fn().catch((e: unknown) => setError(message(e)));
   };
 
-  const inspect = async (path: string) => (await session.client().query('projects.inspectFolder', { path })).kind;
+  const inspectFolder = (path: string) => session.client().query('projects.inspectFolder', { path });
+  const inspect = async (path: string) => (await inspectFolder(path)).kind;
+  const asCodeFolder = (path: string, inspection: Awaited<ReturnType<typeof inspectFolder>>): AdoptFolder => ({
+    path,
+    git: inspection.git ?? 'none',
+    suggestedSpecRoot: inspection.suggestedSpecRoot ?? 'spec',
+  });
 
   const openExisting = guarded(async () => {
     const path = await pickFolder!('Open a SpecForge project');
     if (!path) return;
     setEmptyFolder(null);
+    setCodeFolder(null);
+    const inspection = await inspectFolder(path);
     // US-068 AC-4: an empty folder can become a new project right here.
-    if ((await inspect(path)) === 'empty') {
+    if (inspection.kind === 'empty') {
       setError(undefined);
       setEmptyFolder(path);
       return;
     }
+    // US-079 AC-1: a folder with other content can be adopted.
+    if (inspection.kind === 'notEmpty') {
+      setError(undefined);
+      setCodeFolder(asCodeFolder(path, inspection));
+      return;
+    }
     await opened(() => session.client().command('projects.open', { path }), 'dashboard');
   });
+
+  const showAdoptDialog = async (folder: AdoptFolder): Promise<void> => {
+    setGitAvailable((await session.client().query('projects.gitAvailable', {})).available);
+    setError(undefined);
+    setCodeFolder(null);
+    setAdoptFolder(folder);
+  };
+
+  /** US-079: picks a folder with existing code; a SpecForge project is opened, an empty folder goes to the create dialog. */
+  const pickAdoptFolder = async (): Promise<AdoptFolder | null> => {
+    const path = await pickFolder!('Choose the folder with your existing code');
+    if (!path) return null;
+    const inspection = await inspectFolder(path);
+    if (inspection.kind === 'project') {
+      await opened(() => session.client().command('projects.open', { path }), 'dashboard');
+      return null;
+    }
+    if (inspection.kind === 'empty') {
+      setAdoptFolder(null);
+      await showCreateDialog(path);
+      return null;
+    }
+    return asCodeFolder(path, inspection);
+  };
+
+  const startAdopt = guarded(async () => {
+    setEmptyFolder(null);
+    setCodeFolder(null);
+    const folder = await pickAdoptFolder();
+    if (folder) await showAdoptDialog(folder);
+  });
+
+  const checkSpecRoot = useCallback(
+    async (path: string, specRoot: string): Promise<string | null> =>
+      (await session.client().query('projects.checkSpecRoot', { path, specRoot })).problem,
+    [session],
+  );
 
   /** US-068 AC-3: picks the folder for a new project; a SpecForge project is opened instead, a non-empty folder is rejected. */
   const pickCreateFolder = async (): Promise<string | null> => {
@@ -272,7 +345,7 @@ export function App({ session, testMode, pickFolder, notify, isFocused = () => d
       await opened(() => session.client().command('projects.open', { path }), 'dashboard');
       return null;
     }
-    if (kind === 'notEmpty') throw new Error(`${path} is not empty. ${ADOPT_IN_RELEASE_2}`);
+    if (kind === 'notEmpty') throw new Error(`${path} is not empty. ${ADOPT_HINT}`);
     return path;
   };
 
@@ -280,6 +353,7 @@ export function App({ session, testMode, pickFolder, notify, isFocused = () => d
     setGitAvailable((await session.client().query('projects.gitAvailable', {})).available);
     setError(undefined);
     setEmptyFolder(null);
+    setCodeFolder(null);
     setCreateFolder(folder);
   };
 
@@ -307,13 +381,35 @@ export function App({ session, testMode, pickFolder, notify, isFocused = () => d
     await refresh();
   });
 
-  const navigate = useCallback((area: Area) => setActive(area), []);
-  /** Opens an artifact from the dashboard or a trace (US-061, US-034). */
-  const openArtifactPath = useCallback((path: string) => {
-    setSpecPhase(null);
-    setOpenArtifact(path);
-    setActive(path.startsWith('spec/01_intent/') ? 'intent' : 'specifications');
+  const navigate = useCallback((area: Area) => {
+    setFeatureView(null);
+    setActive(area);
   }, []);
+  /** Opens an artifact from the dashboard or a trace (US-061, US-034). */
+  const layout = useMemo(() => specLayout(state.specRoot ?? undefined), [state.specRoot]);
+  const openArtifactPath = useCallback(
+    (path: string) => {
+      setSpecPhase(null);
+      setOpenArtifact(path);
+      // Feature intents (FI-xxx) open in the Specifications area; the Intent area shows the main intent.
+      setActive(layout.phaseOf(path) === 'intent' && !/\/FI-\d+[^/]*\.md$/.test(path) ? 'intent' : 'specifications');
+    },
+    [layout],
+  );
+  const intentApproved = phases?.phases.some((p) => p.phase === 'intent' && (p.state === 'approved' || p.state === 'impacted')) ?? false;
+  const openProjectId = state.currentProjectId;
+  // US-082 AC-1: Ctrl/Cmd+Shift+F opens the feature wizard from any screen of an open project.
+  useEffect(() => {
+    if (openProjectId === null) return;
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        setWizard((w) => w ?? { resumeId: null });
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [openProjectId]);
   const label = AREAS.find((a) => a.id === active)?.label;
 
   if (gallery) return <ComponentGallery />;
@@ -354,7 +450,7 @@ export function App({ session, testMode, pickFolder, notify, isFocused = () => d
     content = (
       <StartWizard
         recent={recent}
-        {...(pickFolder ? { onOpenExisting: openExisting, onLocate: locate } : {})}
+        {...(pickFolder ? { onOpenExisting: openExisting, onAdoptExisting: startAdopt, onLocate: locate } : {})}
         onCreateNew={startCreate}
         onOpenRecent={openById}
         onRename={async (projectId, name) => {
@@ -376,6 +472,13 @@ export function App({ session, testMode, pickFolder, notify, isFocused = () => d
         phases={phases}
         refreshKey={state}
         aiDisabledReason={aiDisabledReason}
+        intentApproved={intentApproved}
+        onAddFeature={(resumeId) => setWizard({ resumeId })}
+        onOpenFeature={setFeatureView}
+        onEditSpecs={() => {
+          setSpecPhase(null);
+          setActive('specifications');
+        }}
         onNextStep={(target) => {
           if (target.area === 'setup') setShowSetup(true);
           else if (target.area === 'pending') {
@@ -384,7 +487,8 @@ export function App({ session, testMode, pickFolder, notify, isFocused = () => d
           } else if (target.area === 'specifications') {
             setSpecPhase((target.generate as 'requirements' | 'design' | 'stories' | undefined) ?? null);
             setActive('specifications');
-          } else if (target.area === 'intent' || target.area === 'kanban') setActive(target.area);
+          } else if (target.area === 'feature' && target.featureId) setFeatureView(target.featureId);
+          else if (target.area === 'intent' || target.area === 'kanban') setActive(target.area);
         }}
         onOpenArtifact={openArtifactPath}
         onOpenEpic={(epicId) => {
@@ -409,7 +513,14 @@ export function App({ session, testMode, pickFolder, notify, isFocused = () => d
       />
     );
   } else if (active === 'intent' && state.currentProjectId !== null) {
-    content = <IntentArea session={session} projectId={state.currentProjectId} aiDisabledReason={aiDisabledReason} />;
+    content = (
+      <IntentArea
+        session={session}
+        projectId={state.currentProjectId}
+        aiDisabledReason={aiDisabledReason}
+        onAddFeature={() => setWizard({ resumeId: null })}
+      />
+    );
   } else if (active === 'kanban' && state.currentProjectId !== null) {
     content = (
       <KanbanArea
@@ -436,6 +547,22 @@ export function App({ session, testMode, pickFolder, notify, isFocused = () => d
     );
   } else {
     content = <PageHeader title={label} />;
+  }
+  if (featureView !== null && state.currentProjectId !== null) {
+    content = (
+      <FeaturePage
+        session={session}
+        projectId={state.currentProjectId}
+        featureId={featureView}
+        refreshKey={state}
+        aiDisabledReason={aiDisabledReason}
+        onBack={() => setFeatureView(null)}
+        onOpenArtifact={(path) => {
+          setFeatureView(null);
+          openArtifactPath(path);
+        }}
+      />
+    );
   }
 
   const banners =
@@ -468,88 +595,157 @@ export function App({ session, testMode, pickFolder, notify, isFocused = () => d
     ) : undefined;
 
   return (
-    <AppShell
-      state={state}
-      coreStatus={status}
-      active={active}
-      onNavigate={navigate}
-      onSwitchProject={openById}
-      onOpenPendingDecisions={() => {
-        setPendingOpen(true);
-        void loadPending().catch(() => undefined);
-      }}
-      onCloseProject={closeProject}
-      specChanges={specChanges}
-      onOpenSpecCommit={() => setCommitting(true)}
-      banners={banners}
-    >
-      {error && <p role="alert">{error}</p>}
-      {emptyFolder !== null && state.currentProjectId === null && (
-        <Callout
-          tone="info"
-          role="region"
-          label="Empty folder"
-          action={{ label: 'Create new project here', onClick: guarded(() => showCreateDialog(emptyFolder)) }}
-        >
-          {emptyFolder} is empty — it has no SpecForge project yet.
-        </Callout>
-      )}
-      {phases && state.currentProjectId !== null && (active === 'intent' || active === 'specifications' || active === 'kanban') && (
-        <PhaseStepper
-          status={phases}
-          current={active === 'intent' ? 'intent' : active === 'kanban' ? 'kanban' : specPhase}
-          onOpen={(phase) => {
-            if (phase === 'intent' || phase === 'kanban') {
-              setActive(phase);
-            } else {
-              setSpecPhase(phase);
-              setActive('specifications');
-            }
-          }}
-        />
-      )}
-      {content}
-      {createFolder !== null && pickFolder && (
-        <CreateProjectDialog
-          key={createFolder}
-          folder={createFolder}
-          gitAvailable={gitAvailable}
-          onChangeFolder={pickCreateFolder}
-          onCreate={(input) => opened(() => session.client().command('projects.create', input), 'intent')}
-          onCancel={() => setCreateFolder(null)}
-        />
-      )}
-      {committing && state.currentProjectId !== null && (
-        <CommitSpecDialog
-          session={session}
-          projectId={state.currentProjectId}
-          onDone={() => {
-            setCommitting(false);
-            void refresh().catch(() => undefined);
-          }}
-          onCancel={() => setCommitting(false)}
-        />
-      )}
-      {pendingOpen && (
-        <PendingDecisionsPanel
-          groups={pending}
-          onDecide={async (id, decision) => {
-            const result = await session.client().command('permission.decide', { id, ...decision });
-            await loadPending();
-            await refresh();
-            return result;
-          }}
-          onOpenBoard={() => {
-            setPendingOpen(false);
-            setActive('kanban');
-          }}
-          onClose={() => setPendingOpen(false)}
-        />
-      )}
-      {closeBridge && <CloseGuard session={session} bridge={closeBridge} />}
-      <Toasts toasts={toasts} onDismiss={dismissToast} />
-      {status === 'failed' && session.lastError && <p role="alert">{session.lastError}</p>}
-      {testMode && <Diagnostics session={session} />}
-    </AppShell>
+    <SpecLayoutContext.Provider value={layout}>
+      <AppShell
+        state={state}
+        coreStatus={status}
+        active={active}
+        onNavigate={navigate}
+        onSwitchProject={openById}
+        onOpenPendingDecisions={() => {
+          setPendingOpen(true);
+          void loadPending().catch(() => undefined);
+        }}
+        onCloseProject={closeProject}
+        specChanges={specChanges}
+        onOpenSpecCommit={() => setCommitting(true)}
+        banners={banners}
+      >
+        {error && <p role="alert">{error}</p>}
+        {emptyFolder !== null && state.currentProjectId === null && (
+          <Callout
+            tone="info"
+            role="region"
+            label="Empty folder"
+            action={{ label: 'Create new project here', onClick: guarded(() => showCreateDialog(emptyFolder)) }}
+          >
+            {emptyFolder} is empty — it has no SpecForge project yet.
+          </Callout>
+        )}
+        {codeFolder !== null && state.currentProjectId === null && (
+          <Callout
+            tone="info"
+            role="region"
+            label="Folder with existing code"
+            action={{ label: 'Adopt this folder', onClick: guarded(() => showAdoptDialog(codeFolder)) }}
+          >
+            {codeFolder.path} has no SpecForge metadata. Adopt it to bring its code under SpecForge, or choose another folder.
+          </Callout>
+        )}
+        {phases && state.currentProjectId !== null && (active === 'intent' || active === 'specifications' || active === 'kanban') && (
+          <PhaseStepper
+            status={phases}
+            current={active === 'intent' ? 'intent' : active === 'kanban' ? 'kanban' : specPhase}
+            onOpen={(phase) => {
+              if (phase === 'intent' || phase === 'kanban') {
+                setActive(phase);
+              } else {
+                setSpecPhase(phase);
+                setActive('specifications');
+              }
+            }}
+          />
+        )}
+        {content}
+        {createFolder !== null && pickFolder && (
+          <CreateProjectDialog
+            key={createFolder}
+            folder={createFolder}
+            gitAvailable={gitAvailable}
+            onChangeFolder={pickCreateFolder}
+            onCreate={(input) => opened(() => session.client().command('projects.create', input), 'intent')}
+            onCancel={() => setCreateFolder(null)}
+          />
+        )}
+        {adoptFolder !== null && pickFolder && (
+          <AdoptProjectDialog
+            key={adoptFolder.path}
+            folder={adoptFolder}
+            gitAvailable={gitAvailable}
+            aiDisabledReason={aiDisabledReason}
+            checkSpecRoot={checkSpecRoot}
+            onChangeFolder={pickAdoptFolder}
+            onAdopt={async (input, { analyze }) => {
+              const project = await session.client().command('projects.adopt', input);
+              // US-080: the analysis starts right away; the Intent screen shows its progress and review.
+              if (analyze) {
+                const started = await session.client().command('specs.analyze', { projectId: project.id });
+                if (!started.ok) setError(started.reason);
+              }
+              await opened(async () => project, 'intent');
+            }}
+            onCancel={() => setAdoptFolder(null)}
+          />
+        )}
+        {wizard && state.currentProjectId !== null && (
+          <FeatureWizard
+            key={wizard.resumeId ?? 'new'}
+            session={session}
+            projectId={state.currentProjectId}
+            resumeId={wizard.resumeId}
+            aiDisabledReason={aiDisabledReason}
+            onView={(ref) => {
+              const projectId = state.currentProjectId!;
+              void session
+                .client()
+                .query('trace.get', { projectId, target: { kind: 'element', id: ref } })
+                .then((t) => t.node.path && openArtifactPath(t.node.path))
+                .catch(() => undefined);
+            }}
+            onMerged={(path) => {
+              setWizard(null);
+              openArtifactPath(path);
+            }}
+            onSaved={() => void refresh().catch(() => undefined)}
+            onClose={() => {
+              setWizard(null);
+              void refresh().catch(() => undefined);
+            }}
+            onContinue={(featureId) => {
+              // US-084: the feature page (its Impact tab follows with US-085).
+              setWizard(null);
+              setFeatureView(featureId);
+            }}
+          />
+        )}
+        {committing && state.currentProjectId !== null && (
+          <CommitSpecDialog
+            session={session}
+            projectId={state.currentProjectId}
+            onDone={() => {
+              setCommitting(false);
+              void refresh().catch(() => undefined);
+            }}
+            onCancel={() => setCommitting(false)}
+          />
+        )}
+        {pendingOpen && (
+          <PendingDecisionsPanel
+            groups={pending}
+            impacts={impacts}
+            onClearImpact={async (elementId) => {
+              await session.client().command('impact.clear', { projectId: state.currentProjectId!, elementId });
+              await loadPending();
+              await refresh();
+            }}
+            onDecide={async (id, decision) => {
+              const result = await session.client().command('permission.decide', { id, ...decision });
+              await loadPending();
+              await refresh();
+              return result;
+            }}
+            onOpenBoard={() => {
+              setPendingOpen(false);
+              setActive('kanban');
+            }}
+            onClose={() => setPendingOpen(false)}
+          />
+        )}
+        {closeBridge && <CloseGuard session={session} bridge={closeBridge} />}
+        <Toasts toasts={toasts} onDismiss={dismissToast} />
+        {status === 'failed' && session.lastError && <p role="alert">{session.lastError}</p>}
+        {testMode && <Diagnostics session={session} />}
+      </AppShell>
+    </SpecLayoutContext.Provider>
   );
 }

@@ -44,6 +44,8 @@ export interface ArtifactServiceDeps {
   index: ArtifactListIndex;
   files(projectId: string): Pick<ArtifactFiles, 'read' | 'writeAtomic'>;
   reindex(projectId: string, path: string): Promise<unknown>;
+  /** Artifacts with a potentially impacted element (US-086). */
+  impactedPaths?(projectId: string): string[];
 }
 
 /** Specification order of artifact kinds (data_model.md §1.2). */
@@ -64,12 +66,18 @@ export class ArtifactService {
 
   list(projectId: string): ArtifactGroup[] {
     const artifacts = this.deps.index.artifacts(projectId);
+    const impacted = new Set(this.deps.impactedPaths?.(projectId) ?? []);
     const known = new Set(KINDS.map(([k]) => k));
     return KINDS.flatMap(([kind, label]) => {
       const members = artifacts
         .filter((a) => (known.has(a.kind) ? a.kind : 'other') === kind)
         .sort((a, b) => a.path.localeCompare(b.path))
-        .map((a) => ({ path: a.path, approval: a.approval, invalid: a.parseState === 'invalid' ? (a.parseError ?? 'Invalid') : null }));
+        .map((a) => ({
+          path: a.path,
+          approval: a.approval,
+          invalid: a.parseState === 'invalid' ? (a.parseError ?? 'Invalid') : null,
+          ...(impacted.has(a.path) ? { impacted: true } : {}),
+        }));
       return members.length > 0 ? [{ kind, label, artifacts: members }] : [];
     });
   }

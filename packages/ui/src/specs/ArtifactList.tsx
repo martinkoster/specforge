@@ -2,6 +2,7 @@
 // Specifications list grouped by artifact type with approval state (US-025 AC-2).
 import { EmptyState, StatusBadge } from '../components/index.js';
 import type { QueryOutput } from '@specforge/ipc-contract';
+import { useSpecLayout } from './spec-layout-context.js';
 
 export type ArtifactGroups = QueryOutput<'artifacts.list'>;
 
@@ -14,6 +15,7 @@ export interface ArtifactListProps {
 const fileName = (path: string): string => path.split('/').pop() ?? path;
 
 export function ArtifactList({ groups, selected, onSelect }: ArtifactListProps) {
+  const layout = useSpecLayout();
   if (groups.length === 0)
     return <EmptyState compact title="No specifications yet" description="Write the intent or generate requirements to get started." />;
   return (
@@ -27,7 +29,7 @@ export function ArtifactList({ groups, selected, onSelect }: ArtifactListProps) 
                 <button
                   className="artifact-item"
                   type="button"
-                  title={a.path}
+                  title={layout.display(a.path)}
                   aria-current={a.path === selected ? 'true' : undefined}
                   onClick={() => onSelect(a.path)}
                 >
@@ -35,6 +37,7 @@ export function ArtifactList({ groups, selected, onSelect }: ArtifactListProps) 
                 </button>{' '}
                 <StatusBadge status={a.approval} label={a.approval === 'approved' ? 'Approved' : 'Draft'} />
                 {a.invalid && <StatusBadge status="failed" label={`Invalid: ${a.invalid}`} />}
+                {a.impacted && <StatusBadge status="impacted" label="Potentially impacted" />}
               </li>
             ))}
           </ul>

@@ -58,7 +58,7 @@ describe('US-028 AC-1: intent editor with template', () => {
 
     await userEvent.click(await screen.findByRole('button', { name: 'Start from the template' }));
     expect(create).toHaveBeenCalledWith(expect.objectContaining({ projectId: 'p1' }));
-    expect(await screen.findByText(INTENT)).toBeInTheDocument();
+    expect(await screen.findByText('01_intent/intent.md')).toHaveAttribute('title', INTENT);
     expect(await screen.findByRole('button', { name: 'Analyse intent' })).toBeInTheDocument();
   });
 });

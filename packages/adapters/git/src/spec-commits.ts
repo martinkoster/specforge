@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-// "Commit spec changes" (US-023, FR-072): status, diffs and commits limited to spec/ and .specforge/ on the main
-// workspace's current branch.
+// "Commit spec changes" (US-023, FR-072): status, diffs and commits limited to the specification root (US-078) and
+// .specforge/ on the main workspace's current branch.
+import { specLayout } from '@specforge/domain';
 import { GitClient } from './git-client.js';
 
 export interface SpecFileStatus {
@@ -10,12 +11,12 @@ export interface SpecFileStatus {
 
 export type SpecCommitResult = { ok: true; commit: string } | { ok: false; output: string };
 
-const SPEC_PATHS = ['spec', '.specforge'];
+const SETTINGS = '.specforge';
 
-function isSpecPath(path: string): boolean {
+function isSpecPath(path: string, root: string): boolean {
   const segments = path.split('/');
   if (path.startsWith('/') || /^[a-zA-Z]:/.test(path) || segments.some((s) => s === '..' || s === '.' || s === '')) return false;
-  return SPEC_PATHS.includes(segments[0]!) && segments.length > 1;
+  return path.startsWith(`${root}/`) || path.startsWith(`${SETTINGS}/`);
 }
 
 function changeOf(xy: string): SpecFileStatus['change'] {
@@ -25,11 +26,28 @@ function changeOf(xy: string): SpecFileStatus['change'] {
 }
 
 export class SpecCommits {
-  constructor(private readonly git = new GitClient()) {}
+  private readonly root: string;
 
-  /** Uncommitted files under spec/ and .specforge/ (staged, unstaged and untracked), sorted by path. */
+  constructor(
+    private readonly git = new GitClient(),
+    /** The project's specification root (US-078); `spec` when absent. */
+    specRoot?: string,
+  ) {
+    this.root = specLayout(specRoot).root;
+  }
+
+  /** Uncommitted files under the specification root and .specforge/ (staged, unstaged and untracked), sorted by path. */
   async status(repo: string): Promise<SpecFileStatus[]> {
-    const out = await this.git.run(repo, ['status', '--porcelain=v2', '-z', '--no-renames', '--untracked-files=all', '--', ...SPEC_PATHS]);
+    const out = await this.git.run(repo, [
+      'status',
+      '--porcelain=v2',
+      '-z',
+      '--no-renames',
+      '--untracked-files=all',
+      '--',
+      this.root,
+      SETTINGS,
+    ]);
     const files: SpecFileStatus[] = [];
     for (const entry of out.split('\0').filter(Boolean)) {
       if (entry.startsWith('? ')) files.push({ path: entry.slice(2), change: 'A' });
@@ -52,14 +70,14 @@ export class SpecCommits {
   }
 
   /**
-   * Commits exactly `paths` (all under spec/ or .specforge/) on the current branch. A failing hook leaves nothing
+   * Commits exactly `paths` (all under the specification root or .specforge/) on the current branch. A failing hook leaves nothing
    * committed and the index of these paths as before; its output is returned.
    */
   async commit(repo: string, paths: readonly string[], message: string): Promise<SpecCommitResult> {
-    const invalid = paths.filter((p) => !isSpecPath(p));
+    const invalid = paths.filter((p) => !isSpecPath(p, this.root));
     if (invalid.length > 0 || paths.length === 0) {
       throw new Error(
-        `Commit spec changes may include only specification files (spec/**, .specforge/**): ${invalid.join(', ') || 'none given'}`,
+        `Commit spec changes may include only specification files (${this.root}/**, .specforge/**): ${invalid.join(', ') || 'none given'}`,
       );
     }
     await this.git.run(repo, ['add', '-A', '--', ...paths]);

@@ -11,6 +11,9 @@
   "include": ["src"],
   "references": [
     {
+      "path": "../domain"
+    },
+    {
       "path": "../ipc-contract"
     }
   ]

@@ -2,7 +2,7 @@
 // @vitest-environment happy-dom
 import { MessageChannel, type MessagePort } from 'node:worker_threads';
 import { CONTRACT_VERSION, IpcError, serveContract, type ContractHandlers, type PortLike } from '@specforge/ipc-contract';
-import { act, render, screen, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanupChecked } from './styled-controls.js';
@@ -202,7 +202,7 @@ describe('US-018/US-019: project flows in the renderer', () => {
     expect(screen.queryByRole('dialog', { name: 'Create new project' })).toBeNull();
   });
 
-  it('US-068 AC-3: a non-empty folder without metadata is rejected with the Release 2 hint', async () => {
+  it('US-068 AC-3 / US-079 AC-1: a non-empty folder without metadata is rejected with the adopt hint', async () => {
     let creates = 0;
     const session = await connect({
       ...projectCore().handlers,
@@ -217,7 +217,7 @@ describe('US-018/US-019: project flows in the renderer', () => {
     await userEvent.click(await screen.findByRole('button', { name: 'Create new project' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'C:\\code\\app is not empty. Choose an empty folder — adopting existing code arrives in Release 2.',
+      'C:\\code\\app is not empty. Choose an empty folder, or use "Adopt existing code" for a folder that already contains code.',
     );
     expect(screen.queryByRole('dialog', { name: 'Create new project' })).toBeNull();
     expect(creates).toBe(0);
@@ -266,19 +266,79 @@ describe('US-018/US-019: project flows in the renderer', () => {
     expect(screen.getByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
   });
 
-  it('US-019 AC-1 / US-068 AC-4: explains a non-empty folder without SpecForge metadata', async () => {
+  it('US-019 AC-1 / US-079 AC-1: "Open existing project" on a non-empty folder without metadata offers "Adopt this folder"', async () => {
+    const core = projectCore();
+    const adopted: unknown[] = [];
+    const analyses: unknown[] = [];
+    let opens = 0;
     const session = await connect({
-      ...projectCore().handlers,
-      'projects.inspectFolder': async () => ({ kind: 'notEmpty' as const }),
+      ...core.handlers,
+      'projects.inspectFolder': async () => ({ kind: 'notEmpty' as const, git: 'root' as const, suggestedSpecRoot: 'spec' }),
+      'projects.checkSpecRoot': async () => ({ problem: null }),
       'projects.open': async () => {
-        throw new IpcError('NOT_A_PROJECT', 'The folder C:\\plain has no SpecForge metadata (.specforge/project.yaml).');
+        opens++;
+        throw new Error('unexpected');
+      },
+      'projects.adopt': async (input) => {
+        adopted.push(input);
+        return core.open({ ...opened(), name: input.name, path: input.path, specRoot: input.specRoot });
+      },
+      // US-080: "Analyse the codebase now" is checked by default.
+      'specs.analyze': async (input) => {
+        analyses.push(input);
+        return { ok: true as const, runId: 'run-a' };
       },
     });
     render(<App session={session} testMode={false} pickFolder={async () => 'C:\\plain'} />);
 
     await userEvent.click(await screen.findByRole('button', { name: 'Open existing project' }));
+    const offer = await screen.findByRole('region', { name: 'Folder with existing code' });
+    expect(offer).toHaveTextContent('C:\\plain has no SpecForge metadata');
+    await userEvent.click(within(offer).getByRole('button', { name: 'Adopt this folder' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Adopt existing code' });
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: 'Adopt' })).toBeEnabled());
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Adopt' }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('no SpecForge metadata');
+    expect(await screen.findByRole('heading', { name: 'Intent' })).toBeInTheDocument();
+    expect(adopted).toEqual([{ name: 'plain', path: 'C:\\plain', specRoot: 'spec', initGit: false }]);
+    expect(analyses).toEqual([{ projectId: 'p9' }]);
+    expect(screen.queryByRole('region', { name: 'Folder with existing code' })).toBeNull();
+    expect(opens).toBe(0);
+  });
+
+  it('US-079 AC-1: the start card "Adopt existing code" picks a folder and opens the adopt dialog; empty and project folders are routed', async () => {
+    const core = projectCore();
+    const titles: string[] = [];
+    let kind: 'notEmpty' | 'project' | 'empty' = 'notEmpty';
+    const session = await connect({
+      ...core.handlers,
+      'projects.inspectFolder': async () =>
+        kind === 'notEmpty' ? { kind, git: 'none' as const, suggestedSpecRoot: 'docs/spec' } : { kind },
+      'projects.checkSpecRoot': async () => ({ problem: null }),
+      'projects.open': async () => core.open(opened()),
+      'projects.adopt': async (input) => core.open({ ...opened(), name: input.name, path: input.path }),
+    });
+    const pickFolder = async (title: string) => {
+      titles.push(title);
+      return 'C:\\code\\rails';
+    };
+    render(<App session={session} testMode={false} pickFolder={pickFolder} />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Adopt existing code' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Adopt existing code' });
+    expect(within(dialog).getByRole('textbox', { name: 'Specification folder' })).toHaveValue('docs/spec');
+    expect(titles).toEqual(['Choose the folder with your existing code']);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(screen.queryByRole('dialog', { name: 'Adopt existing code' })).toBeNull();
+
+    kind = 'empty';
+    await userEvent.click(screen.getByRole('button', { name: 'Adopt existing code' }));
+    const create = await screen.findByRole('dialog', { name: 'Create new project' });
+    await userEvent.click(within(create).getByRole('button', { name: 'Cancel' }));
+
+    kind = 'project';
+    await userEvent.click(screen.getByRole('button', { name: 'Adopt existing code' }));
+    expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument();
   });
 
   it('cancelling the folder picker does nothing', async () => {
@@ -651,5 +711,38 @@ describe('US-041 / US-043: Kanban area actions', () => {
     } as unknown as typeof ResizeObserver;
     await userEvent.click(screen.getByRole('radio', { name: 'Dependency graph' }));
     expect(await screen.findByRole('region', { name: 'Dependency graph' })).toBeInTheDocument();
+  });
+});
+
+describe('US-082 AC-1: opening the feature wizard', () => {
+  it('opens from the dashboard split button and with Ctrl+Shift+F from any screen', async () => {
+    const core = projectCore();
+    core.open(opened());
+    const session = await connect({
+      ...core.handlers,
+      'phases.status': async () => ({
+        phases: (['intent', 'requirements', 'design', 'stories', 'kanban'] as const).map((phase) => ({
+          phase,
+          state: phase === 'intent' ? ('approved' as const) : ('not_started' as const),
+          step: 'write' as const,
+          enabled: true,
+          unapprovedInputs: [],
+        })),
+        recommended: 'requirements' as const,
+        maintenance: false,
+      }),
+      'features.wizard.drafts': async () => [],
+      'epics.list': async () => ({ epics: [], uncovered: [] }),
+    });
+    render(<App session={session} testMode={false} pickFolder={async () => null} />);
+
+    await userEvent.click(await screen.findByRole('button', { name: '＋ Add feature' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Add feature' });
+    await userEvent.click(within(sheet).getByRole('button', { name: 'Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add feature' })).toBeNull());
+
+    await userEvent.click(screen.getByRole('button', { name: 'Kanban' }));
+    await userEvent.keyboard('{Control>}{Shift>}F{/Shift}{/Control}');
+    expect(await screen.findByRole('dialog', { name: 'Add feature' })).toBeInTheDocument();
   });
 });

@@ -7,7 +7,7 @@ const epicFile = (id: string, title: string, requirements: string[], approval = 
 const storyFile = (id: string, epic: string | null) =>
   `---\nkind: story\nid: ${id}\ntitle: ${id}\nstatus: backlog\n${epic ? `epic: ${epic}\n` : ''}---\nBody of ${id}\n`;
 
-function setup() {
+function setup(overrides: Partial<EpicDeps> = {}) {
   const files = new Map<string, string>([
     ['spec/04_user_stories/epics/EP-001-login.md', epicFile('EP-001', 'Login', ['FR-001'])],
     ['spec/04_user_stories/epics/EP-002-profile.md', epicFile('EP-002', 'Profile', ['FR-002'])],
@@ -53,6 +53,7 @@ function setup() {
     }),
     reindex: async (_p, path) => void reindexed.push(path),
     approve: async (_p, path) => void approved.push(path),
+    ...overrides,
   };
   return { service: new EpicService(deps), files, order, approved, reindexed };
 }
@@ -190,5 +191,14 @@ describe('US-039 AC-4: stories added to a Done epic return it to In progress (FR
     expect(outcomeOf(files)).toBe(true);
     await service.storiesAdded('p1', ['US-009']);
     expect(outcomeOf(files)).toBe(false);
+  });
+});
+
+describe('US-078: epics are created below the specification root', () => {
+  it('writes a new epic into docs/spec/04_user_stories/epics', async () => {
+    const { service, files } = setup({ specRoot: () => 'docs/spec' });
+    const created = await service.create('p1', { title: 'Billing' });
+    expect(created.path).toBe('docs/spec/04_user_stories/epics/EP-003-billing.md');
+    expect(files.has(created.path)).toBe(true);
   });
 });

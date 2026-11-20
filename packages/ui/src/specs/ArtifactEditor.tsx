@@ -6,6 +6,7 @@ import type { CommandOutput } from '@specforge/ipc-contract';
 import { ConflictDialog } from '../documents/ConflictDialog.js';
 import { MarkdownEditor } from './MarkdownEditor.js';
 import { MarkdownPreview } from './MarkdownPreview.js';
+import { useSpecLayout } from './spec-layout-context.js';
 
 type SaveResult = CommandOutput<'artifact.save'>;
 type Conflict = Extract<SaveResult, { ok: false }>['conflict'];
@@ -35,6 +36,7 @@ export function ArtifactEditor({
   openFindings = 0,
   onContentChange,
 }: ArtifactEditorProps) {
+  const layout = useSpecLayout();
   const [content, setContentState] = useState(initial.content);
   const setContent = (next: string) => {
     setContentState(next);
@@ -79,7 +81,9 @@ export function ArtifactEditor({
   return (
     <div className="artifact-editor">
       <div className="artifact-toolbar">
-        <span className="path">{path}</span>
+        <span className="path" title={path}>
+          {layout.display(path)}
+        </span>
         {approval && <StatusBadge status={approval} label={approval === 'approved' ? 'Approved' : 'Draft'} />}
         {approval === 'draft' && onApprove && (
           <button

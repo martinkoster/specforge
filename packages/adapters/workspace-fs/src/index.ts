@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Workspace file access for the indexer (ADR-004): scans only the main workspace, writes atomically with optimistic concurrency.
+import { DEFAULT_SPEC_ROOT } from '@specforge/domain';
 import { createHash, randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
@@ -62,7 +63,7 @@ export class WorkspaceFiles implements ArtifactFiles {
   constructor(root: string, options: WorkspaceFilesOptions = {}) {
     this.onWrite = options.onWrite;
     this.root = resolve(root);
-    this.roots = options.artifactRoots ?? ['spec', '.specforge'];
+    this.roots = options.artifactRoots ?? [DEFAULT_SPEC_ROOT, '.specforge'];
     this.ignore = (options.ignore ?? []).map((p) => resolve(p));
   }
 

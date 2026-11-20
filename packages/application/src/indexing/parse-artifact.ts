@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Parses a workspace Markdown artifact (data_model.md §1): front-matter, element-ID headings, ID references.
-import { BOARD_STATUSES, type BoardStatus } from '@specforge/domain';
+import { BOARD_STATUSES, FEATURE_STATUSES, type BoardStatus, type FeatureStatus } from '@specforge/domain';
 import { parse as parseYaml } from 'yaml';
 
 export type Approval = 'draft' | 'approved';
@@ -32,6 +32,25 @@ export interface ParsedEpic {
   reviewOutcome: string | null;
 }
 
+/** Feature intent (data_model.md §1.5, US-081). */
+export interface ParsedFeature {
+  id: string;
+  title: string;
+  approval: Approval;
+  status: FeatureStatus;
+  sourceIdea: string | null;
+  baseline: string | null;
+}
+
+/** Typed trace links of the feature workflow (US-081 AC-3); untyped links are plain references. */
+export type FeatureLinkType = 'introduces' | 'changes' | 'reworks';
+
+export interface ParsedLink {
+  source: string;
+  target: string;
+  type?: FeatureLinkType;
+}
+
 export interface ParsedDependency {
   from: string;
   to: string;
@@ -43,9 +62,12 @@ export interface ParsedArtifact {
   kind: string;
   approval: Approval;
   elements: ParsedElement[];
-  links: Array<{ source: string; target: string }>;
+  links: ParsedLink[];
   story?: ParsedStory;
   epic?: ParsedEpic;
+  feature?: ParsedFeature;
+  /** Content hash per element: its section (heading elements) or the body (story, epic, feature intent) — US-086. */
+  elementHashes?: Record<string, string>;
   dependencies: ParsedDependency[];
 }
 
@@ -75,6 +97,9 @@ const TYPES: Record<string, string> = {
   TC: 'tc',
   IDEA: 'idea',
 };
+
+const FEATURE_LINE = /^\s*\*\*Feature\*\*:\s*(FI-\d{1,4})\b/;
+const CHANGED_BY = /\bChanged by (FI-\d{1,4})\b/;
 
 const typeOf = (id: string) => TYPES[id.split('-')[0]!] ?? 'other';
 const slug = (text: string) =>
@@ -125,6 +150,7 @@ export function parseArtifact(path: string, content: string): ParsedArtifact {
   const result: ParsedArtifact = { kind, approval, elements: [], links: [], dependencies: [] };
   let primary: string | undefined;
   const frontMatterRefs: string[] = [];
+  const typedRefs: ParsedLink[] = [];
 
   if (kind === 'story') {
     const { id, title } = requireId(path, data, 'US');
@@ -156,6 +182,8 @@ export function parseArtifact(path: string, content: string): ParsedArtifact {
     result.elements.push({ id, type: 'story', title, anchor: null });
     primary = id;
     frontMatterRefs.push(...ids(data.requirements), ...ids(data.design), ...(result.story.epicId ? [result.story.epicId] : []));
+    if (result.story.featureId) typedRefs.push({ source: id, target: result.story.featureId, type: 'introduces' });
+    for (const reworked of result.story.reworks) typedRefs.push({ source: id, target: reworked, type: 'reworks' });
   } else if (kind === 'epic') {
     const { id, title } = requireId(path, data, 'EP');
     const review = data.epic_review as { outcome?: unknown } | undefined;
@@ -163,25 +191,68 @@ export function parseArtifact(path: string, content: string): ParsedArtifact {
     result.elements.push({ id, type: 'epic', title, anchor: null });
     primary = id;
     frontMatterRefs.push(...ids(data.requirements));
+    if (result.epic.featureId) typedRefs.push({ source: id, target: result.epic.featureId, type: 'introduces' });
+  } else if (kind === 'feature_intent') {
+    const { id, title } = requireId(path, data, 'FI');
+    const status = (str(data.status) ?? 'draft') as FeatureStatus;
+    if (!FEATURE_STATUSES.includes(status)) throw new ArtifactParseError(path, `Invalid feature status "${status}"`);
+    result.feature = { id, title, approval, status, sourceIdea: str(data.source_idea), baseline: str(data.baseline) };
+    result.elements.push({ id, type: 'feature_intent', title, anchor: null });
+    primary = id;
+    frontMatterRefs.push(
+      ...ids(data.related_epics),
+      ...ids(data.related_requirements),
+      ...(result.feature.sourceIdea ? [result.feature.sourceIdea] : []),
+    );
   }
 
-  const links = new Map<string, { source: string; target: string }>();
-  const link = (source: string | undefined, target: string) => {
-    if (source && source !== target) links.set(`${source}>${target}`, { source, target });
+  const links = new Map<string, ParsedLink>();
+  const link = (source: string | undefined, target: string, type?: FeatureLinkType) => {
+    if (!source || source === target) return;
+    const key = `${source}>${target}`;
+    // A typed link wins over a plain reference between the same IDs.
+    if (type) links.set(key, { source, target, type });
+    else if (!links.has(key)) links.set(key, { source, target });
   };
   for (const target of frontMatterRefs) link(primary, target);
+  for (const l of typedRefs) link(l.source, l.target, l.type);
 
   let current = primary;
+  // US-086: the text of every element; primary elements (story, epic, feature intent) own the whole body.
+  const texts = new Map<string, string[]>(primary ? [[primary, []]] : []);
   for (const line of body.split('\n')) {
+    if (primary) texts.get(primary)!.push(line);
     const heading = HEADING.exec(line);
     if (heading) {
       const [, id, title] = heading as unknown as [string, string, string];
       result.elements.push({ id, type: typeOf(id), title, anchor: slug(`${id}: ${title}`) });
       current = id;
+      if (!texts.has(id)) texts.set(id, []);
+      if (id !== primary) texts.get(id)!.push(line);
       continue;
     }
+    if (current && current !== primary) texts.get(current)?.push(line);
+    const introduced = FEATURE_LINE.exec(line)?.[1];
+    const changedBy = CHANGED_BY.exec(line)?.[1];
+    if (introduced) link(current, introduced, 'introduces');
+    if (changedBy) link(current, changedBy, 'changes');
     for (const match of line.matchAll(ID)) link(current, match[0]);
   }
   result.links = [...links.values()];
+  result.elementHashes = Object.fromEntries([...texts].map(([id, lines]) => [id, contentHash(lines)]));
   return result;
+}
+
+/** FNV-1a over the trimmed, non-empty lines: whitespace-only edits are no content change. */
+function contentHash(lines: readonly string[]): string {
+  let hash = 0x811c9dc5;
+  const text = lines
+    .map((l) => l.trim())
+    .filter((l) => l !== '')
+    .join('\n');
+  for (let i = 0; i < text.length; i++) {
+    hash ^= text.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash.toString(16).padStart(8, '0');
 }

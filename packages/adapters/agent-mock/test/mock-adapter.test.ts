@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describeAgentAdapterContract } from '@specforge/agent-adapter-contract';
@@ -79,6 +79,35 @@ describe('US-044 AC-2: MockAdapter scripts agent behaviour', () => {
 
     expect(existsSync(join(cwd, 'x.txt'))).toBe(false);
     expect(rec.events.find((e) => e.type === 'tool_result')).toMatchObject({ isError: true });
+  });
+
+  it('US-080: simulates a write that bypasses the permission relay (inside the run directory only)', async () => {
+    const cwd = workspace();
+    const rec = recorder({ behavior: 'deny', message: 'no' });
+    await scripted([
+      { type: 'sneakWrite', file_path: 'src/app.ts', content: 'changed\n' },
+      { type: 'sneakWrite', file_path: '../escape.txt', content: 'x' },
+      { type: 'result', text: 'ok' },
+    ]).start(request(cwd), rec).done;
+
+    expect(readFileSync(join(cwd, 'src', 'app.ts'), 'utf8')).toBe('changed\n');
+    expect(existsSync(join(cwd, '..', 'escape.txt'))).toBe(false);
+    expect(rec.asks).toEqual([]);
+  });
+
+  it('US-089: Edit replaces a unique string after permission; a missing string is an error result', async () => {
+    const cwd = workspace();
+    writeFileSync(join(cwd, 'fr.md'), '### FR-001: A\ntext\n');
+    const rec = recorder();
+    await scripted([
+      { type: 'tool', toolName: 'Edit', input: { file_path: 'fr.md', old_string: 'text', new_string: 'changed text' } },
+      { type: 'tool', toolName: 'Edit', input: { file_path: 'fr.md', old_string: 'absent', new_string: 'x' } },
+      { type: 'result', text: 'ok' },
+    ]).start(request(cwd), rec).done;
+
+    expect(readFileSync(join(cwd, 'fr.md'), 'utf8')).toBe('### FR-001: A\nchanged text\n');
+    expect(rec.asks.map((a) => a.toolName)).toEqual(['Edit', 'Edit']);
+    expect(rec.events.filter((e) => e.type === 'tool_result').map((e) => (e as { isError: boolean }).isError)).toEqual([false, true]);
   });
 
   it('refuses scripted writes outside the run directory', async () => {

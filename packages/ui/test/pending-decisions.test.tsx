@@ -123,3 +123,42 @@ describe('US-053 AC-2: pending decisions panel', () => {
     expect(screen.getByText('Nothing is waiting for you.')).toBeInTheDocument();
   });
 });
+
+describe('US-086 AC-4: potentially impacted flags in pending decisions', () => {
+  it('lists flags with reason and source, marks orphaned ones and clears a flag', async () => {
+    const onClearImpact = vi.fn(async () => undefined);
+    render(
+      <PendingDecisionsPanel
+        groups={[]}
+        impacts={[
+          {
+            elementId: 'US-001',
+            sourceRef: 'FR-003',
+            reason: 'FR-003 changed after it was approved.',
+            flaggedAt: 't',
+            path: 'a',
+            orphaned: false,
+          },
+          {
+            elementId: 'US-009',
+            sourceRef: 'US-002',
+            reason: 'The description or acceptance criteria of US-002 changed.',
+            flaggedAt: 't',
+            path: null,
+            orphaned: true,
+          },
+        ]}
+        onClearImpact={onClearImpact}
+        onDecide={vi.fn()}
+        onOpenBoard={vi.fn()}
+        onClose={vi.fn()}
+      />,
+    );
+    const section = screen.getByRole('region', { name: 'Potentially impacted' });
+    expect(section).toHaveTextContent('US-001 — FR-003 changed after it was approved.');
+    expect(section).toHaveTextContent('US-009 (no longer exists)');
+    expect(screen.queryByText('Nothing is waiting for you.')).toBeNull();
+    await userEvent.click(within(section).getByRole('button', { name: 'Clear flag of US-009' }));
+    expect(onClearImpact).toHaveBeenCalledWith('US-009');
+  });
+});

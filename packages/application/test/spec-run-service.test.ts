@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   SpecRunService,
   SPEC_TARGET_FOLDERS,
+  specTargetFolder,
   type AgentAdapter,
   type AgentOutcome,
   type PermissionRunContext,
@@ -446,5 +447,148 @@ describe('US-036 AC-1: story generation for selected epics', () => {
     const { service, adapter } = setup({ epics: () => [] });
     await service.start({ projectId: 'p1', target: 'stories', instruction: 'Generate user stories.' });
     expect(adapter.requests[0]!.prompt).not.toContain('Generate stories only for the epics');
+  });
+});
+
+describe('US-078 AC-2: specification runs below the project specification root', () => {
+  const docsSpec = { workspace: () => ({ root: '/ws', nonGit: false, specRoot: 'docs/spec' }) };
+
+  it('snapshots and scopes writes to the target folder below docs/spec', async () => {
+    const { service, adapter, asked, log } = setup(docsSpec);
+    await service.start({ projectId: 'p1', target: 'requirements', instruction: 'Generate.' });
+    expect(log).toContain('capture docs/spec/02_requirements');
+    expect(adapter.requests[0]!.prompt).toContain('Write only files inside docs/spec/02_requirements/');
+    expect(adapter.requests[0]!.prompt).toContain('functional_requirements.md');
+    await adapter.hooks.onPermission({ toolUseId: 't', toolName: 'Write', input: { file_path: 'x' }, cwd: '/ws' });
+    expect(asked[0]).toMatchObject({ writeScope: 'docs/spec/02_requirements' });
+  });
+
+  it('names story and epic files below the root in the guidance', async () => {
+    const { service, adapter } = setup(docsSpec);
+    await service.start({ projectId: 'p1', target: 'epics', instruction: 'Generate epics.' });
+    expect(adapter.requests[0]!.prompt).toContain('docs/spec/04_user_stories/epics/EP-001-<slug>.md');
+    expect(adapter.requests[0]!.prompt).not.toMatch(/(^|[^/])spec\/04_user_stories/);
+  });
+
+  it('refines only artifacts below the root', async () => {
+    const { service } = setup(docsSpec);
+    expect(await service.refine({ projectId: 'p1', path: 'spec/02_requirements/fr.md', instruction: 'x' })).toEqual({
+      ok: false,
+      reason: 'Only specification artifacts (docs/spec/**/*.md) can be refined.',
+    });
+    expect(await service.refine({ projectId: 'p1', path: 'docs/spec/../x.md', instruction: 'x' })).toMatchObject({ ok: false });
+    expect(await service.refine({ projectId: 'p1', path: 'docs/spec/02_requirements/fr.md', instruction: 'x' })).toMatchObject({
+      ok: true,
+    });
+  });
+
+  it('derives the target folders from the root', () => {
+    expect(specTargetFolder('stories', 'docs/spec')).toBe('docs/spec/04_user_stories');
+    expect(specTargetFolder('test_concepts')).toBe('spec/05_test_concepts');
+  });
+});
+
+describe('US-080: analyse an adopted codebase into draft specifications', () => {
+  function guarded(outside: string[] = []) {
+    const guardLog: string[] = [];
+    const ctx = setup({
+      workspace: () => ({ root: '/ws', nonGit: false, specRoot: 'docs/spec' }),
+      snapshots: {
+        capture: async (_p, folder) => `snap ${folder}`,
+        changes: async () => [{ path: 'docs/spec/01_intent/intent.md', change: 'A' }],
+        restore: async (_p, folder, id) => void guardLog.push(`restore ${folder} ${id}`),
+      },
+      workspaceGuard: {
+        capture: async () => {
+          guardLog.push('guard capture');
+          return 'ws-snap';
+        },
+        changedOutside: async (_p, id, root) => {
+          guardLog.push(`guard check ${id} ${root}`);
+          return outside;
+        },
+        restore: async (_p, id, paths) => void guardLog.push(`guard restore ${id} ${paths.join(',')}`),
+      },
+    });
+    ctx.workspace.set('docs/spec/01_intent/intent.md', '---\nkind: intent\napproval: draft\n---\n# Intent\n');
+    return { ...ctx, guardLog };
+  }
+
+  it('AC-2: the analyze run may read the workspace but writes only into the specification folder, which is snapshotted first', async () => {
+    const { service, adapter, asked, guardLog } = guarded();
+
+    const started = await service.analyze({ projectId: 'p1' });
+
+    expect(started).toEqual({ ok: true, runId: 'run-1' });
+    expect(adapter.requests[0]).toMatchObject({ kind: 'analyze', cwd: '/ws' });
+    expect(guardLog).toEqual(['guard capture']);
+    expect(service.review('run-1')).toMatchObject({ kind: 'analyze', target: 'docs/spec', snapshotId: 'snap docs/spec' });
+    await adapter.hooks.onPermission({ toolUseId: 't', toolName: 'Write', input: { file_path: 'x.md' }, cwd: '/ws' });
+    expect(asked[0]).toMatchObject({ runKind: 'analyze', writeScope: 'docs/spec' });
+    expect(adapter.requests[0]!.prompt).toMatch(/read any file in the workspace/i);
+  });
+
+  it('AC-2: the analysis can be limited to selected folders (run context); invalid folders are refused', async () => {
+    const { service, adapter } = guarded();
+
+    await expect(service.analyze({ projectId: 'p1', limitTo: ['../etc'] })).resolves.toMatchObject({ ok: false });
+    await expect(service.analyze({ projectId: 'p1', limitTo: ['/abs'] })).resolves.toMatchObject({ ok: false });
+    await service.analyze({ projectId: 'p1', limitTo: ['app', 'lib/core/'] });
+
+    expect(adapter.requests[0]!.prompt).toContain('Limit the analysis to these folders: app, lib/core');
+  });
+
+  it('AC-3: the prompt asks for draft intent (as-is + "Desired change"), current-state design and requirements with IDs', async () => {
+    const { service, adapter } = guarded();
+    await service.analyze({ projectId: 'p1' });
+    const prompt = adapter.requests[0]!.prompt;
+
+    expect(prompt).toContain('docs/spec/01_intent/intent.md');
+    expect(prompt).toContain('## Desired change');
+    expect(prompt).toContain('approval: draft');
+    expect(prompt).toContain('docs/spec/03_design');
+    expect(prompt).toMatch(/languages, frameworks \(with versions\)/);
+    expect(prompt).toContain('docs/spec/02_requirements');
+    expect(prompt).toMatch(/FR-001.*NFR-001/s);
+  });
+
+  it('AC-4: the drafts are validated and reviewed like other specification runs; Discard restores the snapshot', async () => {
+    const { service, adapter, guardLog, statuses } = guarded();
+    await service.analyze({ projectId: 'p1' });
+    adapter.complete();
+
+    const review = await finished(service, 'run-1');
+    expect(review).toMatchObject({ state: 'open', files: [{ path: 'docs/spec/01_intent/intent.md', change: 'A' }], issues: [] });
+    expect(statuses['run-1']).toBe('completed');
+    expect(guardLog).toContain('guard check ws-snap docs/spec');
+    expect(service.openAnalysis('p1')?.runId).toBe('run-1');
+
+    expect(await service.discard('run-1')).toEqual({ ok: true });
+    expect(guardLog).toContain('restore docs/spec snap docs/spec');
+    expect(service.openAnalysis('p1')).toBeUndefined();
+  });
+
+  it('AC-5: changes outside the specification folder fail the run, are listed and restored', async () => {
+    const { service, adapter, guardLog, statuses } = guarded(['src/app.ts', 'README.md']);
+    await service.analyze({ projectId: 'p1' });
+    adapter.complete();
+
+    const review = await finished(service, 'run-1');
+    expect(review.state).toBe('failed');
+    expect(review.reason).toContain('src/app.ts, README.md');
+    expect(guardLog).toContain('guard restore ws-snap src/app.ts,README.md');
+    expect(statuses['run-1']).toBe('failed');
+  });
+
+  it('AC-1: refused while AI is disabled and while another specification run is open', async () => {
+    const limited = setup({ aiDisabledReason: () => 'Limited mode: no agent runtime.' });
+    await expect(limited.service.analyze({ projectId: 'p1' })).resolves.toEqual({ ok: false, reason: 'Limited mode: no agent runtime.' });
+
+    const { service } = guarded();
+    await service.start({ projectId: 'p1', target: 'requirements', instruction: 'Generate.' });
+    await expect(service.analyze({ projectId: 'p1' })).resolves.toMatchObject({
+      ok: false,
+      reason: expect.stringContaining('still running'),
+    });
   });
 });

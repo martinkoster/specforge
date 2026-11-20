@@ -60,7 +60,7 @@ describe('US-061 AC-5: dashboard render time', () => {
         onOpenPhase={() => undefined}
       />,
     );
-    await screen.findByText('spec/04_user_stories/US-999.md — Approved');
+    await screen.findByText('04_user_stories/US-999.md — Approved');
     expect(performance.now() - started).toBeLessThan(1000);
   });
 });

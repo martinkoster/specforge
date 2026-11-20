@@ -7,13 +7,25 @@ import { isAbsolute, join } from 'node:path';
 import { ClaudeCodeAdapter, detectClaudeCode, systemEnvironment, verifyClaudeCode } from '@specforge/agent-claude-code';
 import {
   ApprovalService,
-  SPEC_TARGET_FOLDERS,
+  specTargetFolder,
   specCommitMessage,
   SpecRunService,
   ChatService,
   buildDashboard,
   EpicService,
   mustHaveRequirementIds,
+  FeatureService,
+  DeltaError,
+  DeltaService,
+  ImpactError,
+  ImpactFlagService,
+  ImpactService,
+  FeatureReviewService,
+  FeatureWizardError,
+  FeatureWizardService,
+  type AgentEvent,
+  type WizardDraft,
+  type WizardRecord,
   TraceService,
   mergeOrder,
   ClarificationService,
@@ -43,11 +55,25 @@ import {
   type SecretStore,
 } from '@specforge/application';
 import { ExecutionSpaceManager, GitClient, GitVcs, SpecCommits } from '@specforge/git';
-import { nextStep, orderQueue, phaseStepper, unapprovedInputs, type SpecPhase } from '@specforge/domain';
+import {
+  DEFAULT_SPEC_ROOT,
+  maintenanceMode,
+  nextStep,
+  orderQueue,
+  phaseStepper,
+  specLayout,
+  unapprovedInputs,
+  type SpecPhase,
+} from '@specforge/domain';
 import { IpcError, type ContractHandlers, type EventName, type EventPayload } from '@specforge/ipc-contract';
 import {
   AgentRuntimeRepository,
+  ChangeSetRepository,
   ExecutionStore,
+  FeatureWizardRepository,
+  ImpactFlagRepository,
+  ImpactItemRepository,
+  InFlightDecisionRepository,
   IndexRepository,
   PermissionRequestRepository,
   PermissionRuleRepository,
@@ -56,7 +82,7 @@ import {
   openDatabase,
 } from '@specforge/sqlite';
 import { identify, killOrphan, killTree, listDescendants } from '@specforge/process';
-import { SnapshotStore } from '@specforge/snapshot';
+import { DEFAULT_EXCLUSIONS, SnapshotStore } from '@specforge/snapshot';
 import { ProjectFolderProbe, WorkspaceFiles } from '@specforge/workspace-fs';
 import { createDependencyHandlers } from './handlers/dependency-handlers.js';
 import { createProjectHandlers } from './handlers/project-handlers.js';
@@ -135,7 +161,10 @@ export async function createCore(options: CoreOptions): Promise<Core> {
   const contexts = new ProjectContexts({
     index,
     watch: options.watch ?? true,
-    onIndexed: (projectId) => projectChanged(projectId),
+    onIndexed: (projectId) => {
+      syncFeatures(projectId);
+      projectChanged(projectId);
+    },
     onReconcile: (projectId, event) => {
       if (event.type === 'story-added') void epics.storiesAdded(projectId, [event.storyId]).catch(() => undefined);
     },
@@ -143,17 +172,34 @@ export async function createCore(options: CoreOptions): Promise<Core> {
   const execution = new ExecutionStore(database.sqlite);
   // Runs and system transitions may concern a project that is not open: workspace access by project path.
   const paths = new Map<string, string>();
+  // Specification root per project (US-078, ADR-024), from project.yaml via the registry cache.
+  const specRoots = new Map<string, string>();
+  const specRootOf = (projectId: string): string => specRoots.get(projectId) ?? DEFAULT_SPEC_ROOT;
   const workspaceFiles = (projectId: string): WorkspaceFiles => {
     const current = contexts.current;
     if (current?.projectId === projectId) return current.files;
     const path = paths.get(projectId);
     if (!path) throw new IpcError('NOT_FOUND', `Unknown project ${projectId}.`);
-    return new WorkspaceFiles(path);
+    return new WorkspaceFiles(path, { artifactRoots: [specRootOf(projectId), '.specforge'] });
   };
-  const reindexIn = (projectId: string, path: string) => {
+  const reindexIn = async (projectId: string, path: string) => {
     const current = contexts.current;
-    if (current?.projectId === projectId) return current.indexer.reindex(projectId, path);
-    return new WorkspaceIndexer(workspaceFiles(projectId), index).reindex(projectId, path);
+    const result =
+      current?.projectId === projectId
+        ? await current.indexer.reindex(projectId, path)
+        : await new WorkspaceIndexer(workspaceFiles(projectId), index).reindex(projectId, path);
+    syncFeatures(projectId);
+    return result;
+  };
+  // US-081 AC-4: the derived feature lifecycle is written back after index changes (idempotent; one pass at a time).
+  const syncing = new Set<string>();
+  const syncFeatures = (projectId: string): void => {
+    if (syncing.has(projectId)) return;
+    syncing.add(projectId);
+    void features
+      .sync(projectId)
+      .catch(() => undefined)
+      .finally(() => syncing.delete(projectId));
   };
   let emit: CoreEventEmitter | undefined;
   /** The dashboard read model is recomputed on request; this tells the UI to re-read it (US-060 AC-3, NFR-030). */
@@ -192,6 +238,11 @@ export async function createCore(options: CoreOptions): Promise<Core> {
     launcher: { launch: (request) => runs.launch(request) },
   });
   const board = new BoardService({
+    inFlight: (projectId) =>
+      new Map(
+        [...inFlightDecisions.latestByStory(projectId)].map(([storyId, d]) => [storyId, { decision: d.decision, featureId: d.featureId }]),
+      ),
+    impacts: (projectId) => new Map(impactFlags.list(projectId).map((f) => [f.elementId, { sourceRef: f.sourceRef, reason: f.reason }])),
     index,
     files: (projectId) => workspaceFiles(projectId),
     reindex: (projectId, path) => reindexIn(projectId, path),
@@ -217,9 +268,205 @@ export async function createCore(options: CoreOptions): Promise<Core> {
   });
   const artifacts = new ArtifactService({
     index,
+    impactedPaths: (projectId) => index.impactedPaths(projectId),
     files: (projectId) => contexts.require(projectId).files,
     reindex: (projectId, path) => contexts.require(projectId).indexer.reindex(projectId, path),
   });
+  // US-086: Potentially impacted flags (FR-017, FR-071) from element changes detected by the index.
+  const impactFlags = new ImpactFlagService({
+    store: new ImpactFlagRepository(database.sqlite),
+    index: {
+      linkSources: (projectId, id) => index.linkSources(projectId, id),
+      dependents: (projectId, storyId) => index.dependents(projectId, storyId),
+      elementPath: (projectId, id) => index.elementPath(projectId, id),
+    },
+    now: () => new Date().toISOString(),
+  });
+  // US-089: delta runs change their target folder temporarily — no impact flags for those changes.
+  const suppressedFolders = new Set<string>();
+  index.onElementsChanged = (projectId, changes, path) => {
+    for (const key of suppressedFolders) {
+      const [p, folder] = key.split('\u0000') as [string, string];
+      if (p === projectId && path.startsWith(`${folder}/`)) return;
+    }
+    impactFlags.elementsChanged(projectId, changes);
+  };
+
+  // US-087: trace-based feature impact, edited and approved by the user (impact_item).
+  const impact = new ImpactService({
+    element: (projectId, id) => index.element(projectId, id),
+    allLinks: (projectId) => index.allLinks(projectId),
+    stories: (projectId) => index.stories(projectId).map((s) => ({ id: s.storyId, status: s.status, epicId: s.epicId ?? null })),
+    storyRuns: (projectId, storyId) =>
+      execution
+        .runs(projectId)
+        .filter((r) => r.storyId === storyId)
+        .map((r) => ({ runId: r.id, status: r.status })),
+    storyFiles: (projectId, storyId) => execution.touchedFiles(projectId, storyId),
+    store: new ImpactItemRepository(database.sqlite),
+    newId: randomUUID,
+    // US-088: the read-only `impact` agent run.
+    get agent() {
+      return {
+        adapter: agentAdapter,
+        runs: execution,
+        workspace: (projectId: string) => ({ root: specFolder(projectId, '.'), nonGit: vcsModes.get(projectId) === 'none' }),
+        context: (projectId: string, featureId: string) => {
+          const status = new Map(index.stories(projectId).map((s) => [s.storyId, s.status]));
+          const elements = index
+            .elementsOfTypes(projectId, ['fr', 'nfr', 'con', 'uc', 'bp', 'uf', 'adr', 'epic', 'story', 'other'])
+            .map((e) => `- ${e.id}: ${e.title}${status.has(e.id) ? ` (${status.get(e.id)!})` : ''}`);
+          return { featurePath: index.features(projectId).find((f) => f.id === featureId)?.path ?? featureId, elements };
+        },
+        env: runEnv,
+        config: runConfig,
+        permissions: broker,
+        implementationActive: (projectId: string) => execution.activeImplementationRuns(projectId) > 0,
+        aiDisabledReason: () => setup.aiDisabledReason(),
+        onUpdated: (projectId: string, featureId: string) => {
+          if (!closing) emit?.('features.impactUpdated', { projectId, featureId });
+        },
+        emit: (runId: string, event: AgentEvent, seq: number) => {
+          if (event.type === 'output') emit?.('run.output', { runId, seq, text: event.text });
+        },
+        now: () => new Date().toISOString(),
+      };
+    },
+  });
+  const impactCall = async <T>(fn: () => T): Promise<T> => {
+    try {
+      return fn();
+    } catch (e) {
+      if (e instanceof ImpactError) throw new IpcError('INVALID_REQUEST', e.message);
+      throw e;
+    }
+  };
+
+  // US-091: in-flight decisions when applying change sets.
+  const inFlightDecisions = new InFlightDecisionRepository(database.sqlite);
+  // US-089: delta generation as reviewable change sets.
+  const deltas = new DeltaService({
+    inFlight: {
+      links: (projectId) => index.allLinks(projectId),
+      stories: (projectId) =>
+        index.stories(projectId).map((s) => ({ id: s.storyId, title: s.title, status: s.status, subState: s.subState })),
+      save: (decision) => inFlightDecisions.save(decision),
+      flag: (projectId, storyId, sourceRef, reason) => impactFlags.flagDirect(projectId, storyId, sourceRef, reason),
+      moveToReady: async (projectId, storyId) => {
+        const moved = await board.move(projectId, storyId, 'ready', null);
+        if (!moved.ok) throw new Error(moved.reason);
+      },
+    },
+    store: new ChangeSetRepository(database.sqlite),
+    get adapter() {
+      return agentAdapter;
+    },
+    runs: execution,
+    workspace: (projectId) => ({
+      root: specFolder(projectId, '.'),
+      nonGit: vcsModes.get(projectId) === 'none',
+      specRoot: specRootOf(projectId),
+    }),
+    scope: (projectId, featureId) =>
+      impact
+        .view(projectId, featureId)
+        .items.filter((i) => i.confirmed)
+        .map((i) => ({ targetRef: i.targetRef, reason: i.reason })),
+    featurePath: (projectId, featureId) => index.features(projectId).find((f) => f.id === featureId)?.path ?? featureId,
+    elements: (projectId) => index.elementPaths(projectId),
+    folderFiles: (projectId, folder) => index.paths(projectId).filter((p) => p.startsWith(`${folder}/`)),
+    files: (projectId) => workspaceFiles(projectId),
+    snapshots: {
+      capture: async (projectId, folder) => {
+        const dir = specFolder(projectId, folder);
+        await mkdir(dir, { recursive: true });
+        return (await specSnapshots(projectId).create(dir, { exclusions: [] })).id;
+      },
+      changes: async (projectId, folder, id) =>
+        (await specSnapshots(projectId).diff(id, specFolder(projectId, folder))).map((c) => ({ ...c, path: `${folder}/${c.path}` })),
+      restore: async (projectId, folder, id) => {
+        await specSnapshots(projectId).restore(id, specFolder(projectId, folder));
+      },
+    },
+    reindex: (projectId, path) => reindexIn(projectId, path),
+    markDraft: (projectId, paths, runId) => approvals.markDraftAfterAiChange(projectId, paths, runId),
+    artifactApproval: (projectId, path) => index.artifacts(projectId).find((a) => a.path === path)?.approval,
+    suppress: (projectId, folder, active) => {
+      const key = `${projectId}\u0000${folder}`;
+      if (active) suppressedFolders.add(key);
+      else suppressedFolders.delete(key);
+    },
+    env: (projectId) => runEnv(projectId),
+    config: (projectId) => runConfig(projectId),
+    permissions: { ask: (run, ask) => broker.ask(run, ask) },
+    implementationActive: (projectId) => execution.activeImplementationRuns(projectId) > 0,
+    aiDisabledReason: () => setup.aiDisabledReason(),
+    onUpdated: (projectId, featureId) => {
+      if (closing) return;
+      emit?.('features.deltaUpdated', { projectId, featureId });
+      projectChanged(projectId);
+    },
+    emit: (runId, event, seq) => {
+      if (event.type === 'output') emit?.('run.output', { runId, seq, text: event.text });
+    },
+    newId: randomUUID,
+    now: () => new Date().toISOString(),
+  });
+  const deltaCall = async <T>(fn: () => T): Promise<T> => {
+    try {
+      return fn();
+    } catch (e) {
+      if (e instanceof DeltaError) throw new IpcError('INVALID_REQUEST', e.message);
+      throw e;
+    }
+  };
+
+  // US-081: feature intents with derived lifecycle and typed trace links.
+  const features = new FeatureService({
+    delta: (projectId, featureId, phase) => deltas.state(projectId, featureId, phase),
+    acceptedDelta: (projectId, featureId) => deltas.acceptedDelta(projectId, featureId),
+    decisions: (projectId, featureId) =>
+      inFlightDecisions.byFeature(projectId, featureId).map((d) => ({ storyId: d.storyId, decision: d.decision, decidedAt: d.decidedAt })),
+    impact: (projectId, featureId) => impact.state(projectId, featureId),
+    impactView: (projectId, featureId) => impact.view(projectId, featureId),
+    index,
+    files: (projectId) => workspaceFiles(projectId),
+    reindex: (projectId, path) => reindexIn(projectId, path),
+  });
+  /** zod's optional fields may be present as undefined; drafts store only the given fields. */
+  const compact = (draft: { [K in keyof WizardDraft]: WizardDraft[K] | undefined }): WizardDraft =>
+    Object.fromEntries(Object.entries(draft).filter(([, v]) => v !== undefined)) as unknown as WizardDraft;
+  // US-082: resumable feature wizard drafts (ADR-025).
+  const wizardStore = new FeatureWizardRepository(database.sqlite);
+  const wizards = new FeatureWizardService({
+    store: wizardStore,
+    featureIds: (projectId) => index.features(projectId).map((f) => f.id),
+    specRoot: (projectId) => specRootOf(projectId),
+    files: (projectId) => workspaceFiles(projectId),
+    reindex: (projectId, path) => reindexIn(projectId, path),
+    approve: async (projectId, path) => {
+      await approvals.approve(projectId, path);
+      await reindexIn(projectId, path);
+    },
+    newId: randomUUID,
+    now: () => new Date().toISOString(),
+  });
+  const wizardView = (w: WizardRecord) => ({
+    id: w.id,
+    projectId: w.projectId,
+    step: w.step,
+    draft: w.draft,
+    featureId: w.featureId,
+    updatedAt: w.updatedAt,
+  });
+  const wizardCall = async <T>(fn: () => T | Promise<T>): Promise<T> => {
+    try {
+      return await fn();
+    } catch (e) {
+      if (e instanceof FeatureWizardError) throw new IpcError('INVALID_REQUEST', e.message);
+      throw e;
+    }
+  };
   const approvals = new ApprovalService({
     index,
     files: (projectId) => workspaceFiles(projectId),
@@ -236,7 +483,9 @@ export async function createCore(options: CoreOptions): Promise<Core> {
       indexAll: async (id) => {
         const project = await projects.get(id);
         if (!project) throw new IpcError('NOT_FOUND', `Unknown project ${id}.`);
-        await contexts.activate(id, project.workspacePath);
+        specRoots.set(id, project.specRoot);
+        await contexts.activate(id, project.workspacePath, project.specRoot);
+        syncFeatures(id);
       },
     },
     newId: randomUUID,
@@ -321,6 +570,7 @@ export async function createCore(options: CoreOptions): Promise<Core> {
       workspacePath: project.workspacePath,
       vcsMode: project.vcsMode,
       baseBranch: project.baseBranch,
+      specRoot: project.specRoot,
       files: workspaceFiles(projectId),
       reindex: (path) => reindexIn(projectId, path),
     };
@@ -336,6 +586,7 @@ export async function createCore(options: CoreOptions): Promise<Core> {
   const broker = new PermissionBroker({
     store: new PermissionRequestRepository(database.sqlite),
     fileExists: (path) => existsSync(path),
+    specRoot: specRootOf,
     rules: (projectId) => rules.effective(projectId),
     runs: { setAwaitingPermission: (runId, waiting) => execution.setRunStatus(runId, waiting ? 'awaiting_approval' : 'running') },
     now: () => new Date().toISOString(),
@@ -420,7 +671,7 @@ export async function createCore(options: CoreOptions): Promise<Core> {
     if (!workspace) throw new Error(`Unknown project ${projectId}.`);
     return join(workspace, ...folder.split('/'));
   };
-  const specCommits = new SpecCommits(git);
+  const specCommits = (projectId: string) => new SpecCommits(git, specRootOf(projectId));
   const reviewFiles = new ReviewFiles({
     store: execution,
     workspace: (projectId) => specFolder(projectId, '.'),
@@ -446,7 +697,11 @@ export async function createCore(options: CoreOptions): Promise<Core> {
     files: { read: async (projectId, path) => (await workspaceFiles(projectId).read(path))?.content ?? null },
     index: (projectId) => index.specIndexView(projectId),
     adapter: agentAdapter,
-    workspace: (projectId) => ({ root: specFolder(projectId, '.'), nonGit: vcsModes.get(projectId) === 'none' }),
+    workspace: (projectId) => ({
+      root: specFolder(projectId, '.'),
+      nonGit: vcsModes.get(projectId) === 'none',
+      specRoot: specRootOf(projectId),
+    }),
     implementationActive: (projectId) => execution.activeImplementationRuns(projectId) > 0,
     epics: (projectId) => index.epics(projectId),
     env: runEnv,
@@ -457,6 +712,19 @@ export async function createCore(options: CoreOptions): Promise<Core> {
       for (const path of changed) await reindexIn(projectId, path);
     },
     aiDisabledReason: () => setup.aiDisabledReason(),
+    // US-080 AC-5: analyze runs snapshot the whole workspace; changes outside the specification root are restored.
+    workspaceGuard: {
+      capture: async (projectId) =>
+        (await specSnapshots(projectId).create(specFolder(projectId, '.'), { exclusions: DEFAULT_EXCLUSIONS })).id,
+      changedOutside: async (projectId, id, root) =>
+        (await specSnapshots(projectId).diff(id, specFolder(projectId, '.')))
+          .map((c) => c.path)
+          .filter((path) => path !== root && !path.startsWith(`${root}/`)),
+      restore: async (projectId, id, changed) => {
+        await specSnapshots(projectId).restorePaths(id, specFolder(projectId, '.'), changed);
+        for (const path of changed) await reindexIn(projectId, path).catch(() => undefined);
+      },
+    },
     onKept: (review) => {
       quality.proposalKept(review.runId);
       // New stories reopen a Done epic (US-039 AC-4, FR-095).
@@ -475,6 +743,38 @@ export async function createCore(options: CoreOptions): Promise<Core> {
     now: () => new Date().toISOString(),
   });
 
+  // US-083: AI review and clarification of wizard drafts (read-only feature_review runs).
+  const reviews = new FeatureReviewService({
+    wizards: wizardStore,
+    runs: execution,
+    adapter: agentAdapter,
+    workspace: (projectId) => ({ root: specFolder(projectId, '.'), nonGit: vcsModes.get(projectId) === 'none' }),
+    context: (projectId) => {
+      const elements = index.elementsOfTypes(projectId, ['fr', 'nfr', 'epic', 'adr']);
+      const of = (type: string) => elements.filter((e) => e.type === type).map((e) => ({ id: e.id, title: e.title }));
+      return {
+        intentPath: specLayout(specRootOf(projectId)).intentPath,
+        requirements: [...of('fr'), ...of('nfr')],
+        epics: of('epic'),
+        adrs: of('adr'),
+        features: index.features(projectId).map((f) => ({ id: f.id, title: f.title, path: f.path })),
+      };
+    },
+    files: (projectId) => workspaceFiles(projectId),
+    reindex: (projectId, path) => reindexIn(projectId, path),
+    env: runEnv,
+    config: runConfig,
+    permissions: broker,
+    implementationActive: (projectId) => execution.activeImplementationRuns(projectId) > 0,
+    aiDisabledReason: () => setup.aiDisabledReason(),
+    onUpdated: (w) => {
+      if (!closing) emit?.('features.wizardUpdated', { projectId: w.projectId, wizardId: w.id });
+    },
+    emit: (runId, event, seq) => {
+      if (event.type === 'output') emit?.('run.output', { runId, seq, text: event.text });
+    },
+    now: () => new Date().toISOString(),
+  });
   // US-013 AC-1: capabilities are published after each health check; losing them never stops active runs (AC-4).
   setup.onCapabilities((capabilities) => {
     if (!closing) emit?.('capabilities.changed', capabilities);
@@ -489,7 +789,11 @@ export async function createCore(options: CoreOptions): Promise<Core> {
   const quality = new QualityService({
     store: execution,
     adapter: agentAdapter,
-    workspace: (projectId) => ({ root: specFolder(projectId, '.'), nonGit: vcsModes.get(projectId) === 'none' }),
+    workspace: (projectId) => ({
+      root: specFolder(projectId, '.'),
+      nonGit: vcsModes.get(projectId) === 'none',
+      specRoot: specRootOf(projectId),
+    }),
     env: runEnv,
     config: runConfig,
     permissions: broker,
@@ -512,7 +816,11 @@ export async function createCore(options: CoreOptions): Promise<Core> {
   const clarifications = new ClarificationService({
     store: execution,
     adapter: agentAdapter,
-    workspace: (projectId) => ({ root: specFolder(projectId, '.'), nonGit: vcsModes.get(projectId) === 'none' }),
+    workspace: (projectId) => ({
+      root: specFolder(projectId, '.'),
+      nonGit: vcsModes.get(projectId) === 'none',
+      specRoot: specRootOf(projectId),
+    }),
     env: runEnv,
     config: runConfig,
     permissions: broker,
@@ -542,6 +850,8 @@ export async function createCore(options: CoreOptions): Promise<Core> {
     element: (projectId, id) => index.element(projectId, id),
     linkTargets: (projectId, id) => index.linkTargets(projectId, id),
     linkSources: (projectId, id) => index.linkSources(projectId, id),
+    linkType: (projectId, source, target) => index.linkType(projectId, source, target),
+    impact: (projectId, id) => impactFlags.list(projectId).find((f) => f.elementId === id)?.reason,
     storyRuns: (projectId, storyId) =>
       execution
         .runs(projectId)
@@ -565,6 +875,7 @@ export async function createCore(options: CoreOptions): Promise<Core> {
     files: (projectId) => workspaceFiles(projectId),
     reindex: (projectId, path) => reindexIn(projectId, path),
     approve: (projectId, path) => approvals.approve(projectId, path),
+    specRoot: specRootOf,
   });
   const mustHaves = async (projectId: string) => {
     const files = workspaceFiles(projectId);
@@ -585,7 +896,11 @@ export async function createCore(options: CoreOptions): Promise<Core> {
   const chat = new ChatService({
     store: execution,
     adapter: agentAdapter,
-    workspace: (projectId) => ({ root: specFolder(projectId, '.'), nonGit: vcsModes.get(projectId) === 'none' }),
+    workspace: (projectId) => ({
+      root: specFolder(projectId, '.'),
+      nonGit: vcsModes.get(projectId) === 'none',
+      specRoot: specRootOf(projectId),
+    }),
     env: runEnv,
     config: runConfig,
     permissions: broker,
@@ -611,7 +926,7 @@ export async function createCore(options: CoreOptions): Promise<Core> {
   const nextStepOf = (projectId: string, vcsMode: 'git' | 'none') => {
     const stories = index.stories(projectId);
     const generating = (Object.keys(GENERATED_PHASE) as GenerationTarget[])
-      .filter((t) => execution.openSpecReview(projectId, SPEC_TARGET_FOLDERS[t])?.state === 'running')
+      .filter((t) => execution.openSpecReview(projectId, specTargetFolder(t, specRootOf(projectId)))?.state === 'running')
       .map((t) => GENERATED_PHASE[t]!);
     return nextStep({
       setupComplete: setup.capabilities()?.aiAvailable ?? false,
@@ -629,6 +944,7 @@ export async function createCore(options: CoreOptions): Promise<Core> {
       approvedUnmerged: index.unmergedDoneStories(projectId).length,
       storyCount: stories.length,
       doneStories: stories.filter((s) => s.status === 'done').length,
+      features: features.progress(projectId),
     });
   };
 
@@ -663,6 +979,7 @@ export async function createCore(options: CoreOptions): Promise<Core> {
   for (const p of await projects.list()) {
     vcsModes.set(p.id, vcsModes.get(p.id) ?? p.vcsMode);
     paths.set(p.id, p.workspacePath);
+    specRoots.set(p.id, specRoots.get(p.id) ?? p.specRoot);
   }
   await scheduler.post({ type: 'Startup' });
 
@@ -698,6 +1015,7 @@ export async function createCore(options: CoreOptions): Promise<Core> {
       activeRuns: async (id) => execution.activeImplementationRuns(id) + execution.activeWorkspaceWriters(id),
     }),
     'projects.create': (input) => opened(() => service.create(input)),
+    'projects.adopt': (input) => opened(() => service.adopt(input)),
     'projects.open': ({ path }) => opened(() => service.open(path)),
     'projects.openById': ({ projectId }) => opened(() => service.openById(projectId)),
     'projects.close': async () => {
@@ -784,20 +1102,100 @@ export async function createCore(options: CoreOptions): Promise<Core> {
       specRuns.start({ projectId, target, instruction, ...(epicIds ? { epicIds } : {}) }),
     'specs.refine': async ({ projectId, path, section, instruction }) =>
       specRuns.refine({ projectId, path, instruction, ...(section ? { section } : {}) }),
+    'specs.analyze': async ({ projectId, limitTo }) => specRuns.analyze({ projectId, ...(limitTo ? { limitTo } : {}) }),
+    'features.wizard.create': async ({ projectId, draft }) => wizardView(wizards.create(projectId, compact(draft))),
+    'features.wizard.update': ({ wizardId, step, draft }) =>
+      wizardCall(() => wizardView(wizards.update(wizardId, { step, draft: compact(draft) }))),
+    'impact.propose': ({ projectId, featureId }) => impactCall(() => impact.propose(projectId, featureId)),
+    'impact.add': ({ projectId, featureId, ref }) =>
+      impactCall(() => {
+        impact.add(projectId, featureId, ref);
+        return impact.view(projectId, featureId);
+      }),
+    'impact.remove': async ({ projectId, featureId, itemId }) => {
+      impact.remove(projectId, itemId);
+      return impact.view(projectId, featureId);
+    },
+    'delta.generate': ({ projectId, featureId, phase }) => deltas.generate(projectId, featureId, phase),
+    'delta.decide': ({ itemId, decision }) => deltaCall(() => deltas.decide(itemId, decision)),
+    'delta.acceptAll': ({ changeSetId }) => deltaCall(() => deltas.acceptAll(changeSetId)),
+    'delta.apply': async ({ changeSetId, decisions }) => {
+      try {
+        return await deltas.apply(changeSetId, decisions ?? {});
+      } catch (e) {
+        if (e instanceof DeltaError) throw new IpcError('INVALID_REQUEST', e.message);
+        throw e;
+      }
+    },
+    'impact.analyse': ({ projectId, featureId }) => impact.analyse(projectId, featureId),
+    'impact.cancel': async ({ projectId, featureId }) => {
+      await impact.cancel(projectId, featureId);
+      return {};
+    },
+    'impact.approve': ({ projectId, featureId }) =>
+      impactCall(() => {
+        const view = impact.approve(projectId, featureId);
+        projectChanged(projectId);
+        return view;
+      }),
+    'impact.clear': async ({ projectId, elementId }) => {
+      impactFlags.clear(projectId, elementId);
+      projectChanged(projectId);
+      return {};
+    },
+    'features.wizard.discard': async ({ wizardId }) => {
+      wizards.discard(wizardId);
+      return {};
+    },
+    'features.wizard.review': ({ wizardId }) => reviews.review(wizardId),
+    'features.wizard.answer': ({ wizardId, answers }) => reviews.answer(wizardId, answers),
+    'features.wizard.editPart': ({ wizardId, partId, removed, text }) =>
+      wizardCall(() => {
+        reviews.editPart(wizardId, partId, { ...(removed !== undefined ? { removed } : {}), ...(text !== undefined ? { text } : {}) });
+        return wizardView(wizards.get(wizardId)!);
+      }),
+    'features.wizard.deferQuestion': ({ wizardId, questionId }) =>
+      wizardCall(() => {
+        reviews.deferQuestion(wizardId, questionId);
+        return wizardView(wizards.get(wizardId)!);
+      }),
+    'features.wizard.dismissCovered': ({ wizardId }) =>
+      wizardCall(() => {
+        reviews.dismissCovered(wizardId);
+        return wizardView(wizards.get(wizardId)!);
+      }),
+    'features.wizard.withdraw': async ({ wizardId }) => {
+      reviews.withdraw(wizardId);
+      return {};
+    },
+    'features.wizard.merge': ({ wizardId, featureId }) => wizardCall(() => reviews.mergeInto(wizardId, featureId)),
+    'features.wizard.save': ({ wizardId, title, approve }) =>
+      wizardCall(async () => {
+        const saved = await wizards.save(wizardId, { title, approve });
+        const projectId = wizards.get(wizardId)?.projectId ?? currentProjectId;
+        if (projectId) projectChanged(projectId);
+        return saved;
+      }),
     'specs.keep': async ({ runId }) => specRuns.keep(runId),
     'specs.discard': async ({ runId }) => specRuns.discard(runId),
     'specs.fix': async ({ runId }) => specRuns.fix(runId),
     'specs.review': async ({ runId }) => specRuns.review(runId) ?? null,
-    'specs.openReview': async ({ projectId, target }) => execution.openSpecReview(projectId, SPEC_TARGET_FOLDERS[target]) ?? null,
+    'specs.openAnalysis': async ({ projectId }) => specRuns.openAnalysis(projectId) ?? null,
+    'specs.analysisAvailable': async ({ projectId }) => {
+      const workspace = paths.get(projectId);
+      return { available: workspace !== undefined && (await service.hasCode(workspace, specRootOf(projectId))) };
+    },
+    'specs.openReview': async ({ projectId, target }) =>
+      execution.openSpecReview(projectId, specTargetFolder(target, specRootOf(projectId))) ?? null,
     'specCommit.status': async ({ projectId }) => {
       const workspace = paths.get(projectId);
       if (!workspace || vcsModes.get(projectId) !== 'git') return { files: [], message: '' };
-      const files = await specCommits.status(workspace);
+      const files = await specCommits(projectId).status(workspace);
       return { files, message: files.length > 0 ? specCommitMessage(files) : '' };
     },
-    'specCommit.diff': async ({ projectId, path }) => ({ patch: await specCommits.diff(specFolder(projectId, '.'), path) }),
+    'specCommit.diff': async ({ projectId, path }) => ({ patch: await specCommits(projectId).diff(specFolder(projectId, '.'), path) }),
     'specCommit.commit': async ({ projectId, paths: files, message }) => {
-      const result = await mapped(() => specCommits.commit(specFolder(projectId, '.'), files, message));
+      const result = await mapped(() => specCommits(projectId).commit(specFolder(projectId, '.'), files, message));
       if (result.ok) {
         projectChanged(projectId);
         void merges.check(projectId);
@@ -890,6 +1288,8 @@ export async function createCore(options: CoreOptions): Promise<Core> {
       execution.setCorrection(projectId, storyId, { feedback: feedback.trim(), fresh: fresh ?? false });
       const moved = await board.move(projectId, storyId, 'in_progress', null);
       if (!moved.ok) execution.setCorrection(projectId, storyId, previous ?? null);
+      // US-091: pending in-flight feedback was used for this correction.
+      else inFlightDecisions.clearFeedback(projectId, storyId);
       return moved;
     },
     'review.get': async ({ projectId, storyId }) => ({
@@ -920,7 +1320,7 @@ export async function createCore(options: CoreOptions): Promise<Core> {
     'quality.applyFix': async ({ findingId }) => quality.applyFix(findingId),
     'quality.dismiss': async ({ findingId, reason }) => quality.dismiss(findingId, reason),
     'intent.create': async ({ projectId }) => {
-      const path = 'spec/01_intent/intent.md';
+      const path = specLayout(specRootOf(projectId)).intentPath;
       const files = workspaceFiles(projectId);
       if (await files.read(path)) throw new IpcError('CONFLICT', `${path} already exists.`);
       await files.writeAtomic(path, INTENT_TEMPLATE, { expectedHash: null });
@@ -965,25 +1365,45 @@ export async function createCore(options: CoreOptions): Promise<Core> {
     },
     'phases.status': async ({ projectId }) => {
       const inputs = index.phaseInputs(projectId);
-      const PHASE_OF_FOLDER: Record<string, SpecPhase> = {
-        '01_intent': 'intent',
-        '02_requirements': 'requirements',
-        '03_design': 'design',
-        '04_user_stories': 'stories',
-      };
+      const layout = specLayout(specRootOf(projectId));
+      const CHECKED_PHASES: readonly string[] = ['intent', 'requirements', 'design', 'stories'];
       const qualityChecked = execution
         .runs(projectId)
         .filter((r) => r.kind === 'quality_check' && r.status === 'completed' && r.startTrigger?.startsWith('QualityCheck '))
-        .map((r) => PHASE_OF_FOLDER[r.startTrigger!.slice('QualityCheck '.length).split('/')[1] ?? ''])
-        .filter((p): p is SpecPhase => p !== undefined);
+        .map((r) => layout.phaseOf(r.startTrigger!.slice('QualityCheck '.length)))
+        .filter((p): p is SpecPhase => p !== undefined && CHECKED_PHASES.includes(p));
       const generating = (Object.keys(GENERATED_PHASE) as GenerationTarget[])
-        .filter((t) => execution.openSpecReview(projectId, SPEC_TARGET_FOLDERS[t])?.state === 'running')
+        .filter((t) => execution.openSpecReview(projectId, specTargetFolder(t, specRootOf(projectId)))?.state === 'running')
         .map((t) => GENERATED_PHASE[t]!);
       const stepper = phaseStepper(inputs, { storyCount: index.storyIds(projectId).length, generating, qualityChecked });
-      return { ...stepper, phases: stepper.phases.map((p) => ({ ...p, unapprovedInputs: unapprovedInputs(p.phase, inputs) })) };
+      // US-084 AC-4: Maintenance once all initial epics (not created by a feature) are Done.
+      const featureOf = new Map(index.epics(projectId).map((e) => [e.id, e.featureId]));
+      const maintenance = maintenanceMode(
+        board
+          .board(projectId)
+          .lanes.filter((l) => l.epicId !== null)
+          .map((l) => ({ featureId: featureOf.get(l.epicId!) ?? null, done: l.status === 'done' || l.status === 'merged' })),
+      );
+      return {
+        ...stepper,
+        maintenance,
+        phases: stepper.phases.map((p) => ({ ...p, unapprovedInputs: unapprovedInputs(p.phase, inputs) })),
+      };
     },
     'trace.get': async ({ projectId, target }) => trace.trace(projectId, target),
     'trace.issues': async ({ projectId }) => trace.issues(projectId),
+    'impact.flags': async ({ projectId }) => impactFlags.list(projectId),
+    'impact.view': async ({ projectId, featureId }) => impact.view(projectId, featureId),
+    'delta.changeSet': async ({ projectId, featureId, phase }) => deltas.view(projectId, featureId, phase) ?? null,
+    'inflight.feedback': async ({ projectId, storyId }) => ({ feedback: inFlightDecisions.pendingFeedback(projectId, storyId) }),
+    'features.list': async ({ projectId }) => features.list(projectId),
+    'features.get': async ({ projectId, featureId }) => features.get(projectId, featureId) ?? null,
+    'features.wizard.get': async ({ wizardId }) => {
+      const w = wizards.get(wizardId);
+      return w ? wizardView(w) : null;
+    },
+    'features.wizard.drafts': async ({ projectId }) => wizards.drafts(projectId),
+    'features.wizard.preview': ({ wizardId, title }) => wizardCall(() => wizards.preview(wizardId, title)),
     'epics.list': async ({ projectId }) => ({
       epics: index.epics(projectId).map((e) => ({
         id: e.id,
@@ -1010,6 +1430,7 @@ export async function createCore(options: CoreOptions): Promise<Core> {
           .artifacts(projectId)
           .map((a) => ({ path: a.path, kind: a.kind, approval: a.approval, impacted: impacted.has(a.path) })),
         lanes: board.board(projectId).lanes,
+        specRoot: specRootOf(projectId),
       });
     },
     'chat.threads': async ({ projectId }) =>
@@ -1061,11 +1482,13 @@ export async function createCore(options: CoreOptions): Promise<Core> {
     'board.move': ({ projectId, storyId, to, beforeStoryId }) => board.move(projectId, storyId, to, beforeStoryId),
     'projects.gitAvailable': async () => ({ available: await service.gitAvailable() }),
     'projects.inspectFolder': ({ path }) => service.inspectFolder(path),
+    'projects.checkSpecRoot': async ({ path, specRoot }) => ({ problem: await service.specRootProblem(path, specRoot) }),
     'shell.state': async () => {
       const current = currentProjectId ? await projects.get(currentProjectId) : undefined;
       return {
         projects: (await projects.list()).map((p) => ({ id: p.id, name: p.name })),
         currentProjectId: current?.id ?? null,
+        specRoot: current ? specRootOf(current.id) : null,
         vcs: current
           ? current.vcsMode === 'git'
             ? { mode: 'git' as const, branch: current.baseBranch }

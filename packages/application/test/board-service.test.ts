@@ -79,6 +79,8 @@ describe('US-038 AC-1: five columns with cards', () => {
         epicId: null,
         dependsOn: [],
         related: [],
+        impact: null,
+        inFlight: null,
       },
     ]);
     expect(board.columns[0]!.cards[0]).toMatchObject({ storyId: 'US-003', approval: 'draft', size: null });
@@ -340,5 +342,32 @@ describe('US-065 AC-3 / US-038: moves of one project are serialised', () => {
     expect(second).toEqual({ ok: true });
     expect(transitions).toEqual([['US-001', 'startImplementation']]);
     expect(stories.get('US-001')).toMatchObject({ status: 'in_progress', subState: 'queued' });
+  });
+});
+
+describe('US-086 AC-4: Potentially impacted flags on cards', () => {
+  it('cards carry the impact flag of their story', () => {
+    const rows = [story('US-001', 'backlog'), story('US-002', 'backlog')];
+    const index: BoardIndex = {
+      stories: () => rows,
+      storyPath: () => undefined,
+      setSubState: () => undefined,
+      setOrder: () => undefined,
+      setAuthorisedAt: () => undefined,
+      dependencies: () => [],
+    };
+    const service = new BoardService({
+      index,
+      files: () => ({ read: async () => undefined, writeAtomic: async () => '' }),
+      reindex: async () => undefined,
+      now: () => 't',
+      impacts: () => new Map([['US-002', { sourceRef: 'FR-003', reason: 'FR-003 changed after it was approved.' }]]),
+    });
+    const cards = service.board('p1').columns[0]!.cards;
+    expect(cards.find((c) => c.storyId === 'US-002')?.impact).toEqual({
+      sourceRef: 'FR-003',
+      reason: 'FR-003 changed after it was approved.',
+    });
+    expect(cards.find((c) => c.storyId === 'US-001')?.impact).toBeNull();
   });
 });

@@ -103,3 +103,18 @@ describe('US-023 AC-3: failing Git hooks', () => {
     expect(sh(repo, 'status', '--porcelain')).toBe('?? spec/02_requirements/nfr.md');
   });
 });
+
+describe('US-078 AC-2: spec commits below a configured specification root', () => {
+  it('lists and commits files below docs/spec but not a top-level spec/ folder', async () => {
+    const repo = makeRepo('sf-speccommit-root-');
+    commitFile(repo, 'README.md', '# x\n', 'init');
+    write(repo, 'docs/spec/02_requirements/fr.md', '# FR\n');
+    write(repo, 'spec/user_spec.rb', 'describe\n');
+    const commits = new SpecCommits(undefined, 'docs/spec');
+
+    expect(await commits.status(repo)).toEqual([{ path: 'docs/spec/02_requirements/fr.md', change: 'A' }]);
+    await expect(commits.commit(repo, ['spec/user_spec.rb'], 'x')).rejects.toThrow(/docs\/spec\/\*\*/);
+    expect(await commits.commit(repo, ['docs/spec/02_requirements/fr.md'], 'Spec')).toMatchObject({ ok: true });
+    expect(sh(repo, 'status', '--porcelain')).toBe('?? spec/');
+  });
+});

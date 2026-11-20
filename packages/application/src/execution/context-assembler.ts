@@ -2,7 +2,7 @@
 // ContextAssembler (US-050, FR-037, FR-068, FR-099): the prompt of an implementation or correction run — story with
 // acceptance criteria, project instructions, predecessors, epic goal and siblings, linked specification elements,
 // concurrently running stories, scope rule and result schema — deterministically truncated to a size budget.
-import type { BoardStatus, StartKind } from '@specforge/domain';
+import { specLayout, type BoardStatus, type StartKind } from '@specforge/domain';
 import { RESULT_INSTRUCTION } from './result-parser.js';
 
 export interface StoryInfo {
@@ -27,6 +27,8 @@ export interface ContextInput {
   concurrent: { id: string; title: string; touchedFiles: string[] }[];
   /** Maximum prompt size in characters. */
   budget: number;
+  /** The project's specification root (US-078); `spec` when absent. */
+  specRoot?: string;
 }
 
 export interface AssembledContext {
@@ -46,12 +48,13 @@ const STATUS: Record<BoardStatus, string> = {
   done: 'Done',
 };
 
-const SYSTEM_APPEND = [
-  'You are working on one user story in an isolated workspace managed by SpecForge.',
-  'Implement only this story. Do not modify files in spec/ or .specforge/; report missing specification changes or missing dependencies in your final message.',
-  'Run the project tests before you finish and summarise what you changed.',
-  RESULT_INSTRUCTION,
-].join('\n');
+const systemAppend = (specRoot: string): string =>
+  [
+    'You are working on one user story in an isolated workspace managed by SpecForge.',
+    `Implement only this story. Do not modify files in ${specRoot}/ or .specforge/; report missing specification changes or missing dependencies in your final message.`,
+    'Run the project tests before you finish and summarise what you changed.',
+    RESULT_INSTRUCTION,
+  ].join('\n');
 
 function stripFrontMatter(content: string): string {
   const text = content.replace(/\r\n/g, '\n');
@@ -130,5 +133,5 @@ export function assembleContext(input: ContextInput): AssembledContext {
   const prompt = [...fixed, ...(linked.length ? ['', '## Linked specification', ...linked.flatMap((l) => [l, ''])] : [])]
     .join('\n')
     .trimEnd();
-  return { prompt, systemAppend: SYSTEM_APPEND, truncated };
+  return { prompt, systemAppend: systemAppend(specLayout(input.specRoot).root), truncated };
 }

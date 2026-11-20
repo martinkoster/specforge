@@ -13,6 +13,10 @@ export interface TraceNode {
   /** Run of a changed file (to open its diff). */
   runId?: string;
   exists: boolean;
+  /** Feature trace type of the link to the traced element (`introduces` / `changes` / `reworks`, US-081 AC-3). */
+  linkType?: string;
+  /** Potentially impacted: the reason (US-086). */
+  impact?: string;
 }
 
 export interface Trace {
@@ -33,6 +37,10 @@ export interface TraceDeps {
   runFiles(runId: string): string[];
   fileRuns(projectId: string, path: string): { runId: string; storyId: string }[];
   allLinks(projectId: string): { source: string; target: string; artifactPath: string }[];
+  /** Type of the link `source → target` (US-081); untyped links are `references`. */
+  linkType?(projectId: string, source: string, target: string): string | undefined;
+  /** Reason of a potentially impacted flag of `id` (US-086). */
+  impact?(projectId: string, id: string): string | undefined;
 }
 
 /** Intent decisions (D12) are referenced in text but are not indexed elements. */
@@ -64,7 +72,20 @@ export class TraceService {
   private node(projectId: string, id: string): TraceNode {
     const e = this.deps.element(projectId, id);
     if (!e) return { kind: id.startsWith('US-') ? 'story' : 'element', id, label: id, exists: false };
-    return { kind: e.type === 'story' ? 'story' : 'element', id, label: `${id}: ${e.title}`, path: e.artifactPath, exists: true };
+    const impact = this.deps.impact?.(projectId, id);
+    return {
+      kind: e.type === 'story' ? 'story' : 'element',
+      id,
+      label: `${id}: ${e.title}`,
+      path: e.artifactPath,
+      exists: true,
+      ...(impact ? { impact } : {}),
+    };
+  }
+
+  private typed(node: TraceNode, projectId: string, source: string, target: string): TraceNode {
+    const type = this.deps.linkType?.(projectId, source, target);
+    return type && type !== 'references' ? { ...node, linkType: type } : node;
   }
 
   private runNode(runId: string, status: string, createdAt: string): TraceNode {
@@ -77,11 +98,11 @@ export class TraceService {
     const upstream = this.deps
       .linkTargets(projectId, id)
       .filter((t) => !DECISION.test(t))
-      .map((t) => this.node(projectId, t))
+      .map((t) => this.typed(this.node(projectId, t), projectId, id, t))
       .sort(byId);
     const downstream = this.deps
       .linkSources(projectId, id)
-      .map((s) => this.node(projectId, s))
+      .map((s) => this.typed(this.node(projectId, s), projectId, s, id))
       .sort(byId);
     if (node.kind === 'story') {
       downstream.push(...this.deps.storyRuns(projectId, id).map((r) => this.runNode(r.runId, r.status, r.createdAt)));

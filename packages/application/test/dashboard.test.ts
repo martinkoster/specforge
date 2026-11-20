@@ -89,3 +89,23 @@ describe('US-061: dashboard read model', () => {
     expect(buildDashboard({ ...input, runs: many }).activity).toHaveLength(10);
   });
 });
+
+describe('US-078 AC-1: dashboard artifacts below the specification root', () => {
+  it('groups artifacts by the phase folders of docs/spec', () => {
+    const d = buildDashboard({
+      ...input,
+      specRoot: 'docs/spec',
+      artifacts: [
+        { path: 'docs/spec/01_intent/intent.md', kind: 'intent', approval: 'approved', impacted: false },
+        { path: 'docs/spec/04_user_stories/US-001.md', kind: 'story', approval: 'draft', impacted: false },
+        { path: 'spec/02_requirements/fr.md', kind: 'other', approval: 'draft', impacted: false },
+      ],
+    });
+    expect(d.artifacts.map((a) => [a.phase, a.items.map((i) => i.path)])).toEqual([
+      ['intent', ['docs/spec/01_intent/intent.md']],
+      ['requirements', []],
+      ['design', []],
+      ['stories', ['docs/spec/04_user_stories/US-001.md']],
+    ]);
+  });
+});

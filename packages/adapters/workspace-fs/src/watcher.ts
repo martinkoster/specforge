@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Watches the main workspace's artifacts and reports debounced batches of changed paths (FR-018, FR-116a).
+import { DEFAULT_SPEC_ROOT } from '@specforge/domain';
 import { existsSync, realpathSync } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
 import { watch } from 'chokidar';
@@ -21,7 +22,7 @@ export async function watchWorkspace(root: string, options: WatchOptions, onChan
   // Expand Windows 8.3 short names (e.g. JOHNDO~1): libuv's fs-event watcher asserts when reported
   // file names do not share the spelling of the watched directory.
   const base = realpathSync.native(resolve(root));
-  const roots = options.artifactRoots ?? ['spec', '.specforge'];
+  const roots = options.artifactRoots ?? [DEFAULT_SPEC_ROOT, '.specforge'];
   const ignoreDirs = (options.ignore ?? []).map((p) => (existsSync(p) ? realpathSync.native(resolve(p)) : resolve(p)));
   const pending = new Set<string>();
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -31,7 +32,9 @@ export async function watchWorkspace(root: string, options: WatchOptions, onChan
     if (full === base) return false;
     if (ignoreDirs.some((d) => full === d || full.startsWith(d + sep))) return true;
     const parts = relative(base, full).split(sep);
-    if (!roots.includes(parts[0]!)) return true;
+    // Inside an artifact root, or a folder on the way to a nested one (`docs` for `docs/spec`, US-078).
+    const rel = parts.join('/');
+    if (!roots.some((r) => rel === r || rel.startsWith(`${r}/`) || (r.startsWith(`${rel}/`) && stats?.isFile() !== true))) return true;
     if (parts.some((p) => SKIPPED.has(p))) return true;
     if (stats?.isDirectory() && parts.length > 1 && existsSync(join(full, '.git'))) return true; // nested repository / worktree
     if (stats?.isFile() && !full.endsWith('.md')) return true;

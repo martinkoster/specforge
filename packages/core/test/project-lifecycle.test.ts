@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // US-018/US-019 integration: real folders, git and SQLite through the core composition root, including a restart.
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative, sep } from 'node:path';
 import { MessageChannel, type MessagePort } from 'node:worker_threads';
 import { connectClient, serveContract, type ContractClient, type PortLike } from '@specforge/ipc-contract';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -66,7 +67,7 @@ describe('US-068: folder-first project creation in the core', () => {
     writeFileSync(join(code, 'main.c'), 'int main(void) { return 0; }\n');
 
     await expect(client.query('projects.inspectFolder', { path: empty })).resolves.toEqual({ kind: 'empty' });
-    await expect(client.query('projects.inspectFolder', { path: code })).resolves.toEqual({ kind: 'notEmpty' });
+    await expect(client.query('projects.inspectFolder', { path: code })).resolves.toMatchObject({ kind: 'notEmpty' });
     await expect(client.command('projects.create', { name: 'Code', path: code, initGit: false })).rejects.toMatchObject({
       code: 'FOLDER_NOT_EMPTY',
     });
@@ -134,4 +135,72 @@ describe('US-019: open an existing project end-to-end in the core', () => {
 
     expect(await client.query('shell.state', {})).toMatchObject({ currentProjectId: null, vcs: null });
   });
+});
+
+/** SHA-256 of every file below `dir` (relative paths), skipping `.git` and `.specforge`. */
+function hashes(dir: string, root = dir, out: Record<string, string> = {}): Record<string, string> {
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry);
+    if (entry === '.git' || entry === '.specforge') continue;
+    if (statSync(full).isDirectory()) hashes(full, root, out);
+    else out[relative(root, full).split(sep).join('/')] = createHash('sha256').update(readFileSync(full)).digest('hex');
+  }
+  return out;
+}
+
+describe('US-079: adopt an existing code folder in the core', () => {
+  it('AC-2/AC-4: adopts a Rails-style folder below docs/spec with Git init; existing files stay unmodified and untracked', async () => {
+    const { client } = await boot(tmp('sf-app-'));
+    const code = tmp('sf-adopt-');
+    writeFileSync(join(code, 'Gemfile'), "source 'https://rubygems.org'\n");
+    mkdirSync(join(code, 'spec'));
+    writeFileSync(join(code, 'spec', 'user_spec.rb'), 'describe "user" do\nend\n');
+    mkdirSync(join(code, 'app'));
+    writeFileSync(join(code, 'app', 'user.rb'), 'class User; end\n');
+    const before = hashes(code);
+
+    const inspection = await client.query('projects.inspectFolder', { path: code });
+    expect(inspection).toEqual({ kind: 'notEmpty', git: 'none', suggestedSpecRoot: 'docs/spec' });
+    expect(await client.query('projects.checkSpecRoot', { path: code, specRoot: 'spec' })).toEqual({
+      problem: expect.stringContaining('not empty'),
+    });
+
+    const opened = await client.command('projects.adopt', { name: 'Rails', path: code, specRoot: 'docs/spec', initGit: true });
+
+    expect(opened).toMatchObject({ name: 'Rails', specRoot: 'docs/spec', vcs: { mode: 'git' } });
+    expect(readFileSync(join(code, '.specforge', 'project.yaml'), 'utf8')).toContain('specRoot: docs/spec');
+    expect(existsSync(join(code, 'docs', 'spec', '01_intent'))).toBe(true);
+    const after = hashes(code);
+    for (const [file, hash] of Object.entries(before)) expect(after[file], file).toBe(hash);
+    const git = (...args: string[]) => execFileSync('git', args, { cwd: code, encoding: 'utf8' }).trim();
+    expect(
+      git('ls-files')
+        .split('\n')
+        .every((f) => f.startsWith('.specforge/') || f.startsWith('docs/spec/')),
+    ).toBe(true);
+    expect(git('status', '--porcelain').split('\n').sort()).toEqual(['?? Gemfile', '?? app/', '?? spec/']);
+    expect(await client.query('shell.state', {})).toMatchObject({ currentProjectId: opened.id, specRoot: 'docs/spec' });
+  }, 60_000);
+
+  it('AC-5: a subfolder of a repository is rejected; a folder with metadata is opened instead', async () => {
+    const { client } = await boot(tmp('sf-app-'));
+    const repo = tmp('sf-adopt-repo-');
+    execFileSync('git', ['init', '-q'], { cwd: repo });
+    mkdirSync(join(repo, 'pkg'));
+    writeFileSync(join(repo, 'pkg', 'index.ts'), 'export {};\n');
+
+    expect(await client.query('projects.inspectFolder', { path: join(repo, 'pkg') })).toMatchObject({ git: 'subfolder' });
+    await expect(
+      client.command('projects.adopt', { name: 'Pkg', path: join(repo, 'pkg'), specRoot: 'spec', initGit: false }),
+    ).rejects.toMatchObject({ code: 'NOT_REPOSITORY_ROOT', message: expect.stringContaining('Choose the repository root') });
+    expect(existsSync(join(repo, 'pkg', '.specforge'))).toBe(false);
+
+    const ws = tmp('sf-adopt-meta-');
+    mkdirSync(join(ws, '.specforge'));
+    writeFileSync(join(ws, '.specforge', 'project.yaml'), 'id: meta-1\nname: Meta\nschemaVersion: 1\n');
+    expect(await client.command('projects.adopt', { name: 'X', path: ws, specRoot: 'docs/spec', initGit: false })).toMatchObject({
+      id: 'meta-1',
+      specRoot: 'spec',
+    });
+  }, 60_000);
 });

@@ -9,6 +9,7 @@ import { ArtifactAiPanel, headingLine } from './ArtifactAiPanel.js';
 import { EpicsPanel } from './EpicsPanel.js';
 import { GeneratePanel } from './GeneratePanel.js';
 import { TracePanel, elementIdsOf } from './TracePanel.js';
+import { useSpecLayout } from './spec-layout-context.js';
 
 export interface SpecificationsAreaProps {
   session: CoreSession;
@@ -21,8 +22,6 @@ export interface SpecificationsAreaProps {
   initialPath?: string | null;
 }
 
-const PHASE_FOLDER = { requirements: 'spec/02_requirements/', design: 'spec/03_design/', stories: 'spec/04_user_stories/' } as const;
-
 export function SpecificationsArea({
   session,
   projectId,
@@ -30,6 +29,7 @@ export function SpecificationsArea({
   phase = null,
   initialPath = null,
 }: SpecificationsAreaProps) {
+  const layout = useSpecLayout();
   const [groups, setGroups] = useState<ArtifactGroups | undefined>();
   const [selected, setSelected] = useState<string | null>(null);
   const [doc, setDoc] = useState<{ path: string; content: string; hash: string } | undefined>();
@@ -120,7 +120,7 @@ export function SpecificationsArea({
             groups={
               phase
                 ? groups
-                    .map((g) => ({ ...g, artifacts: g.artifacts.filter((a) => a.path.startsWith(PHASE_FOLDER[phase])) }))
+                    .map((g) => ({ ...g, artifacts: g.artifacts.filter((a) => a.path.startsWith(`${layout.folders[phase]}/`)) }))
                     .filter((g) => g.artifacts.length > 0)
                 : groups
             }

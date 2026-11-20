@@ -163,6 +163,7 @@ export function AppShell({
           <select
             className="select"
             aria-label="Project"
+            title={state.specRoot ? `Specifications in ${state.specRoot}/` : undefined}
             value={state.currentProjectId ?? ''}
             onChange={(e) => onSwitchProject(e.target.value)}
           >

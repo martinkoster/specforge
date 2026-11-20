@@ -54,6 +54,11 @@ export function PhaseStepper({ status, current, onOpen }: PhaseStepperProps) {
 
   return (
     <div className="phase-stepper">
+      {status.maintenance && (
+        <span className="badge badge-success" title="All initial epics are Done; new work comes as features.">
+          Maintenance
+        </span>
+      )}
       <nav aria-label="Phases">
         {status.phases.map((p) => (
           <button

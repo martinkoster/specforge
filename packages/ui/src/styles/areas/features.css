@@ -1,0 +1,249 @@
+/* SPDX-License-Identifier: Apache-2.0 */
+/* Feature workflow (US-082, UF-17): wizard sheet with step indicator, file preview and the feature stepper. */
+@layer areas {
+  .feature-wizard {
+    width: min(40rem, 100vw);
+  }
+
+  .wizard-steps,
+  .feature-steps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin: 0 0 var(--space-4);
+    padding: 0;
+    list-style: none;
+  }
+
+  .wizard-steps li,
+  .feature-steps li {
+    padding: var(--space-1) var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-full);
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+  }
+
+  .wizard-steps li[aria-current='step'] {
+    border-color: var(--accent);
+    background: var(--accent-subtle);
+    color: var(--accent-text);
+  }
+
+  .feature-steps li.feature-step-done {
+    border-color: var(--success);
+    background: var(--success-subtle);
+    color: var(--text);
+  }
+
+  .wizard-describe,
+  .wizard-save {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .wizard-describe details {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .wizard-preview {
+    max-height: 22rem;
+    overflow: auto;
+    padding: var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    white-space: pre-wrap;
+  }
+
+  .add-feature {
+    display: inline-flex;
+    gap: var(--space-1);
+    align-items: center;
+  }
+
+  .feature-drafts {
+    display: grid;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .wizard-review {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .wizard-output {
+    max-height: 10rem;
+    overflow: auto;
+    padding: var(--space-2);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    font-family: var(--font-mono);
+    font-size: var(--text-xs);
+    white-space: pre-wrap;
+  }
+
+  .wizard-review-columns {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+    gap: var(--space-4);
+  }
+
+  .enhanced-draft ul,
+  .review-findings ul {
+    display: grid;
+    gap: var(--space-2);
+    margin: 0 0 var(--space-3);
+    padding: 0;
+    list-style: none;
+  }
+
+  .draft-part {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: center;
+  }
+
+  .draft-part-removed > span:first-child {
+    color: var(--text-subtle);
+    text-decoration: line-through;
+  }
+
+  .draft-part-actions,
+  .question-options,
+  .callout-actions {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+  }
+
+  .question-card {
+    display: grid;
+    gap: var(--space-2);
+    margin: 0 0 var(--space-3);
+    padding: var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+  }
+
+  .feature-page {
+    display: grid;
+    gap: var(--space-4);
+  }
+
+  .feature-stepper,
+  .feature-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+  }
+
+  .feature-tabs [aria-selected='true'] {
+    border-color: var(--accent);
+    color: var(--accent-text);
+  }
+
+  .feature-list {
+    display: grid;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .feature-card {
+    display: grid;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+  }
+
+  .mini-stepper {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .mini-step {
+    padding: 0 var(--space-2);
+    border-radius: var(--radius-full);
+    background: var(--surface);
+    color: var(--text-muted);
+    font-size: var(--text-xs);
+  }
+
+  .mini-step-done {
+    background: var(--success-subtle);
+    color: var(--text);
+  }
+
+  .mini-step[aria-current='step'] {
+    background: var(--accent-subtle);
+    color: var(--accent-text);
+    font-weight: 600;
+  }
+
+  .feature-card-meta {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: var(--text-sm);
+  }
+
+  .impact-panel {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .impact-columns {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+    gap: var(--space-4);
+  }
+
+  .impact-column ul {
+    display: grid;
+    gap: var(--space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .impact-item p {
+    margin: var(--space-1) 0 0;
+  }
+
+  .impact-add {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    align-items: end;
+  }
+
+  .changes-panel {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .change-file ul {
+    display: grid;
+    gap: var(--space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .change-item.change-discarded {
+    opacity: 0.6;
+  }
+}

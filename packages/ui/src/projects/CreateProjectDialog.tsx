@@ -17,8 +17,8 @@ export interface CreateProjectDialogProps {
   onCancel(): void;
 }
 
-/** Shown for a picked folder with other content: adopting existing code is Release 2 (FR-079). */
-export const ADOPT_IN_RELEASE_2 = 'Choose an empty folder — adopting existing code arrives in Release 2.';
+/** Shown for a picked folder with other content: such folders are adopted instead (FR-079, US-079). */
+export const ADOPT_HINT = 'Choose an empty folder, or use "Adopt existing code" for a folder that already contains code.';
 
 /** Last segment of a Windows or POSIX path; empty for a drive or file-system root. */
 export function folderBaseName(path: string): string {

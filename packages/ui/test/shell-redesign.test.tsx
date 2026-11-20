@@ -165,6 +165,7 @@ describe('US-072 AC-4: phase stepper', () => {
       { phase: 'kanban', state: 'not_started', step: 'write', enabled: false, unapprovedInputs: [] },
     ],
     recommended: 'requirements',
+    maintenance: false,
   };
 
   it('shows each step with a status icon and its label; names and keyboard access are unchanged', async () => {

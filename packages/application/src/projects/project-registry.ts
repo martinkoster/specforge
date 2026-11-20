@@ -41,7 +41,15 @@ export interface RecentProject {
 }
 
 export type ProjectRegistryErrorCode =
-  'NOT_FOUND' | 'INVALID_NAME' | 'INVALID_FOLDER' | 'FOLDER_NOT_EMPTY' | 'RUNS_ACTIVE' | 'FOLDER_MISSING' | 'NOT_A_PROJECT';
+  | 'NOT_FOUND'
+  | 'INVALID_NAME'
+  | 'INVALID_FOLDER'
+  | 'FOLDER_NOT_EMPTY'
+  | 'RUNS_ACTIVE'
+  | 'FOLDER_MISSING'
+  | 'NOT_A_PROJECT'
+  | 'INVALID_SPEC_ROOT'
+  | 'NOT_REPOSITORY_ROOT';
 
 export class ProjectRegistryError extends Error {
   constructor(

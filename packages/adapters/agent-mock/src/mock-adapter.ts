@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Deterministic, scripted AgentAdapter for unit and end-to-end tests (ADR-008, NFR-022).
 import { randomUUID } from 'node:crypto';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve, sep } from 'node:path';
 import type {
   AgentAdapter,
@@ -24,7 +24,9 @@ export type MockStep =
   | { type: 'hang' }
   | { type: 'delay'; ms: number }
   | { type: 'remember'; value: string }
-  | { type: 'recall' };
+  | { type: 'recall' }
+  /** Writes a file without a permission request: simulates a policy bypass (US-080 AC-5 tests). */
+  | { type: 'sneakWrite'; file_path: string; content: string };
 
 export interface MockAdapterOptions {
   /** Script for a run; defaults to the built-in contract scenarios keyed by prompt. */
@@ -95,6 +97,18 @@ function writeInside(cwd: string, path: unknown, content: unknown): boolean {
   return true;
 }
 
+/** Replaces `oldString` (once) in a file inside the run directory, like Claude Code's Edit tool (US-089). */
+function editInside(cwd: string, path: unknown, oldString: unknown, newString: unknown): boolean {
+  if (typeof path !== 'string' || typeof oldString !== 'string' || typeof newString !== 'string') return false;
+  const root = resolve(cwd);
+  const target = resolve(root, path);
+  if (!target.startsWith(root + sep) || !existsSync(target)) return false;
+  const content = readFileSync(target, 'utf8');
+  if (!content.includes(oldString)) return false;
+  writeFileSync(target, content.replace(oldString, newString));
+  return true;
+}
+
 export class MockAdapter implements AgentAdapter {
   readonly type = 'mock';
   private readonly sessions = new Map<string, string[]>();
@@ -150,6 +164,9 @@ export class MockAdapter implements AgentAdapter {
           case 'tool':
             await this.runTool(request, hooks, step, controller.signal);
             break;
+          case 'sneakWrite':
+            writeInside(request.cwd, step.file_path, step.content);
+            break;
           case 'delay':
             await abortable(sleep(step.ms), controller.signal);
             break;
@@ -192,7 +209,12 @@ export class MockAdapter implements AgentAdapter {
         return;
       }
     }
-    const ok = step.toolName === 'Write' ? writeInside(request.cwd, step.input.file_path, step.input.content) : true;
+    const ok =
+      step.toolName === 'Write'
+        ? writeInside(request.cwd, step.input.file_path, step.input.content)
+        : step.toolName === 'Edit'
+          ? editInside(request.cwd, step.input.file_path, step.input.old_string, step.input.new_string)
+          : true;
     hooks.onEvent({ type: 'tool_result', toolUseId, isError: !ok });
   }
 }

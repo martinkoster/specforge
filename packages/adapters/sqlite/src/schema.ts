@@ -12,7 +12,7 @@ export interface IndexTable {
  * Workspace index tables: rebuildable from the Markdown files at any time (ADR-004).
  * DB-only state (board order, execution sub-state, epic layout) lives in separate tables so a rebuild never loses it.
  */
-export const INDEX_TABLES: readonly IndexTable[] = [
+const R1_INDEX_TABLES: readonly IndexTable[] = [
   {
     name: 'artifact',
     ddl: `create table artifact (
@@ -105,6 +105,42 @@ export const INDEX_TABLES: readonly IndexTable[] = [
   },
 ];
 
+/** Feature intents (US-081, data_model.md §2.5); added by migration 21. */
+const FEATURE_INTENT_TABLE: IndexTable = {
+  name: 'feature_intent',
+  ddl: `create table feature_intent (
+      project_id text not null references project(id) on delete cascade,
+      feature_id text not null,
+      title text not null,
+      approval_state text not null,
+      status text not null,
+      source_idea text,
+      baseline_tag text,
+      primary key (project_id, feature_id)
+    )`,
+};
+
+/** Release 2 element table (US-086): content hash per element; impact flags moved to `impact_flag` (ADR-025). */
+const ELEMENT_TABLE: IndexTable = {
+  name: 'element',
+  ddl: `create table element (
+      project_id text not null references project(id) on delete cascade,
+      element_id text not null,
+      type text not null,
+      title text not null,
+      artifact_path text not null,
+      anchor text,
+      content_hash text,
+      primary key (project_id, element_id)
+    );
+    create index element_by_artifact on element (project_id, artifact_path)`,
+};
+
+export const INDEX_TABLES: readonly IndexTable[] = [
+  ...R1_INDEX_TABLES.map((t) => (t.name === 'element' ? ELEMENT_TABLE : t)),
+  FEATURE_INTENT_TABLE,
+];
+
 export const MIGRATIONS: readonly Migration[] = [
   {
     version: 1,
@@ -122,7 +158,7 @@ export const MIGRATIONS: readonly Migration[] = [
   {
     version: 2,
     name: 'workspace_index',
-    sql: INDEX_TABLES.map((t) => `${t.ddl};`).join('\n'),
+    sql: R1_INDEX_TABLES.map((t) => `${t.ddl};`).join('\n'),
   },
   {
     version: 3,
@@ -149,7 +185,9 @@ export const MIGRATIONS: readonly Migration[] = [
     version: 4,
     name: 'index_trace_link_artifact_path',
     // Index tables are rebuildable by design: recreate them with the current definitions.
-    sql: [...[...INDEX_TABLES].reverse().map((t) => `drop table if exists ${t.name};`), ...INDEX_TABLES.map((t) => `${t.ddl};`)].join('\n'),
+    sql: [...[...R1_INDEX_TABLES].reverse().map((t) => `drop table if exists ${t.name};`), ...R1_INDEX_TABLES.map((t) => `${t.ddl};`)].join(
+      '\n',
+    ),
   },
   {
     version: 5,
@@ -458,6 +496,111 @@ export const MIGRATIONS: readonly Migration[] = [
     sql: `alter table story_state add column correction_feedback text;
     alter table story_state add column correction_fresh integer;`,
   },
+  {
+    version: 20,
+    name: 'project-spec-root',
+    // Specification root per project (US-078, ADR-024), cached from .specforge/project.yaml; Release 1 projects use spec.
+    sql: `alter table project add column spec_root text not null default 'spec';`,
+  },
+  {
+    version: 21,
+    name: 'feature_intent',
+    // Feature intents in the workspace index (US-081, ADR-021); story/epic feature_id and reworks exist since migration 2.
+    sql: `${FEATURE_INTENT_TABLE.ddl};`,
+  },
+  {
+    version: 22,
+    name: 'feature_wizard',
+    // Resumable feature wizard drafts (US-082, ADR-025): workflow state, not part of the rebuildable index.
+    sql: `create table feature_wizard (
+      id text primary key,
+      project_id text not null references project(id) on delete cascade,
+      step text not null,
+      draft text not null,
+      session_id text,
+      source_idea text,
+      feature_id text,
+      updated_at text not null
+    );
+    create index feature_wizard_by_project on feature_wizard (project_id, updated_at desc);`,
+  },
+  {
+    version: 23,
+    name: 'impact_flag',
+    // Potentially impacted flags as workflow state (US-086, ADR-025); the R1 index columns were never set persistently.
+    sql: `create table impact_flag (
+      project_id text not null references project(id) on delete cascade,
+      element_id text not null,
+      source_ref text not null,
+      reason text not null,
+      flagged_at text not null,
+      primary key (project_id, element_id)
+    );
+    alter table element drop column impact_flag;
+    alter table element drop column impact_source;
+    alter table element add column content_hash text;`,
+  },
+  {
+    version: 24,
+    name: 'impact_item',
+    // Feature impact items (US-087, ADR-025): trace, agent and user items; confirmed by *Approve impact*.
+    sql: `create table impact_item (
+      id text primary key,
+      project_id text not null references project(id) on delete cascade,
+      feature_id text not null,
+      category text not null,
+      target_ref text not null,
+      reason text not null,
+      confidence text not null,
+      origin text not null,
+      confirmed integer not null default 0
+    );
+    create index impact_item_by_feature on impact_item (project_id, feature_id);`,
+  },
+  {
+    version: 25,
+    name: 'change_set',
+    // Delta change sets and items (US-089, ADR-021): the section text before/after per element for applying (US-090).
+    sql: `create table change_set (
+      id text primary key,
+      project_id text not null references project(id) on delete cascade,
+      feature_id text not null,
+      phase text not null,
+      run_id text not null,
+      state text not null,
+      reason text,
+      created_at text not null
+    );
+    create index change_set_by_feature on change_set (project_id, feature_id, phase);
+    create table change_item (
+      id text primary key,
+      change_set_id text not null references change_set(id) on delete cascade,
+      path text not null,
+      element_id text,
+      kind text not null,
+      before_text text,
+      after_text text not null,
+      patch text not null,
+      state text not null
+    );
+    create index change_item_by_set on change_item (change_set_id);`,
+  },
+  {
+    version: 26,
+    name: 'in_flight_decision',
+    // In-flight decisions when applying change sets (US-091, FR-110, ADR-025).
+    sql: `create table in_flight_decision (
+      id text primary key,
+      project_id text not null references project(id) on delete cascade,
+      story_id text not null,
+      feature_id text not null,
+      change_set_id text not null,
+      decision text not null,
+      pending_feedback text,
+      decided_at text not null
+    );
+    create index in_flight_decision_by_story on in_flight_decision (project_id, story_id);`,
+  },
 ];
 
 /** "Rebuild index": drops and recreates all workspace index tables in one transaction. */
@@ -475,6 +618,7 @@ export interface ProjectTable {
   workspace_path: string;
   vcs_mode: 'git' | 'none';
   base_branch: string | null;
+  spec_root: string;
   created_at: string;
   last_opened_at: string | null;
 }

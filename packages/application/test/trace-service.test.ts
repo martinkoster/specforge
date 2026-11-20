@@ -86,3 +86,47 @@ describe('US-034 AC-3: validation of all links', () => {
     ]);
   });
 });
+
+describe('US-081 AC-3: feature trace types in the traceability panel', () => {
+  it('marks introduces / changes / reworks links of a feature intent; plain references stay unmarked', () => {
+    const featureElements: Record<string, { type: string; title: string; artifactPath: string }> = {
+      ...elements,
+      'FI-003': { type: 'feature_intent', title: 'Comments', artifactPath: 'spec/01_intent/FI-003-comments.md' },
+      'US-020': { type: 'story', title: 'Comment list', artifactPath: 'spec/04_user_stories/US-020.md' },
+    };
+    const featureLinks: Record<string, string[]> = { 'FR-001': ['FI-003'], 'US-020': ['FI-003', 'US-001'], 'UC-001': ['FI-003'] };
+    const types: Record<string, string> = { 'FR-001>FI-003': 'changes', 'US-020>FI-003': 'introduces', 'US-020>US-001': 'reworks' };
+    const typed = new TraceService({
+      ...deps,
+      element: (_p, id) => featureElements[id],
+      linkTargets: (_p, id) => featureLinks[id] ?? [],
+      linkSources: (_p, id) => Object.keys(featureLinks).filter((s) => featureLinks[s]!.includes(id)),
+      storyRuns: () => [],
+      linkType: (_p, source, target) => types[`${source}>${target}`] ?? 'references',
+    });
+
+    const fi = typed.trace('p1', { kind: 'element', id: 'FI-003' });
+    expect(fi.downstream.map((n) => [n.id, n.linkType])).toEqual([
+      ['FR-001', 'changes'],
+      ['UC-001', undefined],
+      ['US-020', 'introduces'],
+    ]);
+    expect(typed.trace('p1', { kind: 'element', id: 'US-020' }).upstream.map((n) => [n.id, n.linkType])).toEqual([
+      ['FI-003', 'introduces'],
+      ['US-001', 'reworks'],
+    ]);
+  });
+});
+
+describe('US-086 AC-4: impact flags on trace nodes', () => {
+  it('marks flagged elements with the reason', () => {
+    const flagged = new TraceService({
+      ...deps,
+      impact: (_p, id) => (id === 'US-001' ? 'FR-001 changed after it was approved.' : undefined),
+    });
+    const down = flagged.trace('p1', { kind: 'element', id: 'FR-001' }).downstream;
+    expect(down.find((n) => n.id === 'US-001')?.impact).toBe('FR-001 changed after it was approved.');
+    expect(down.find((n) => n.id === 'UC-001')).not.toHaveProperty('impact');
+    expect(flagged.trace('p1', { kind: 'element', id: 'US-001' }).node.impact).toBe('FR-001 changed after it was approved.');
+  });
+});

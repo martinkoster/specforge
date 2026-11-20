@@ -172,3 +172,21 @@ describe('US-007 AC-4: index tables can be dropped and rebuilt', () => {
     expect(await repo.list()).toHaveLength(1);
   });
 });
+
+describe('US-078 AC-1: the registry caches the specification root', () => {
+  it('stores spec by default and updates it', async () => {
+    const repo = new ProjectRepository(open().db);
+    await repo.create({ id: 'p1', name: 'A', workspacePath: '/w/a', vcsMode: 'git', baseBranch: 'main' });
+    await repo.create({ id: 'p2', name: 'B', workspacePath: '/w/b', vcsMode: 'git', baseBranch: 'main', specRoot: 'docs/spec' });
+    expect((await repo.get('p1'))?.specRoot).toBe('spec');
+    expect((await repo.get('p2'))?.specRoot).toBe('docs/spec');
+    await repo.setSpecRoot('p1', 'specs');
+    expect((await repo.get('p1'))?.specRoot).toBe('specs');
+  });
+
+  it('migrates Release 1 registries: existing projects get spec', () => {
+    const db = open();
+    const columns = db.sqlite.prepare('pragma table_info(project)').all() as Array<{ name: string; dflt_value: string | null }>;
+    expect(columns.find((c) => c.name === 'spec_root')?.dflt_value).toBe("'spec'");
+  });
+});

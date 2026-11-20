@@ -34,6 +34,7 @@ function renderWizard(overrides: Partial<Parameters<typeof StartWizard>[0]> = {}
     recent,
     onOpenExisting: vi.fn(),
     onCreateNew: vi.fn(),
+    onAdoptExisting: vi.fn(),
     onOpenRecent: vi.fn(),
     onRename: vi.fn(async () => undefined),
     onRemove: vi.fn(async () => undefined),
@@ -47,14 +48,16 @@ function renderWizard(overrides: Partial<Parameters<typeof StartWizard>[0]> = {}
 const row = (name: string) => screen.getByRole('listitem', { name });
 
 describe('US-017 AC-1: start wizard', () => {
-  it('offers Open existing project and Create new project', async () => {
+  it('offers Open existing project, Create new project and Adopt existing code (US-079 AC-1)', async () => {
     const props = renderWizard();
 
     await userEvent.click(screen.getByRole('button', { name: 'Open existing project' }));
     await userEvent.click(screen.getByRole('button', { name: 'Create new project' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Adopt existing code' }));
 
     expect(props.onOpenExisting).toHaveBeenCalled();
     expect(props.onCreateNew).toHaveBeenCalled();
+    expect(props.onAdoptExisting).toHaveBeenCalled();
   });
 
   it('lists recent projects with name, path, last opened and phase', async () => {

@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Trace panel (US-034, UC-009, FR-016/FR-055): upstream and downstream links of an element, story, run or changed file;
-// links navigate; changed files open as diff or in the default editor; unknown IDs are listed as issues.
-import { Callout } from '../components/index.js';
+// links navigate; changed files open as diff or in the default editor; unknown IDs are listed as issues; feature trace
+// types (introduces / changes / reworks, US-081) are labelled.
+import { Callout, StatusBadge } from '../components/index.js';
 import { useEffect, useState } from 'react';
 import type { QueryInput, QueryOutput } from '@specforge/ipc-contract';
 import type { CoreSession } from '../core/core-session.js';
@@ -11,9 +12,9 @@ type Trace = QueryOutput<'trace.get'>;
 export type TraceNode = Trace['node'];
 type Target = QueryInput<'trace.get'>['target'];
 
-const ID = /^(?:#{1,6}\s+((?:FR|NFR|CON|UC|BP|UF|ADR|EP|US|FI|TC)-\d{1,4}):|id:\s*((?:US|EP)-\d{1,4})\s*$)/;
+const ID = /^(?:#{1,6}\s+((?:FR|NFR|CON|UC|BP|UF|ADR|EP|US|FI|TC)-\d{1,4}):|id:\s*((?:US|EP|FI)-\d{1,4})\s*$)/;
 
-/** Element IDs of an artifact: its element headings and the story/epic ID of the front-matter. */
+/** Element IDs of an artifact: its element headings and the story/epic/feature intent ID of the front-matter. */
 export function elementIdsOf(content: string): string[] {
   return content.split('\n').flatMap((line) => {
     const m = ID.exec(line.trim());
@@ -98,6 +99,18 @@ export function TracePanel({ session, projectId, elements, onNavigate, root }: T
             <button type="button" className="link" disabled={!n.exists} onClick={() => follow(n)}>
               {n.exists ? n.label : `${n.label} (unknown)`}
             </button>
+          )}
+          {n.impact && (
+            <>
+              {' '}
+              <StatusBadge status="impacted" label="Potentially impacted" title={n.impact} />
+            </>
+          )}
+          {n.linkType && (
+            <>
+              {' '}
+              <StatusBadge status={n.linkType} label={n.linkType} tone="info" />
+            </>
           )}
         </li>
       ))}

@@ -20,6 +20,13 @@ const SUB_STATE_LABELS: Record<Card['subState'], string | null> = {
   interrupted: 'Interrupted',
 };
 
+/** US-091: the latest in-flight decision of the story. */
+const IN_FLIGHT_LABEL = {
+  continue: 'Continue unchanged',
+  cancel: 'Cancel / dequeue',
+  apply_in_corrections: 'Apply in corrections',
+} as const;
+
 export type Highlight = 'selected' | 'predecessor' | 'successor' | 'related' | 'dimmed' | undefined;
 
 export interface StoryCardProps {
@@ -132,6 +139,16 @@ export function StoryCard({
         </>
       )}
       {card.statusNotice && !conflict && <p className="card-notice">{card.statusNotice}</p>}
+      {card.inFlight && (
+        <p className="card-notice card-in-flight">
+          {card.inFlight.featureId}: {IN_FLIGHT_LABEL[card.inFlight.decision]}
+        </p>
+      )}
+      {card.impact && (
+        <p className="card-notice card-impact" title={`Changed: ${card.impact.sourceRef}`}>
+          <StatusBadge status="impacted" label="Potentially impacted" /> <span>{card.impact.reason}</span>
+        </p>
+      )}
       {onRecover && (card.subState === 'failed' || card.subState === 'interrupted') && (
         <button className="btn btn-secondary" type="button" aria-label={`Recover ${card.storyId}`} onClick={onRecover}>
           Retry / resume…

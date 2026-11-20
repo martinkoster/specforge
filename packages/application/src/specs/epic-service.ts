@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Epics in the user-stories phase (US-035, UC-040, FR-093/FR-094): create, merge, split, reorder, delete (stories move
 // to "No epic"), approve the epic structure, and Must-have requirements not covered by any epic.
+import { specLayout } from '@specforge/domain';
 import type { Document } from 'yaml';
 import { editFrontMatter } from '../stories/front-matter.js';
 
@@ -31,9 +32,10 @@ export interface EpicDeps {
   reindex(projectId: string, path: string): Promise<unknown>;
   /** Approval of an artifact (US-026). */
   approve(projectId: string, path: string): Promise<unknown>;
+  /** The project's specification root (US-078); `spec` when absent. */
+  specRoot?(projectId: string): string;
 }
 
-const EPIC_FOLDER = 'spec/04_user_stories/epics';
 const HEADING = /^#{1,6}\s+((?:FR|NFR)-\d{1,4}):/;
 const MUST = /\*\*Priority\*\*\s*:\s*Must Have/i;
 
@@ -94,7 +96,7 @@ export class EpicService {
   async create(projectId: string, input: { title: string }): Promise<{ id: string; path: string }> {
     const numbers = this.deps.index.epics(projectId).map((e) => Number(e.id.slice(3)));
     const id = `EP-${String(Math.max(0, ...numbers) + 1).padStart(3, '0')}`;
-    const path = `${EPIC_FOLDER}/${id}-${slug(input.title) || 'epic'}.md`;
+    const path = `${specLayout(this.deps.specRoot?.(projectId)).folders.epics}/${id}-${slug(input.title) || 'epic'}.md`;
     await this.deps.files(projectId).writeAtomic(path, epicTemplate(id, input.title.trim()), { expectedHash: null });
     await this.deps.reindex(projectId, path);
     return { id, path };

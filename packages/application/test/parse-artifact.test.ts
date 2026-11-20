@@ -124,3 +124,101 @@ describe('US-020 AC-1: parse front-matter, element headings and trace links', ()
     expect(() => parseArtifact('spec/x.md', '---\nkind: story\ntitle: no id\n---\n')).toThrow(/id/);
   });
 });
+
+describe('US-081 AC-1/AC-3: feature intents and feature trace links', () => {
+  const FI = [
+    '---',
+    'specforge: 1',
+    'kind: feature_intent',
+    'id: FI-003',
+    'title: Task comments',
+    'approval: approved',
+    'status: in_delivery',
+    'priority: should',
+    'related_epics: [EP-002]',
+    'related_requirements: [FR-034]',
+    'source_idea: IDEA-007',
+    'baseline: spec-v1.3',
+    '---',
+    '## Problem',
+    'Users cannot discuss tasks.',
+    '',
+  ].join('\n');
+
+  it('indexes a feature intent with id, title, approval, status, source idea and baseline', () => {
+    const parsed = parseArtifact('spec/01_intent/FI-003-task-comments.md', FI);
+    expect(parsed.kind).toBe('feature_intent');
+    expect(parsed.feature).toEqual({
+      id: 'FI-003',
+      title: 'Task comments',
+      approval: 'approved',
+      status: 'in_delivery',
+      sourceIdea: 'IDEA-007',
+      baseline: 'spec-v1.3',
+    });
+    expect(parsed.elements).toContainEqual({ id: 'FI-003', type: 'feature_intent', title: 'Task comments', anchor: null });
+    expect(parsed.links).toEqual(
+      expect.arrayContaining([
+        { source: 'FI-003', target: 'EP-002' },
+        { source: 'FI-003', target: 'FR-034' },
+        { source: 'FI-003', target: 'IDEA-007' },
+      ]),
+    );
+  });
+
+  it('defaults the status to draft and rejects an invalid status or id', () => {
+    const draft = parseArtifact('spec/01_intent/FI-001-x.md', '---\nkind: feature_intent\nid: FI-001\ntitle: X\n---\n');
+    expect(draft.feature).toMatchObject({ status: 'draft', approval: 'draft', sourceIdea: null, baseline: null });
+    expect(() =>
+      parseArtifact('spec/01_intent/FI-001-x.md', '---\nkind: feature_intent\nid: FI-001\ntitle: X\nstatus: shipped\n---\n'),
+    ).toThrow(/status/);
+    expect(() => parseArtifact('spec/01_intent/FI-x.md', '---\nkind: feature_intent\nid: X-1\ntitle: X\n---\n')).toThrow(/FI id/);
+  });
+
+  it('types links: **Feature** lines introduce, "Changed by" lines change, story feature/reworks', () => {
+    const reqs = parseArtifact(
+      'spec/02_requirements/functional_requirements.md',
+      '---\nkind: requirements\n---\n### FR-040: Comments\n**Feature**: FI-003\nText.\n### FR-012: Tasks\nChanged by FI-003 (comment count).\n',
+    );
+    expect(reqs.links).toEqual([
+      { source: 'FR-040', target: 'FI-003', type: 'introduces' },
+      { source: 'FR-012', target: 'FI-003', type: 'changes' },
+    ]);
+
+    const story = parseArtifact(
+      'spec/04_user_stories/US-020-x.md',
+      '---\nkind: story\nid: US-020\ntitle: Rework\nfeature: FI-003\nreworks: [US-008]\n---\n',
+    );
+    expect(story.links).toEqual(
+      expect.arrayContaining([
+        { source: 'US-020', target: 'FI-003', type: 'introduces' },
+        { source: 'US-020', target: 'US-008', type: 'reworks' },
+      ]),
+    );
+    const epic = parseArtifact('spec/04_user_stories/epics/EP-004-x.md', '---\nkind: epic\nid: EP-004\ntitle: E\nfeature: FI-003\n---\n');
+    expect(epic.links).toContainEqual({ source: 'EP-004', target: 'FI-003', type: 'introduces' });
+  });
+});
+
+describe('US-086: element content hashes (change detection for impact flags)', () => {
+  const reqs = (fr1: string, fr2: string) => `---\nkind: requirements\n---\n### FR-001: Login\n${fr1}\n### FR-002: Logout\n${fr2}\n`;
+
+  it('hashes each element section; editing one section changes only its hash', () => {
+    const before = parseArtifact('spec/02_requirements/fr.md', reqs('Users log in.', 'Users log out.')).elementHashes!;
+    const after = parseArtifact('spec/02_requirements/fr.md', reqs('Users log in with SSO.', 'Users log out.')).elementHashes!;
+    expect(Object.keys(before)).toEqual(['FR-001', 'FR-002']);
+    expect(after['FR-001']).not.toBe(before['FR-001']);
+    expect(after['FR-002']).toBe(before['FR-002']);
+    expect(parseArtifact('spec/02_requirements/fr.md', reqs('Users log in.  ', 'Users log out.')).elementHashes!['FR-001']).toBe(
+      before['FR-001'],
+    );
+  });
+
+  it('a story is hashed by its body, not by its front-matter (status changes are no content change)', () => {
+    const story = (status: string, ac: string) =>
+      `---\nkind: story\nid: US-002\ntitle: T\nstatus: ${status}\n---\n## Description\nAs a user.\n## Acceptance criteria\n- [ ] ${ac}\n`;
+    const a = parseArtifact('s.md', story('backlog', 'Works')).elementHashes!['US-002'];
+    expect(parseArtifact('s.md', story('done', 'Works')).elementHashes!['US-002']).toBe(a);
+    expect(parseArtifact('s.md', story('done', 'Works offline')).elementHashes!['US-002']).not.toBe(a);
+  });
+});

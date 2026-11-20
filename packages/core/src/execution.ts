@@ -21,6 +21,8 @@ export interface ProjectWorkspace {
   workspacePath: string;
   vcsMode: 'git' | 'none';
   baseBranch: string | null;
+  /** Specification root (US-078). */
+  specRoot?: string;
   files: WorkspaceFiles;
   reindex(path: string): Promise<unknown>;
 }
@@ -206,6 +208,7 @@ export class ContextPromptBuilder implements RunPromptBuilder {
     const previousSummary = correction?.fresh ? this.store.latestSummary(projectId, storyId) : null;
 
     const assembled = assembleContext({
+      ...(ws.specRoot ? { specRoot: ws.specRoot } : {}),
       story: { id: storyId, title: stories.get(storyId)?.title ?? storyId, content: storyPath ? await read(storyPath) : '' },
       startKind: request.startKind,
       ...(correction ? { feedback: correction.feedback } : {}),

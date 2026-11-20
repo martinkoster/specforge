@@ -252,6 +252,7 @@ Run kind → `applies_to` bucket (ADR-013):
 | title | TEXT | |
 | artifact_path | TEXT | FK→artifact |
 | anchor | TEXT | heading anchor |
+| content_hash | TEXT NULL | hash of the element's section (story/epic/feature intent: the body); a changed hash on re-index raises *Potentially impacted* flags (US-086) |
 Index: `(project_id, artifact_path)` — re-index per file. Impact flags are **not** index columns (they would be lost on re-index of the file or *Rebuild index*); they live in `impact_flag` (2.4, ADR-025).
 
 **trace_link**
@@ -682,4 +683,4 @@ app_setup (1 row) · permission_rule (global | project) ──n project_rule_ove
 
 No predecessor system — no data migration. Schema evolution via numbered SQL migrations run at startup inside a transaction; the workspace index tables can be dropped and rebuilt at any time (`Rebuild index` command). Front-matter carries `specforge: <schemaVersion>`; older files are upgraded lazily on write.
 
-**Release 2 migrations** (R1 databases upgrade in place): add `project.spec_root` (default `spec`; `project.yaml` without `specRoot` means `spec`); drop the index columns `element.impact_flag` / `impact_source` (R1 never set them persistently — flags start empty); create `impact_flag`, `feature_wizard`, `chat_change`, `chat_message.baseline_ref`, `impact_item`, `change_set`, `change_item`, `in_flight_decision`, `baseline`, `artifact_revision` and the index tables `feature_intent` / `idea`; add `feature_id` / `reworks` to the index tables (filled by the next indexing). Workflow-state tables (`impact_flag`, `feature_wizard`, `impact_item`, `change_*`, `in_flight_decision`) are never touched by *Rebuild index*.
+**Release 2 migrations** (R1 databases upgrade in place): add `project.spec_root` (default `spec`; `project.yaml` without `specRoot` means `spec`); drop the index columns `element.impact_flag` / `impact_source` (R1 never set them persistently — flags start empty) and add `element.content_hash`; create `impact_flag`, `feature_wizard`, `chat_change`, `chat_message.baseline_ref`, `impact_item`, `change_set`, `change_item`, `in_flight_decision`, `baseline`, `artifact_revision` and the index tables `feature_intent` / `idea`; add `feature_id` / `reworks` to the index tables (filled by the next indexing). Workflow-state tables (`impact_flag`, `feature_wizard`, `impact_item`, `change_*`, `in_flight_decision`) are never touched by *Rebuild index*.

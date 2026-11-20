@@ -105,3 +105,16 @@ describe('US-025 AC-3: saving over an externally changed file', () => {
     expect(files.get('spec/01_intent/intent.md')).toBe('mine\n');
   });
 });
+
+describe('US-086 AC-4: potentially impacted artifacts', () => {
+  it('marks artifacts with a flagged element', () => {
+    const base = setup().service;
+    const service = new ArtifactService({
+      ...(base as unknown as { deps: ConstructorParameters<typeof ArtifactService>[0] }).deps,
+      impactedPaths: () => ['spec/02_requirements/functional_requirements.md'],
+    });
+    const artifacts = service.list('p1').flatMap((g) => g.artifacts);
+    expect(artifacts.find((a) => a.path === 'spec/02_requirements/functional_requirements.md')).toMatchObject({ impacted: true });
+    expect(artifacts.find((a) => a.path === 'spec/01_intent/intent.md')).not.toHaveProperty('impacted');
+  });
+});

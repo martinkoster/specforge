@@ -63,6 +63,8 @@ export interface PermissionBrokerDeps {
   onDecided?(id: string, decision: 'allow' | 'deny'): void;
   /** Whether an absolute path exists (new story files may be created in Backlog, US-036). */
   fileExists?(path: string): boolean;
+  /** The project's specification root (US-078, ADR-024); `spec` when absent. */
+  specRoot?(projectId: string): string;
 }
 
 const PATH_KEYS = ['file_path', 'notebook_path', 'path'] as const;
@@ -130,6 +132,7 @@ export class PermissionBroker {
       implementationActive: run.nonGit && run.implementationActive(),
       ...(run.writeScope !== undefined ? { writeScope: run.writeScope } : {}),
       ...(run.readOnly ? { readOnly: true } : {}),
+      ...(this.deps.specRoot ? { specRoot: this.deps.specRoot(run.projectId) } : {}),
       newFiles: paths
         .map((p, i) => ({ absolute: isAbsolute(p) ? p : `${ask.cwd}/${p}`, relative: relative[i] }))
         .filter(

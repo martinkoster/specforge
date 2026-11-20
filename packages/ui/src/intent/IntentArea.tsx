@@ -1,22 +1,26 @@
 // SPDX-License-Identifier: Apache-2.0
 // Intent area (US-028, UC-004/UC-005): template for new projects, Markdown editor with approval, AI quality check and
-// refinement, and the clarification dialogue.
+// refinement, the clarification dialogue and the codebase analysis of adopted projects (US-080).
 import { PageHeader, Skeleton } from '../components/index.js';
 import { useCallback, useEffect, useState } from 'react';
 import type { CoreSession } from '../core/core-session.js';
 import { ArtifactAiPanel, headingLine } from '../specs/ArtifactAiPanel.js';
 import { ArtifactEditor } from '../specs/ArtifactEditor.js';
+import { useSpecLayout } from '../specs/spec-layout-context.js';
+import { AnalyzePanel } from './AnalyzePanel.js';
 import { ClarificationPanel } from './ClarificationPanel.js';
-
-export const INTENT_PATH = 'spec/01_intent/intent.md';
 
 export interface IntentAreaProps {
   session: CoreSession;
   projectId: string;
   aiDisabledReason?: string | null;
+  /** US-082 AC-1: opens the feature wizard once the main intent is approved. */
+  onAddFeature?(): void;
 }
 
-export function IntentArea({ session, projectId, aiDisabledReason = null }: IntentAreaProps) {
+export function IntentArea({ session, projectId, aiDisabledReason = null, onAddFeature }: IntentAreaProps) {
+  // US-078: the intent lives below the project's specification root.
+  const INTENT_PATH = useSpecLayout().intentPath;
   const [doc, setDoc] = useState<{ content: string; hash: string } | null | undefined>(undefined);
   const [approval, setApproval] = useState<'draft' | 'approved'>('draft');
   const [content, setContent] = useState('');
@@ -31,7 +35,7 @@ export function IntentArea({ session, projectId, aiDisabledReason = null }: Inte
     setContent(file?.content ?? '');
     const groups = await client.query('artifacts.list', { projectId }).catch(() => []);
     setApproval(groups.flatMap((g) => g.artifacts).find((a) => a.path === INTENT_PATH)?.approval ?? 'draft');
-  }, [session, projectId]);
+  }, [session, projectId, INTENT_PATH]);
 
   useEffect(() => {
     void load();
@@ -40,8 +44,23 @@ export function IntentArea({ session, projectId, aiDisabledReason = null }: Inte
   if (doc === undefined) return <Skeleton label="Loading the intent" lines={6} />;
   return (
     <div className="intent-area">
-      <PageHeader title="Intent" description="What to build and why — the source of every specification." />
+      <PageHeader
+        title="Intent"
+        description="What to build and why — the source of every specification."
+        {...(approval === 'approved' && onAddFeature
+          ? {
+              actions: (
+                <button className="btn btn-primary" type="button" onClick={onAddFeature}>
+                  ＋ Add feature
+                </button>
+              ),
+            }
+          : {})}
+      />
       {error && <p role="alert">{error}</p>}
+      {approval !== 'approved' && (
+        <AnalyzePanel session={session} projectId={projectId} aiDisabledReason={aiDisabledReason} onChanged={() => void load()} />
+      )}
       {doc === null ? (
         <section aria-label="No intent yet">
           <p>This project has no intent yet. Describe what should be built and why.</p>

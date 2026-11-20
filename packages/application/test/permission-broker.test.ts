@@ -223,3 +223,29 @@ describe('FR-116b: non-git workspace writers', () => {
     });
   });
 });
+
+describe('US-078 AC-2: built-in denies use the project specification root', () => {
+  it('denies implementation writes below docs/spec but not to a top-level spec/ folder', async () => {
+    const allowWrite: EffectiveRule = {
+      rule: { id: 'r-w', scope: 'global', effect: 'allow', toolName: 'Write', appliesTo: 'all', createdFrom: 'setup' },
+      origin: 'global',
+      disabled: false,
+    };
+    const records = new Map<string, PermissionRecord>();
+    const broker = new PermissionBroker({
+      store: { insert: (r) => void records.set(r.id, r), decide: () => undefined },
+      rules: () => [allowWrite],
+      runs: { setAwaitingPermission: () => undefined },
+      now: () => '2026-11-19T12:00:00.000Z',
+      newId: () => `req-${records.size + 1}`,
+      specRoot: (projectId) => (projectId === 'p1' ? 'docs/spec' : 'spec'),
+    });
+    expect(await broker.ask(run(), ask('Write', { file_path: '/wt/US-001/docs/spec/x.md', content: 'x' }))).toEqual({
+      behavior: 'deny',
+      message: expect.stringContaining('docs/spec/**'),
+    });
+    expect(await broker.ask(run(), ask('Write', { file_path: '/wt/US-001/spec/user_spec.rb', content: 'x' }))).toEqual({
+      behavior: 'allow',
+    });
+  });
+});

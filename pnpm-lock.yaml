@@ -254,6 +254,9 @@ importers:
       '@specforge/application':
         specifier: workspace:*
         version: link:../../application
+      '@specforge/domain':
+        specifier: workspace:*
+        version: link:../../domain
     devDependencies:
       '@types/node':
         specifier: ^26.6.5
@@ -308,6 +311,9 @@ importers:
       '@specforge/application':
         specifier: workspace:*
         version: link:../../application
+      '@specforge/domain':
+        specifier: workspace:*
+        version: link:../../domain
       chokidar:
         specifier: ^5.0.0
         version: 5.0.0
@@ -463,6 +469,9 @@ importers:
       '@radix-ui/react-tooltip':
         specifier: ^1.4.1
         version: 1.4.1(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
+      '@specforge/domain':
+        specifier: workspace:*
+        version: link:../domain
       '@specforge/ipc-contract':
         specifier: workspace:*
         version: link:../ipc-contract

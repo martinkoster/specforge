@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
-// Start wizard: open or create a project, reopen recent projects, rename/remove/locate (US-017, UC-029, UF-01b).
-import { FolderOpen, FolderPlus, History, type LucideIcon } from 'lucide-react';
+// Start wizard: open, create or adopt a project, reopen recent projects, rename/remove/locate (US-017, US-079, UC-029, UF-01b).
+import { FolderCode, FolderOpen, FolderPlus, History, type LucideIcon } from 'lucide-react';
 import { Dialog, EmptyState, Menu, StatusBadge } from '../components/index.js';
 import { Icon } from '../components/icons.js';
 import { useState, type FormEvent } from 'react';
@@ -13,6 +13,8 @@ export interface StartWizardProps {
   /** Open/create/locate need the native folder picker; without a handler the action is shown disabled. */
   onOpenExisting?(): void;
   onCreateNew?(): void;
+  /** US-079: bring a folder with existing code under SpecForge. */
+  onAdoptExisting?(): void;
   onOpenRecent?(projectId: string): void;
   onRename(projectId: string, name: string): Promise<void>;
   /** Rejects with a user-facing message, e.g. while runs are active. */
@@ -166,6 +168,13 @@ export function StartWizard(props: StartWizardProps) {
           title="Create new project"
           text="Pick or create an empty folder and start with the intent."
           {...(props.onCreateNew ? { onClick: props.onCreateNew } : {})}
+        />
+        <StartCard
+          id="adopt"
+          icon={FolderCode}
+          title="Adopt existing code"
+          text="Bring a folder that already contains code under SpecForge; existing files stay untouched."
+          {...(props.onAdoptExisting ? { onClick: props.onAdoptExisting } : {})}
         />
       </div>
       <section aria-label="Recent projects" className="recent-projects">

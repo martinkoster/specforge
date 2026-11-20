@@ -30,12 +30,18 @@ export function parseGitVersion(output: string): GitVersion {
 export class GitClient {
   constructor(private readonly executable = 'git') {}
 
-  raw(cwd: string, args: readonly string[]): Promise<GitResult> {
+  raw(cwd: string, args: readonly string[], options: { env?: Record<string, string> } = {}): Promise<GitResult> {
+    const env = options.env ? { ...process.env, ...options.env } : undefined;
     return new Promise((resolve) => {
-      execFile(this.executable, ['-c', 'core.longpaths=true', ...args], { cwd, maxBuffer: 32 * 1024 * 1024 }, (error, stdout, stderr) => {
-        const code = error ? (typeof error.code === 'number' ? error.code : -1) : 0;
-        resolve({ code, stdout: stdout.trim(), stderr });
-      });
+      execFile(
+        this.executable,
+        ['-c', 'core.longpaths=true', ...args],
+        { cwd, maxBuffer: 32 * 1024 * 1024, ...(env ? { env } : {}) },
+        (error, stdout, stderr) => {
+          const code = error ? (typeof error.code === 'number' ? error.code : -1) : 0;
+          resolve({ code, stdout: stdout.trim(), stderr });
+        },
+      );
     });
   }
 
@@ -51,8 +57,20 @@ export class GitClient {
     });
   }
 
-  async run(cwd: string, args: readonly string[]): Promise<string> {
-    const result = await this.raw(cwd, args);
+  /** Content of an object (e.g. a blob by SHA), untouched; undefined if it does not exist. */
+  object(cwd: string, sha: string): Promise<Buffer | undefined> {
+    return new Promise((resolve) => {
+      execFile(
+        this.executable,
+        ['-c', 'core.longpaths=true', 'cat-file', 'blob', sha],
+        { cwd, encoding: 'buffer', maxBuffer: 64 * 1024 * 1024 },
+        (error, stdout) => resolve(error ? undefined : stdout),
+      );
+    });
+  }
+
+  async run(cwd: string, args: readonly string[], options: { env?: Record<string, string> } = {}): Promise<string> {
+    const result = await this.raw(cwd, args, options);
     if (result.code !== 0) throw new GitError(args, result.code, result.stderr);
     return result.stdout;
   }

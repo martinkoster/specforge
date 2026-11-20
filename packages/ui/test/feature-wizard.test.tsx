@@ -163,3 +163,12 @@ describe('US-082 AC-4: closing keeps the draft; reopening resumes at the same st
     expect(core.calls).toEqual(['create']);
   });
 });
+
+describe('US-100 AC-1/AC-3: the wizard opened from the chat', () => {
+  it('is pre-filled with the agent summary and stores nothing until the user goes on', async () => {
+    const core = wizardCore();
+    const { sheet } = await renderWizard(core, { initialText: 'Users comment on tasks.' });
+    expect(within(sheet).getByRole('textbox', { name: /What would you like/ })).toHaveValue('Users comment on tasks.');
+    expect(core.calls).toEqual([]);
+  });
+});

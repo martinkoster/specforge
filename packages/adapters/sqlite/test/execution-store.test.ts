@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
+  ChatChangeRepository,
   ExecutionStore,
   IndexRepository,
   PermissionRequestRepository,
@@ -517,5 +518,57 @@ describe('US-059: requested corrections', () => {
     expect(store.correction('p1', 'US-001')).toEqual({ feedback: 'Fix the sender.', fresh: true });
     store.setCorrection('p1', 'US-001', null);
     expect(store.correction('p1', 'US-001')).toBeUndefined();
+  });
+});
+
+describe('US-097 AC-3: a write-capable chat run holds back implementation starts in non-git mode (FR-116b)', () => {
+  it('counts an active chat run as a workspace writer until it ends', async () => {
+    const { store } = await setup();
+    expect(store.activeWorkspaceWriters('p1')).toBe(0);
+    const chat = store.createRun('p1', { storyId: null, kind: 'chat', startKind: null, trigger: 'Chat t1' });
+    store.setRunStatus(chat, 'running');
+    expect(store.activeWorkspaceWriters('p1')).toBe(1);
+    store.setRunStatus(chat, 'awaiting_approval');
+    expect(store.activeWorkspaceWriters('p1')).toBe(1);
+    store.setRunStatus(chat, 'completed');
+    expect(store.activeWorkspaceWriters('p1')).toBe(0);
+  });
+});
+
+describe('US-098 AC-1/AC-2: chat baselines and changes (chat_message.baseline_ref, chat_change)', () => {
+  it('stores the baseline and untracked files of a message and the changes of its run', async () => {
+    const { store, db } = await setup();
+    const thread = { id: 't1', projectId: 'p1', title: 'T', sessionId: null, createdAt: 't', updatedAt: 't' };
+    store.saveThread(thread);
+    const runId = store.createRun('p1', { storyId: null, kind: 'chat', startKind: null, trigger: 'Chat t1' });
+    store.addMessage({
+      id: 'm1',
+      threadId: 't1',
+      role: 'assistant',
+      content: 'Done.',
+      runId,
+      toolUses: [],
+      recommendations: [],
+      error: false,
+      createdAt: 't',
+      baselineRef: 'tree-1',
+      untracked: ['local.env'],
+    });
+    expect(store.messages('t1')[0]).toMatchObject({ baselineRef: 'tree-1', untracked: ['local.env'] });
+
+    const changes = new ChatChangeRepository(db.sqlite);
+    const base = { projectId: 'p1', threadId: 't1', runId, isSpec: false, revertedAt: null, createdAt: '2026-11-20T10:00:00.000Z' };
+    changes.save([
+      { ...base, id: 'c1', path: 'README.md', change: 'M', beforeRef: 'b1', afterRef: 'a1' },
+      { ...base, id: 'c2', path: 'spec/fr.md', change: 'A', beforeRef: null, afterRef: 'a2', isSpec: true },
+    ]);
+    expect(changes.byRun(runId).map((c) => [c.id, c.path, c.isSpec])).toEqual([
+      ['c1', 'README.md', false],
+      ['c2', 'spec/fr.md', true],
+    ]);
+    expect(changes.get('c2')).toMatchObject({ change: 'A', beforeRef: null, afterRef: 'a2' });
+    changes.setReverted('c1', '2026-11-20T11:00:00.000Z');
+    expect(changes.get('c1')?.revertedAt).toBe('2026-11-20T11:00:00.000Z');
+    expect(changes.recent('p1', 10).map((c) => c.id)).toEqual(['c1', 'c2']);
   });
 });

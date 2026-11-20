@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_EXCLUSIONS, SnapshotStore } from '../src/index.js';
+import { DEFAULT_EXCLUSIONS, SnapshotBaselines, SnapshotStore } from '../src/index.js';
 
 function write(root: string, rel: string, content: string | Buffer) {
   const full = join(root, ...rel.split('/'));
@@ -164,5 +164,34 @@ describe('US-058 AC-2: restore selected paths (reject in non-git mode)', () => {
     expect(existsSync(join(root, 'src', 'new.ts'))).toBe(false);
     expect(readFileSync(join(root, 'notes.md'), 'utf8')).toBe('edited by the user meanwhile');
     await expect(s.restorePaths(snap.id, root, ['../escape.txt'])).rejects.toThrow(/Invalid path/);
+  });
+});
+
+describe('US-098 AC-1/AC-2: per-message baselines in non-git workspaces (ADR-026)', () => {
+  it('diffs the workspace against an incremental snapshot and reads both sides by content hash', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'sf-snap-chat-'));
+    write(root, 'README.md', 'teh\n');
+    write(root, 'src/old.ts', 'old\n');
+    write(root, 'node_modules/x/index.js', 'x\n');
+    const baselines = new SnapshotBaselines(store(), DEFAULT_EXCLUSIONS);
+    const baseline = await baselines.capture(root);
+
+    write(root, 'README.md', 'the\n');
+    rmSync(join(root, 'src', 'old.ts'));
+    write(root, 'docs/new.md', 'new\n');
+    write(root, 'node_modules/x/index.js', 'changed\n');
+
+    const changes = await baselines.changes(root, baseline);
+    expect(changes.map((c) => [c.path, c.change])).toEqual([
+      ['README.md', 'M'],
+      ['docs/new.md', 'A'],
+      ['src/old.ts', 'D'],
+    ]);
+    const readme = changes[0]!;
+    expect(baselines.content(readme.beforeRef!)?.toString()).toBe('teh\n');
+    expect(baselines.content(readme.afterRef!)?.toString()).toBe('the\n');
+    expect(changes[1]!.beforeRef).toBeNull();
+    expect(changes[2]!.afterRef).toBeNull();
+    expect(baselines.ignored(['node_modules/x/index.js', 'README.md'])).toEqual(['node_modules/x/index.js']);
   });
 });

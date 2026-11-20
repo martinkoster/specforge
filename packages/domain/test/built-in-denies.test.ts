@@ -53,13 +53,31 @@ describe('US-052 AC-1: built-in denies come before rules (ADR-013)', () => {
   });
 });
 
-describe('US-052 AC-4: chat runs are read-only in Release 1 (FR-089)', () => {
-  it('denies file edits and shell commands with an explanation; reads are not built-in denied', () => {
-    for (const toolName of ['Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'Bash', 'PowerShell']) {
-      expect(builtInDenial(ctx({ runKind: 'chat', toolName }))).toMatch(/chat is read-only/);
+describe('US-097 AC-1/AC-2: chat runs may write; rules and the user decide (FR-091)', () => {
+  it('file edits and shell commands of the chat are no longer built-in denied', () => {
+    for (const toolName of ['Edit', 'Write', 'MultiEdit', 'Bash', 'PowerShell']) {
+      expect(
+        builtInDenial(
+          ctx({ runKind: 'chat', toolName, writes: toolName.startsWith('Bash') || toolName === 'PowerShell' ? [] : ['README.md'] }),
+        ),
+      ).toBeUndefined();
     }
-    expect(builtInDenial(ctx({ runKind: 'chat', toolName: 'Read' }))).toBeUndefined();
-    expect(builtInDenial(ctx({ runKind: 'chat', toolName: 'Grep' }))).toBeUndefined();
+    expect(builtInDenial(ctx({ runKind: 'chat', toolName: 'Edit', writes: ['spec/02_requirements/fr.md'] }))).toBeUndefined();
+  });
+
+  it('keeps the built-in denies: SpecForge-internal files and story status changes', () => {
+    expect(builtInDenial(ctx({ runKind: 'chat', toolName: 'Write', writes: ['.specforge/project.yaml'] }))).toMatch(/SpecForge/);
+    expect(
+      builtInDenial(
+        ctx({ runKind: 'chat', toolName: 'Edit', input: { new_string: 'status: done' }, writes: ['spec/04_user_stories/US-001.md'] }),
+      ),
+    ).toMatch(/cannot change story status/);
+  });
+
+  it('AC-3: non-git mode denies chat writes while an implementation run is active', () => {
+    expect(
+      builtInDenial(ctx({ runKind: 'chat', toolName: 'Edit', writes: ['README.md'], nonGit: true, implementationActive: true })),
+    ).toMatch(/shared workspace/);
   });
 });
 

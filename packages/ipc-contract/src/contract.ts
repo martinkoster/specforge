@@ -223,6 +223,19 @@ const ChatMessageView = z.object({
   recommendations: z.array(z.object({ type: z.string(), storyId: z.string().optional(), text: z.string() })),
   error: z.boolean(),
   createdAt: z.string(),
+  /** US-098: the files this answer changed and those that are not tracked. */
+  changes: z
+    .array(
+      z.object({
+        id: z.string(),
+        path: z.string(),
+        change: z.enum(['A', 'M', 'D']),
+        isSpec: z.boolean(),
+        revertedAt: z.string().nullable(),
+      }),
+    )
+    .optional(),
+  untracked: z.array(z.string()).optional(),
 });
 const SpecStart = z.union([z.object({ ok: z.literal(true), runId: z.string() }), z.object({ ok: z.literal(false), reason: z.string() })]);
 const SpecDecision = z.union([z.object({ ok: z.literal(true) }), z.object({ ok: z.literal(false), reason: z.string() })]);
@@ -277,6 +290,8 @@ const PendingPermission = z.object({
   cwd: z.string(),
   outsideWorkspace: z.boolean(),
   requestedAt: z.string(),
+  /** Stories whose touched files the write overlaps (US-097 AC-4). */
+  overlaps: z.array(z.string()).optional(),
 });
 const PendingItem = z.union([
   z.object({ kind: z.literal('permission'), permission: PendingPermission }),
@@ -454,6 +469,22 @@ export const CONTRACT = {
     'baselines.create': {
       input: z.object({ projectId: z.string().min(1), tag: z.string().min(1).max(200) }),
       output: Baseline,
+    },
+    /** US-099: reverts the changes of a chat message (`runId`) or one file (`changeId`); `confirm` overrides later edits. */
+    'chat.revert': {
+      input: z.object({
+        runId: z.string().min(1).optional(),
+        changeId: z.string().min(1).optional(),
+        confirm: z.boolean().optional(),
+      }),
+      output: z.union([
+        z.object({ reverted: z.array(z.string()) }),
+        z.object({
+          needsConfirmation: z.array(
+            z.object({ changeId: z.string(), path: z.string(), baseline: z.string(), chat: z.string(), current: z.string() }),
+          ),
+        }),
+      ]),
     },
     /** US-095: capture and triage ideas. */
     'ideas.capture': {
@@ -1056,6 +1087,11 @@ export const CONTRACT = {
       output: z.array(z.object({ id: z.string(), title: z.string(), updatedAt: z.string(), active: z.boolean() })),
     },
     'chat.messages': { input: z.object({ threadId: z.string().min(1) }), output: z.array(ChatMessageView) },
+    /** US-098 AC-3: baseline and new content of one changed file. */
+    'chat.changeDiff': {
+      input: z.object({ changeId: z.string().min(1) }),
+      output: z.object({ path: z.string(), before: z.string().nullable(), after: z.string().nullable() }),
+    },
     'runs.active': {
       input: z.object({}),
       output: z.array(z.object({ runId: z.string(), projectId: z.string(), storyId: z.string(), title: z.string() })),

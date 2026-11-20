@@ -41,6 +41,8 @@ export interface FeatureWizardProps {
   onMerged?(path: string): void;
   /** *Turn into feature* of an inbox idea (US-095 AC-3): pre-fills the description and links the draft to the idea. */
   idea?: { id: string; text: string; note: string | null };
+  /** Pre-filled description, e.g. the chat agent's summary (US-100 AC-1); nothing is stored until a step is saved. */
+  initialText?: string;
 }
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -67,10 +69,13 @@ export function FeatureWizard({
   onView,
   onMerged,
   idea,
+  initialText,
 }: FeatureWizardProps) {
   const [wizardId, setWizardId] = useState<string | null>(resumeId);
   const [step, setStep] = useState<Step>('describe');
-  const [draft, setDraft] = useState<Draft>(idea ? { text: idea.text, ...(idea.note ? { motivation: idea.note } : {}) } : { text: '' });
+  const [draft, setDraft] = useState<Draft>(
+    idea ? { text: idea.text, ...(idea.note ? { motivation: idea.note } : {}) } : { text: initialText ?? '' },
+  );
   const [loading, setLoading] = useState(resumeId !== null);
   const [epics, setEpics] = useState<{ id: string; title: string }[]>([]);
   const [preview, setPreview] = useState<Preview | null>(null);

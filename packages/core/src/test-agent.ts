@@ -265,10 +265,28 @@ export function testAgentScript(request: RunRequest): MockStep[] {
     return [{ type: 'result', text: `\`\`\`specforge-result\n${JSON.stringify({ done: true, items: [] })}\n\`\`\`\n` }];
   }
   if (request.kind === 'quality_check') return [{ type: 'result', text: '```specforge-result\n{"findings":[]}\n```\n' }];
+  // US-097/US-098 (FR-091): a chat request to fix a typo edits README.md and runs a build through the permission relay
+  // (the mock does not execute shell commands; tests write the command's output while the request is pending).
+  if (request.kind === 'chat' && /\btypo\b/i.test(prompt))
+    return [
+      { type: 'tool', toolName: 'Edit', input: { file_path: 'README.md', old_string: 'teh', new_string: 'the' } },
+      ...(/\bbuild\b/i.test(prompt) ? [{ type: 'tool' as const, toolName: 'Bash', input: { command: 'echo built > build.log' } }] : []),
+      { type: 'result', text: 'Fixed the typo in README.md.' },
+    ];
+  // US-098 AC-4: a chat request to change a requirement edits the requirements file.
+  if (request.kind === 'chat' && /\brequirement\b/i.test(prompt))
+    return [
+      {
+        type: 'tool',
+        toolName: 'Edit',
+        input: { file_path: 'spec/02_requirements/fr.md', old_string: 'Users log in.', new_string: 'Users log in with SSO.' },
+      },
+      { type: 'result', text: 'Changed FR-001.' },
+    ];
   if (request.kind === 'chat')
     return [
-      { type: 'output', text: 'Read-only answer.' },
-      { type: 'result', text: 'Read-only answer.' },
+      { type: 'output', text: 'Here is my answer.' },
+      { type: 'result', text: 'Here is my answer.' },
     ];
   if (request.kind === 'implement' || request.kind === 'correct') {
     const story = /user story (US-\d+): (.*?)\./.exec(prompt);

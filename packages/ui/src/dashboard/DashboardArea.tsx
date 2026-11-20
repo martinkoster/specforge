@@ -47,6 +47,9 @@ export interface DashboardAreaProps {
   onCaptureIdea?(): void;
   /** *Create baseline* from the spec history (US-096 AC-1/AC-3). */
   onCreateBaseline?(): void;
+  /** US-100: a feature or an idea from a chat conversation. */
+  onCreateFeatureFromChat?(text: string): void;
+  onSaveChatAsIdea?(text: string): void;
   /** *Turn into feature* from the idea inbox (US-095 AC-3). */
   onTurnIdeaIntoFeature?(idea: QueryOutput<'ideas.list'>['ideas'][number]): void;
   /** *Edit specs directly* (Specifications area). */
@@ -148,6 +151,8 @@ export function DashboardArea({
   onCaptureIdea,
   onTurnIdeaIntoFeature,
   onCreateBaseline,
+  onCreateFeatureFromChat,
+  onSaveChatAsIdea,
 }: DashboardAreaProps) {
   const layout = useSpecLayout();
   const [data, setData] = useState<Dashboard | null>(null);
@@ -245,7 +250,13 @@ export function DashboardArea({
       )}
       {error && <p role="alert">{error}</p>}
       {phases && <PhaseStepper status={phases} current={null} onOpen={onOpenPhase} />}
-      <ChatPanel session={session} projectId={projectId} aiDisabledReason={aiDisabledReason} />
+      <ChatPanel
+        session={session}
+        projectId={projectId}
+        aiDisabledReason={aiDisabledReason}
+        {...(onCreateFeatureFromChat && intentApproved ? { onCreateFeature: onCreateFeatureFromChat } : {})}
+        {...(onSaveChatAsIdea && intentApproved ? { onSaveAsIdea: onSaveChatAsIdea } : {})}
+      />
       {nextStep && (
         <section aria-label="Next step" className="callout callout-info next-step">
           <Icon icon={ArrowRightCircle} className="callout-icon" />
@@ -326,7 +337,7 @@ export function DashboardArea({
               ) : (
                 <ul>
                   {data.activity.map((a) => (
-                    <li key={a.runId ?? `${a.featureId}:${a.at}`}>
+                    <li key={`${a.runId ?? a.featureId}:${a.at}:${a.label}`}>
                       <time dateTime={a.at}>{a.at.slice(0, 16).replace('T', ' ')}</time> {a.label}
                     </li>
                   ))}

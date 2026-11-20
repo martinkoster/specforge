@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: Apache-2.0
-// US-062 integration: chat threads as resumable read-only agent sessions that survive restarts.
+// US-062 integration: chat threads as resumable agent sessions that survive restarts; built-in denies stay (US-097).
 import { existsSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -23,12 +23,12 @@ const wrap = (port: MessagePort): PortLike => {
 };
 
 describe('US-062 over IPC', () => {
-  it('AC-1..AC-3: read-only answers with recommendation cards; threads and sessions survive a restart', async () => {
+  it('AC-1..AC-3: answers with recommendation cards and built-in denies; threads and sessions survive a restart', async () => {
     const requests: RunRequest[] = [];
     const script = (request: RunRequest): MockStep[] => {
       requests.push(request);
       return [
-        { type: 'tool', toolName: 'Write', input: { file_path: 'hacked.txt', content: 'no' } },
+        { type: 'tool', toolName: 'Write', input: { file_path: '.specforge/hacked.yaml', content: 'no' } },
         { type: 'output', text: 'Start US-002 next.' },
         {
           type: 'result',
@@ -73,12 +73,12 @@ describe('US-062 over IPC', () => {
     expect(question).toMatchObject({ role: 'user', content: 'What should I do next?' });
     expect(answer).toMatchObject({
       role: 'assistant',
-      content: expect.stringMatching(/^Start US-002 next\.\n\nSpecForge denied 1 request: The project chat is read-only/),
-      toolUses: ['Write {"file_path":"hacked.txt","content":"no"} — denied'],
+      content: expect.stringMatching(/^Start US-002 next\.\n\nSpecForge denied 1 request: The chat may not change SpecForge project files/),
+      toolUses: ['Write {"file_path":".specforge/hacked.yaml","content":"no"} — denied'],
       recommendations: [{ type: 'start_story', storyId: 'US-002', text: 'Move US-002 to In Progress' }],
     });
-    expect(existsSync(join(project.path, 'hacked.txt'))).toBe(false);
-    expect(requests[0]!.prompt).toMatch(/read-only/);
+    expect(existsSync(join(project.path, '.specforge', 'hacked.yaml'))).toBe(false);
+    expect(requests[0]!.prompt).toMatch(/needs the user's approval/);
     await first.core.close();
     open.splice(0);
 

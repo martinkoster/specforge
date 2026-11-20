@@ -122,3 +122,16 @@ describe('US-095 AC-3: the idea inbox widget', () => {
     expect(dismiss).toHaveBeenCalledWith({ projectId: 'p1', ideaId: 'IDEA-002', reason: 'Duplicate.' });
   });
 });
+
+describe('US-100 AC-2: Save as idea from a chat message', () => {
+  it('pre-fills the popover with the (editable) message text and saves with source chat', async () => {
+    const capture = vi.fn(async () => idea('IDEA-004', 'Export as PDF'));
+    const session = await fakeCore({ 'ideas.capture': capture });
+    render(<CaptureIdeaDialog session={session} projectId="p1" source="chat" initialText="Export the board as PDF?" onClose={vi.fn()} />);
+    const text = screen.getByRole('textbox', { name: 'Idea' });
+    expect(text).toHaveValue('Export the board as PDF?');
+    await userEvent.clear(text);
+    await userEvent.type(text, 'Export as PDF{Enter}');
+    expect(capture).toHaveBeenCalledWith({ projectId: 'p1', text: 'Export as PDF', source: 'chat' });
+  });
+});

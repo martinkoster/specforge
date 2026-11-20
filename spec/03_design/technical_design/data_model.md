@@ -502,6 +502,7 @@ Index: `(project_id, last_used_at DESC)`.
 | text | TEXT | redacted |
 | run_id | TEXT FK→run NULL | agent messages reference their run (events, permissions, usage) |
 | baseline_ref | TEXT NULL | (Release 2, ADR-026) workspace state before the agent turn: git — tree SHA written from a temporary index; non-git — snapshot id |
+| untracked | TEXT (JSON array) | (Release 2, US-098) files an allowed write tool changed that are not tracked (ignored by Git / excluded from snapshots) |
 | tool_uses | TEXT (JSON) | tool calls of the agent turn, shown collapsed (US-062) |
 | recommendations | TEXT (JSON) | proposed story transitions / run starts, shown as recommendation cards only (US-062) |
 | error | INTEGER | the agent could not answer (message holds the reason) |
@@ -519,6 +520,7 @@ Index: `(project_id, last_used_at DESC)`.
 | after_hash | TEXT | |
 | is_spec | INTEGER | |
 | reverted_at | TEXT NULL | |
+| project_id, created_at | TEXT | (US-098) activity feed and reverts |
 
 **impact_flag** (Release 2, FR-017/FR-071, ADR-025 — persistent workflow state, survives re-index and *Rebuild index*)
 | Column | Type | Notes |

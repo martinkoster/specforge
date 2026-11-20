@@ -4,3 +4,4 @@ export * from './git-client.js';
 export * from './vcs.js';
 export * from './spec-commits.js';
 export * from './baselines.js';
+export * from './workspace-trees.js';

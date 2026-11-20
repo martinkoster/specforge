@@ -123,9 +123,14 @@ export function App({ session, testMode, pickFolder, notify, isFocused = () => d
   const [boardEpic, setBoardEpic] = useState<string | null>(null);
   const [committing, setCommitting] = useState(false);
   /** US-082: the feature wizard (new feature or a stored draft) and the last saved feature intent. */
-  const [wizard, setWizard] = useState<{ resumeId: string | null; idea?: { id: string; text: string; note: string | null } } | null>(null);
+  const [wizard, setWizard] = useState<{
+    resumeId: string | null;
+    idea?: { id: string; text: string; note: string | null };
+    /** US-100: the chat agent's summary. */
+    text?: string;
+  } | null>(null);
   /** US-095: the open *Capture idea* popover and where it was opened from. */
-  const [capture, setCapture] = useState<IdeaSource | null>(null);
+  const [capture, setCapture] = useState<{ source: IdeaSource; text?: string } | null>(null);
   /** US-096: the *Create spec baseline* dialog. */
   const [baselineOpen, setBaselineOpen] = useState(false);
   /** US-084: the open feature page (shown instead of the area content). */
@@ -415,7 +420,7 @@ export function App({ session, testMode, pickFolder, notify, isFocused = () => d
       // US-095 AC-1: Ctrl/Cmd+Shift+I captures an idea from any screen.
       if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'i') {
         e.preventDefault();
-        setCapture((c) => c ?? 'shortcut');
+        setCapture((c) => c ?? { source: 'shortcut' });
       }
     };
     window.addEventListener('keydown', onKey);
@@ -485,7 +490,9 @@ export function App({ session, testMode, pickFolder, notify, isFocused = () => d
         aiDisabledReason={aiDisabledReason}
         intentApproved={intentApproved}
         onAddFeature={(resumeId) => setWizard({ resumeId })}
-        onCaptureIdea={() => setCapture('menu')}
+        onCaptureIdea={() => setCapture({ source: 'menu' })}
+        onCreateFeatureFromChat={(text) => setWizard({ resumeId: null, text })}
+        onSaveChatAsIdea={(text) => setCapture({ source: 'chat', text })}
         onCreateBaseline={() => setBaselineOpen(true)}
         onTurnIdeaIntoFeature={(idea) => setWizard({ resumeId: null, idea: { id: idea.id, text: idea.text, note: idea.note } })}
         onOpenFeature={setFeatureView}
@@ -712,7 +719,8 @@ export function App({ session, testMode, pickFolder, notify, isFocused = () => d
           <CaptureIdeaDialog
             session={session}
             projectId={state.currentProjectId}
-            source={capture}
+            source={capture.source}
+            {...(capture.text ? { initialText: capture.text } : {})}
             onClose={() => {
               setCapture(null);
               void refresh();
@@ -726,6 +734,7 @@ export function App({ session, testMode, pickFolder, notify, isFocused = () => d
             projectId={state.currentProjectId}
             resumeId={wizard.resumeId}
             {...(wizard.idea ? { idea: wizard.idea } : {})}
+            {...(wizard.text ? { initialText: wizard.text } : {})}
             aiDisabledReason={aiDisabledReason}
             onView={(ref) => {
               const projectId = state.currentProjectId!;

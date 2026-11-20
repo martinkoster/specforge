@@ -20,6 +20,7 @@ import {
   IdeaService,
   BaselineError,
   BaselineService,
+  type WorkspaceBaselines,
   DeltaError,
   DeltaService,
   ImpactError,
@@ -60,7 +61,7 @@ import {
   type AgentAdapter,
   type SecretStore,
 } from '@specforge/application';
-import { ExecutionSpaceManager, GitClient, GitVcs, SpecBaselines, SpecCommits } from '@specforge/git';
+import { ExecutionSpaceManager, GitClient, GitVcs, SpecBaselines, SpecCommits, WorkspaceTrees } from '@specforge/git';
 import {
   DEFAULT_SPEC_ROOT,
   maintenanceMode,
@@ -78,6 +79,7 @@ import {
   EpicChoiceRepository,
   FeatureEventRepository,
   BaselineRepository,
+  ChatChangeRepository,
   ExecutionStore,
   FeatureWizardRepository,
   ImpactFlagRepository,
@@ -91,7 +93,7 @@ import {
   openDatabase,
 } from '@specforge/sqlite';
 import { identify, killOrphan, killTree, listDescendants } from '@specforge/process';
-import { DEFAULT_EXCLUSIONS, SnapshotStore } from '@specforge/snapshot';
+import { DEFAULT_EXCLUSIONS, SnapshotBaselines, SnapshotStore } from '@specforge/snapshot';
 import { ProjectFolderProbe, WorkspaceFiles } from '@specforge/workspace-fs';
 import { createDependencyHandlers } from './handlers/dependency-handlers.js';
 import { createProjectHandlers } from './handlers/project-handlers.js';
@@ -665,6 +667,8 @@ export async function createCore(options: CoreOptions): Promise<Core> {
     store: new PermissionRequestRepository(database.sqlite),
     fileExists: (path) => existsSync(path),
     specRoot: specRootOf,
+    // US-097 AC-4: file_touch holds the files of active and unmerged stories (cleared on merge or reject).
+    overlaps: (projectId, paths) => [...new Set(paths.flatMap((p) => execution.fileRuns(projectId, p).map((r) => r.storyId)))].sort(),
     rules: (projectId) => rules.effective(projectId),
     runs: { setAwaitingPermission: (runId, waiting) => execution.setRunStatus(runId, waiting ? 'awaiting_approval' : 'running') },
     now: () => new Date().toISOString(),
@@ -971,7 +975,46 @@ export async function createCore(options: CoreOptions): Promise<Core> {
   };
 
   // US-062: read-only project chat.
+  // US-098 (ADR-026): per-message workspace baselines — git temporary-index trees, non-git incremental snapshots.
+  const workspaceTrees = { get: () => new WorkspaceTrees(git) };
+  const chatSnapshots = (projectId: string) =>
+    new SnapshotBaselines(new SnapshotStore(snapshotRoot(options.appDataDir, projectId)), DEFAULT_EXCLUSIONS);
+  const chatChanges = new ChatChangeRepository(database.sqlite);
+  const chatBaselines: WorkspaceBaselines = {
+    capture: (projectId) =>
+      vcsModes.get(projectId) === 'none'
+        ? chatSnapshots(projectId).capture(specFolder(projectId, '.'))
+        : workspaceTrees.get().capture(specFolder(projectId, '.')),
+    changes: (projectId, baseline) =>
+      vcsModes.get(projectId) === 'none'
+        ? chatSnapshots(projectId).changes(specFolder(projectId, '.'), baseline)
+        : workspaceTrees.get().changes(specFolder(projectId, '.'), baseline),
+    content: async (projectId, ref) =>
+      vcsModes.get(projectId) === 'none'
+        ? chatSnapshots(projectId).content(ref)
+        : workspaceTrees.get().content(specFolder(projectId, '.'), ref),
+    ignored: async (projectId, paths) =>
+      vcsModes.get(projectId) === 'none'
+        ? chatSnapshots(projectId).ignored(paths)
+        : workspaceTrees.get().ignored(specFolder(projectId, '.'), paths),
+  };
   const chat = new ChatService({
+    baselines: chatBaselines,
+    // US-099: reverts restore the baseline content; reverted files are re-indexed and shown in the activity feed.
+    files: (projectId) => workspaceFiles(projectId),
+    onReverted: async (projectId, records) => {
+      for (const r of records) await reindexIn(projectId, r.path).catch(() => undefined);
+      projectChanged(projectId);
+      if (!closing) emit?.('chat.message', { projectId, threadId: records[0]!.threadId });
+    },
+    changes: chatChanges,
+    // US-098 AC-4: changed specifications become Draft and are re-indexed (impact flags); the activity feed re-reads.
+    onChanges: async (projectId, records, runId) => {
+      const spec = records.filter((r) => r.isSpec && r.change !== 'D').map((r) => r.path);
+      if (spec.length) await approvals.markDraftAfterAiChange(projectId, spec, runId);
+      for (const r of records) await reindexIn(projectId, r.path).catch(() => undefined);
+      projectChanged(projectId);
+    },
     store: execution,
     adapter: agentAdapter,
     workspace: (projectId) => ({
@@ -1547,6 +1590,10 @@ export async function createCore(options: CoreOptions): Promise<Core> {
           .map((a) => ({ path: a.path, kind: a.kind, approval: a.approval, impacted: impacted.has(a.path) })),
         lanes: board.board(projectId).lanes,
         specRoot: specRootOf(projectId),
+        chatChanges: chatChanges
+          .recent(projectId, 10)
+          .filter((c) => !c.isSpec)
+          .map((c) => ({ runId: c.runId, path: c.path, at: c.createdAt, revertedAt: c.revertedAt })),
         featureEvents: featureEvents.recent(projectId, 10).map((e) => ({
           featureId: e.featureId,
           title: index.features(projectId).find((f) => f.id === e.featureId)?.title ?? e.featureId,
@@ -1557,7 +1604,27 @@ export async function createCore(options: CoreOptions): Promise<Core> {
     },
     'chat.threads': async ({ projectId }) =>
       chat.threads(projectId).map((t) => ({ id: t.id, title: t.title, updatedAt: t.updatedAt, active: chat.isAnswering(t.id) })),
-    'chat.messages': async ({ threadId }) => chat.messages(threadId).map(({ threadId: _t, ...m }) => m),
+    'chat.messages': async ({ threadId }) =>
+      chat.messages(threadId).map(({ threadId: _t, baselineRef: _b, changes, ...m }) => ({
+        ...m,
+        changes: changes.map((c) => ({ id: c.id, path: c.path, change: c.change, isSpec: c.isSpec, revertedAt: c.revertedAt })),
+      })),
+    'chat.revert': async ({ runId, changeId, confirm }) => {
+      try {
+        if (runId) return await chat.revert({ runId, ...(confirm ? { confirm } : {}) });
+        if (changeId) return await chat.revert({ changeId, ...(confirm ? { confirm } : {}) });
+        throw new Error('Name the message (runId) or the file (changeId) to revert.');
+      } catch (e) {
+        throw new IpcError('INVALID_REQUEST', e instanceof Error ? e.message : String(e));
+      }
+    },
+    'chat.changeDiff': async ({ changeId }) => {
+      try {
+        return await chat.changeDiff(changeId);
+      } catch (e) {
+        throw new IpcError('INVALID_REQUEST', e instanceof Error ? e.message : String(e));
+      }
+    },
     'runs.active': async () =>
       runs.activeRuns().map((r) => ({
         runId: r.runId,

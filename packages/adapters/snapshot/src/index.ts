@@ -269,3 +269,57 @@ export class SnapshotStore {
     });
   }
 }
+
+export interface BaselineChange {
+  path: string;
+  change: 'A' | 'M' | 'D';
+  /** Content hash in the baseline; null for added files. */
+  beforeRef: string | null;
+  /** Content hash after the turn; null for deleted files. */
+  afterRef: string | null;
+}
+
+/**
+ * Per-message workspace baselines for chat changes in non-git workspaces (US-098, ADR-026): an incremental snapshot
+ * before the agent turn and one after it; files are compared by content hash and read from the object store.
+ */
+export class SnapshotBaselines {
+  private readonly excluded: (path: string) => boolean;
+
+  constructor(
+    private readonly store: SnapshotStore,
+    private readonly exclusions: readonly string[] = DEFAULT_EXCLUSIONS,
+  ) {
+    this.excluded = picomatch([...exclusions], { dot: true });
+  }
+
+  async capture(workspace: string): Promise<string> {
+    return (await this.store.create(workspace, { exclusions: this.exclusions })).id;
+  }
+
+  async changes(workspace: string, baseline: string): Promise<BaselineChange[]> {
+    const before = this.store.load(baseline).manifest.files;
+    const after = (await this.store.create(workspace, { exclusions: this.exclusions })).manifest.files;
+    const changes: BaselineChange[] = [];
+    for (const path of [...new Set([...Object.keys(before), ...Object.keys(after)])].sort()) {
+      const b = before[path]?.hash ?? null;
+      const a = after[path]?.hash ?? null;
+      if (a === b) continue;
+      changes.push({ path, change: b === null ? 'A' : a === null ? 'D' : 'M', beforeRef: b, afterRef: a });
+    }
+    return changes;
+  }
+
+  content(ref: string): Buffer | undefined {
+    try {
+      return this.store.readObject(ref);
+    } catch {
+      return undefined;
+    }
+  }
+
+  /** Paths excluded from snapshots (not tracked, US-098 AC-3). */
+  ignored(paths: readonly string[]): string[] {
+    return paths.filter((p) => this.excluded(p));
+  }
+}

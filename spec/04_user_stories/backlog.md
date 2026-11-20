@@ -6,10 +6,10 @@ _Last updated: 2026-11-20_
 
 | Status | Count |
 |--------|-------|
-| ready for development | 19 |
+| ready for development | 15 |
 | in progress | 0 |
 | blocked | 1 |
-| done | 94 |
+| done | 98 |
 | **Total** | **114** |
 
 ## Stories
@@ -112,10 +112,10 @@ _Last updated: 2026-11-20_
 | US-094 | Feature completion and withdrawal | Feature workflow | S | done |
 | US-095 | Idea inbox | Feature workflow | M | done |
 | US-096 | Spec baselines | Feature workflow | M | done |
-| US-097 | Chat may write through the permission relay | Chat changes | M | ready for development |
-| US-098 | Track chat changes per message | Chat changes | M | ready for development |
-| US-099 | Revert chat changes | Chat changes | S | ready for development |
-| US-100 | Turn chat conversations into features and ideas | Chat changes | S | ready for development |
+| US-097 | Chat may write through the permission relay | Chat changes | M | done |
+| US-098 | Track chat changes per message | Chat changes | M | done |
+| US-099 | Revert chat changes | Chat changes | S | done |
+| US-100 | Turn chat conversations into features and ideas | Chat changes | S | done |
 | US-101 | Derived epic dependencies | Epics & planning | S | ready for development |
 | US-102 | Start an epic | Epics & planning | S | ready for development |
 | US-103 | Implementation plan view | Epics & planning | M | ready for development |

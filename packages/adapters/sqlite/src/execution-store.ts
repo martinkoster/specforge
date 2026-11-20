@@ -274,8 +274,8 @@ export class ExecutionStore implements SchedulerStore, ExecutionStorePort {
     ).n;
     this.sqlite
       .prepare(
-        `insert into chat_message (id, thread_id, seq, role, text, run_id, tool_uses, recommendations, error, created_at)
-         values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `insert into chat_message (id, thread_id, seq, role, text, run_id, tool_uses, recommendations, error, created_at, baseline_ref,
+           untracked) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         m.id,
@@ -288,6 +288,8 @@ export class ExecutionStore implements SchedulerStore, ExecutionStorePort {
         JSON.stringify(m.recommendations),
         m.error ? 1 : 0,
         m.createdAt,
+        m.baselineRef ?? null,
+        JSON.stringify(m.untracked ?? []),
       );
   }
 
@@ -866,6 +868,8 @@ interface MessageRow {
   recommendations: string;
   error: number;
   created_at: string;
+  baseline_ref: string | null;
+  untracked: string;
 }
 
 const toMessage = (r: MessageRow): ChatMessage => ({
@@ -878,6 +882,8 @@ const toMessage = (r: MessageRow): ChatMessage => ({
   recommendations: JSON.parse(r.recommendations) as ChatMessage['recommendations'],
   error: r.error === 1,
   createdAt: r.created_at,
+  baselineRef: r.baseline_ref,
+  untracked: JSON.parse(r.untracked) as string[],
 });
 
 interface ClarificationRow {

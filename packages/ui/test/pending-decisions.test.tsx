@@ -162,3 +162,17 @@ describe('US-086 AC-4: potentially impacted flags in pending decisions', () => {
     expect(onClearImpact).toHaveBeenCalledWith('US-009');
   });
 });
+
+describe('US-097 AC-1/AC-4: chat write prompts', () => {
+  it('names the project chat and shows overlaps with stories', () => {
+    render(
+      <PermissionPrompt
+        storyId={null}
+        permission={permission({ runKind: 'chat', toolName: 'Edit', input: { file_path: 'src/board.ts' }, overlaps: ['US-011', 'US-014'] })}
+        onDecide={vi.fn(async () => ({ ok: true as const }))}
+      />,
+    );
+    const prompt = screen.getByRole('group', { name: 'The project chat asks to use Edit' });
+    expect(within(prompt).getByRole('note')).toHaveTextContent('Overlap with US-011, US-014');
+  });
+});

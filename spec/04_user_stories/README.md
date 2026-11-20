@@ -181,10 +181,10 @@ Design refresh for Release 2: intent D26/D27, ADR-024 – ADR-026 (`spec/03_desi
 
 | ID | Title | Size | Status |
 |----|-------|------|--------|
-| [US-097](US-097-chat-write-permissions.md) | Chat may write through the permission relay | M | ready for development |
-| [US-098](US-098-chat-change-tracking.md) | Track chat changes per message | M | ready for development |
-| [US-099](US-099-chat-change-revert.md) | Revert chat changes | S | ready for development |
-| [US-100](US-100-chat-feature-suggestions.md) | Turn chat conversations into features and ideas | S | ready for development |
+| [US-097](US-097-chat-write-permissions.md) | Chat may write through the permission relay | M | done |
+| [US-098](US-098-chat-change-tracking.md) | Track chat changes per message | M | done |
+| [US-099](US-099-chat-change-revert.md) | Revert chat changes | S | done |
+| [US-100](US-100-chat-feature-suggestions.md) | Turn chat conversations into features and ideas | S | done |
 
 ### Epics & planning (Release 2)
 

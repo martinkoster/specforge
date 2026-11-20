@@ -26,7 +26,7 @@ export function PermissionPrompt({ storyId, permission, onDecide }: PermissionPr
   const [message, setMessage] = useState('');
   const [error, setError] = useState<string | undefined>();
   const [busy, setBusy] = useState(false);
-  const who = storyId ?? 'A specification run';
+  const who = storyId ?? (permission.runKind === 'chat' ? 'The project chat' : 'A specification run');
 
   const decide = async (decision: PermissionDecision): Promise<void> => {
     setBusy(true);
@@ -47,6 +47,11 @@ export function PermissionPrompt({ storyId, permission, onDecide }: PermissionPr
       {permission.outsideWorkspace && (
         <Callout tone="warning" role="note" title="Outside the workspace">
           This touches files outside the project. It is never approved automatically.
+        </Callout>
+      )}
+      {(permission.overlaps?.length ?? 0) > 0 && (
+        <Callout tone="warning" role="note" title={`Overlap with ${permission.overlaps!.join(', ')}`}>
+          These files were changed by stories that are still running or not merged yet.
         </Callout>
       )}
       <pre className="permission-args">{argumentsOf(permission)}</pre>

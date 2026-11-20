@@ -22,6 +22,8 @@ export interface DashboardInput {
   lanes: ReadonlyArray<{ epicId: string | null; title: string; status: EpicStatus; progress: EpicProgress; colour: number | null }>;
   /** The project's specification root (US-078); `spec` when absent. */
   specRoot?: string;
+  /** Code files the chat changed (US-098 AC-4): outside the Kanban flow. */
+  chatChanges?: ReadonlyArray<{ runId: string; path: string; at: string; revertedAt?: string | null }>;
   /** Feature status changes (US-094 AC-3). */
   featureEvents?: ReadonlyArray<{ featureId: string; title: string; status: FeatureStatus; at: string }>;
 }
@@ -68,7 +70,12 @@ export function buildDashboard(input: DashboardInput): Dashboard {
     label: `${e.featureId} ${e.title}: ${FEATURE_STATUS_LABEL[e.status]}`,
     at: e.at,
   }));
-  const activity = [...runs, ...features].sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0)).slice(0, 10);
+  const chat: Dashboard['activity'] = (input.chatChanges ?? []).flatMap((c) => [
+    { runId: c.runId, storyId: null, label: `Chat change outside Kanban flow: ${c.path}`, at: c.at },
+    // US-099 AC-3: the revert is an activity of its own.
+    ...(c.revertedAt ? [{ runId: c.runId, storyId: null, label: `Chat change reverted: ${c.path}`, at: c.revertedAt }] : []),
+  ]);
+  const activity = [...runs, ...features, ...chat].sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0)).slice(0, 10);
   return {
     storyCounts,
     progress: { done: storyCounts.done, total: input.stories.length },

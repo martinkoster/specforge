@@ -25,6 +25,7 @@ export interface PermissionContext {
 export const FILE_WRITE_TOOLS: ReadonlySet<string> = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
 export const SHELL_TOOLS: ReadonlySet<string> = new Set(['Bash', 'PowerShell']);
 const IMPLEMENTATION_KINDS = new Set(['implement', 'correct']);
+const SETTINGS_FOLDER = '.specforge';
 const STATUS_LINE = /^\s*status\s*:/m;
 const STATUS_VALUES = /^\s*status\s*:\s*['"]?([\w-]+)/gm;
 
@@ -41,8 +42,9 @@ export function builtInDenial(ctx: PermissionContext): string | undefined {
   const mayWrite = fileWrite || SHELL_TOOLS.has(ctx.toolName);
   const layout = specLayout(ctx.specRoot);
 
-  if (ctx.runKind === 'chat' && mayWrite) {
-    return 'The project chat is read-only in this release; write requests and shell commands are denied.';
+  // US-097 (FR-091): the chat may write after approval, but never SpecForge's own project files.
+  if (ctx.runKind === 'chat' && fileWrite && ctx.writes.some((p) => p === SETTINGS_FOLDER || p.startsWith(`${SETTINGS_FOLDER}/`))) {
+    return 'The chat may not change SpecForge project files (.specforge/**); change project settings in SpecForge instead.';
   }
   if (IMPLEMENTATION_KINDS.has(ctx.runKind) && ctx.writes.some(layout.isSpecPath)) {
     return `Implementation runs may not change specifications (${layout.root}/**, .specforge/**); report missing changes in the result instead.`;

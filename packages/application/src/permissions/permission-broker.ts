@@ -51,6 +51,8 @@ export interface PendingPermission {
   cwd: string;
   outsideWorkspace: boolean;
   requestedAt: string;
+  /** Stories (active or unmerged) that touched the written files: *Overlap with US-x* (US-097 AC-4). */
+  overlaps?: string[];
 }
 
 export interface PermissionBrokerDeps {
@@ -65,6 +67,8 @@ export interface PermissionBrokerDeps {
   fileExists?(path: string): boolean;
   /** The project's specification root (US-078, ADR-024); `spec` when absent. */
   specRoot?(projectId: string): string;
+  /** Stories whose touched files (`file_touch`) include one of the workspace-relative paths (US-097 AC-4). */
+  overlaps?(projectId: string, paths: readonly string[]): string[];
 }
 
 const PATH_KEYS = ['file_path', 'notebook_path', 'path'] as const;
@@ -152,7 +156,13 @@ export class PermissionBroker {
       const reason = 'ruleId' in decision ? `Denied by a ${decision.origin} rule.` : decision.reason;
       return this.finish(record.id, 'deny', by, reason);
     }
-    return this.relay(run, record);
+    // US-097 AC-4: a chat or specification write to files of active or unmerged stories names them in the prompt.
+    const written = relative.filter((r): r is string => r !== undefined && r !== '');
+    const overlaps =
+      run.runKind !== 'implement' && run.runKind !== 'correct' && written.length
+        ? (this.deps.overlaps?.(run.projectId, written) ?? [])
+        : [];
+    return this.relay(run, record, overlaps);
   }
 
   pending(): PendingPermission[] {
@@ -183,7 +193,7 @@ export class PermissionBroker {
     for (const waiting of [...this.waiting.values()]) this.settle(waiting, 'deny', 'default_deny', 'SpecForge was closed.');
   }
 
-  private relay(run: PermissionRunContext, record: PermissionRecord): Promise<PermissionAnswer> {
+  private relay(run: PermissionRunContext, record: PermissionRecord, overlaps: string[] = []): Promise<PermissionAnswer> {
     const pending: PendingPermission = {
       id: record.id,
       runId: run.runId,
@@ -194,6 +204,7 @@ export class PermissionBroker {
       cwd: record.cwd,
       outsideWorkspace: record.outsideWorkspace,
       requestedAt: record.requestedAt,
+      ...(overlaps.length ? { overlaps } : {}),
     };
     return new Promise((resolve) => {
       this.waiting.set(record.id, { pending, resolve });

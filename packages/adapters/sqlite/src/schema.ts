@@ -668,6 +668,28 @@ export const MIGRATIONS: readonly Migration[] = [
       primary key (project_id, tag)
     );`,
   },
+  {
+    version: 31,
+    name: 'chat_change',
+    // Chat changes per message (US-098, ADR-026): the workspace baseline before each agent turn and every changed path.
+    sql: `alter table chat_message add column baseline_ref text;
+    alter table chat_message add column untracked text not null default '[]';
+    create table chat_change (
+      id text primary key,
+      project_id text not null references project(id) on delete cascade,
+      thread_id text not null references chat_thread(id) on delete cascade,
+      run_id text not null,
+      path text not null,
+      change_type text not null,
+      before_ref text,
+      after_hash text,
+      is_spec integer not null,
+      reverted_at text,
+      created_at text not null
+    );
+    create index chat_change_by_run on chat_change (run_id);
+    create index chat_change_recent on chat_change (project_id, created_at);`,
+  },
 ];
 
 /** "Rebuild index": drops and recreates all workspace index tables in one transaction. */

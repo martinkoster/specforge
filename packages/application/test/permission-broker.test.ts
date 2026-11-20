@@ -198,14 +198,17 @@ describe('US-052 AC-3: every request and decision is stored', () => {
   });
 });
 
-describe('US-052 AC-4: chat runs', () => {
-  it('denies writes in chat runs with an explanation', async () => {
+describe('US-097 AC-2: chat runs keep the built-in denies', () => {
+  it('denies chat writes to SpecForge project files with an explanation', async () => {
     const { broker } = setup();
     await expect(
-      broker.ask(run({ runKind: 'chat', workspaceRoot: '/ws' }), ask('Write', { file_path: '/ws/a.md', content: 'x' }, '/ws')),
+      broker.ask(
+        run({ runKind: 'chat', workspaceRoot: '/ws' }),
+        ask('Write', { file_path: '/ws/.specforge/project.yaml', content: 'x' }, '/ws'),
+      ),
     ).resolves.toEqual({
       behavior: 'deny',
-      message: expect.stringMatching(/chat is read-only/),
+      message: expect.stringMatching(/SpecForge project files/),
     });
   });
 });
@@ -247,5 +250,27 @@ describe('US-078 AC-2: built-in denies use the project specification root', () =
     expect(await broker.ask(run(), ask('Write', { file_path: '/wt/US-001/spec/user_spec.rb', content: 'x' }))).toEqual({
       behavior: 'allow',
     });
+  });
+});
+
+describe('US-097 AC-1/AC-4: chat writes are relayed; overlaps with stories are shown', () => {
+  it('relays a chat file write with the stories whose touched files it overlaps', async () => {
+    const pending: unknown[] = [];
+    const records = new Map<string, PermissionRecord>();
+    const broker = new PermissionBroker({
+      store: { insert: (r) => void records.set(r.id, r), decide: () => undefined },
+      rules: () => [],
+      runs: { setAwaitingPermission: () => undefined },
+      now: () => 't',
+      newId: () => 'req-1',
+      onRequested: (p) => void pending.push(p),
+      overlaps: (_p, paths) => (paths.includes('src/board.ts') ? ['US-011', 'US-014'] : []),
+    });
+    const chat = run({ runKind: 'chat', workspaceRoot: '/ws' });
+    void broker.ask(chat, ask('Edit', { file_path: '/ws/src/board.ts', old_string: 'a', new_string: 'b' }, '/ws'));
+    expect(broker.pending()).toEqual([expect.objectContaining({ runKind: 'chat', toolName: 'Edit', overlaps: ['US-011', 'US-014'] })]);
+    broker.decide('req-1', 'allow');
+    void broker.ask(chat, ask('Edit', { file_path: '/ws/README.md', old_string: 'a', new_string: 'b' }, '/ws'));
+    expect(pending.at(-1)).not.toHaveProperty('overlaps');
   });
 });

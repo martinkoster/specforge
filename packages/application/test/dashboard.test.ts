@@ -128,3 +128,29 @@ describe('US-094 AC-3: feature status changes appear in the activity feed', () =
     ]);
   });
 });
+
+describe('US-098 AC-4: code changes of the chat appear in the activity feed', () => {
+  it('lists them as "Chat change outside Kanban flow" by time', () => {
+    const d = buildDashboard({
+      ...input,
+      chatChanges: [{ runId: 'chat-1', path: 'src/board.ts', at: '2026-10-16T09:30:00.000Z' }],
+    });
+    expect(d.activity.map((a) => [a.runId, a.label])).toEqual([
+      ['r3', 'US-003: implementation running'],
+      ['chat-1', 'Chat change outside Kanban flow: src/board.ts'],
+      ['r2', 'Specification generate completed'],
+      ['r1', 'US-001: implementation completed'],
+    ]);
+  });
+});
+
+describe('US-099 AC-3: reverted chat changes appear in the activity feed', () => {
+  it('lists "Chat change reverted" at the time of the revert', () => {
+    const d = buildDashboard({
+      ...input,
+      runs: [],
+      chatChanges: [{ runId: 'chat-1', path: 'README.md', at: '2026-10-16T09:00:00.000Z', revertedAt: '2026-10-16T09:10:00.000Z' }],
+    });
+    expect(d.activity.map((a) => a.label)).toEqual(['Chat change reverted: README.md', 'Chat change outside Kanban flow: README.md']);
+  });
+});

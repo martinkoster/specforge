@@ -13,12 +13,14 @@ export interface CaptureIdeaDialogProps {
   session: CoreSession;
   projectId: string;
   source: IdeaSource;
+  /** Pre-filled text, e.g. a chat message (US-100 AC-2); editable. */
+  initialText?: string;
   /** Closed: with the saved idea, or without one (cancelled). */
   onClose(saved?: Idea): void;
 }
 
-export function CaptureIdeaDialog({ session, projectId, source, onClose }: CaptureIdeaDialogProps) {
-  const [text, setText] = useState('');
+export function CaptureIdeaDialog({ session, projectId, source, initialText = '', onClose }: CaptureIdeaDialogProps) {
+  const [text, setText] = useState(initialText.replace(/\s+/g, ' ').trim().slice(0, 500));
   const [note, setNote] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);

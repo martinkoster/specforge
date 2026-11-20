@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
-// Feature status changes (US-094 AC-3, FR-104) and spec baselines (US-096, FR-112): workflow state outside the index.
-import type { BaselineRecord, FeatureEvent } from '@specforge/application';
+// Feature status changes (US-094 AC-3, FR-104), spec baselines (US-096, FR-112) and chat changes (US-098, ADR-026):
+// workflow state outside the index.
+import type { BaselineRecord, ChatChangeRecord, FeatureEvent } from '@specforge/application';
 import type { Database as Sqlite } from 'better-sqlite3';
 
 interface Row {
@@ -76,5 +77,68 @@ export class BaselineRepository {
       epicIds: JSON.parse(r.epic_ids) as string[],
       notes: r.notes,
     }));
+  }
+}
+
+interface ChangeRow {
+  id: string;
+  project_id: string;
+  thread_id: string;
+  run_id: string;
+  path: string;
+  change_type: ChatChangeRecord['change'];
+  before_ref: string | null;
+  after_hash: string | null;
+  is_spec: number;
+  reverted_at: string | null;
+  created_at: string;
+}
+
+const change = (r: ChangeRow): ChatChangeRecord => ({
+  id: r.id,
+  projectId: r.project_id,
+  threadId: r.thread_id,
+  runId: r.run_id,
+  path: r.path,
+  change: r.change_type,
+  beforeRef: r.before_ref,
+  afterRef: r.after_hash,
+  isSpec: r.is_spec === 1,
+  revertedAt: r.reverted_at,
+  createdAt: r.created_at,
+});
+
+/** Files the chat changed per agent turn (US-098) and their reverts (US-099). */
+export class ChatChangeRepository {
+  constructor(private readonly sqlite: Sqlite) {}
+
+  save(records: readonly ChatChangeRecord[]): void {
+    const insert = this.sqlite.prepare(
+      `insert into chat_change (id, project_id, thread_id, run_id, path, change_type, before_ref, after_hash, is_spec, reverted_at, created_at)
+       values (@id, @projectId, @threadId, @runId, @path, @change, @beforeRef, @afterRef, @isSpec, @revertedAt, @createdAt)`,
+    );
+    this.sqlite.transaction(() => records.forEach((r) => insert.run({ ...r, isSpec: r.isSpec ? 1 : 0 })))();
+  }
+
+  byRun(runId: string): ChatChangeRecord[] {
+    return (this.sqlite.prepare('select * from chat_change where run_id = ? order by rowid').all(runId) as ChangeRow[]).map(change);
+  }
+
+  get(id: string): ChatChangeRecord | undefined {
+    const row = this.sqlite.prepare('select * from chat_change where id = ?').get(id) as ChangeRow | undefined;
+    return row ? change(row) : undefined;
+  }
+
+  setReverted(id: string, at: string): void {
+    this.sqlite.prepare('update chat_change set reverted_at = ? where id = ?').run(at, id);
+  }
+
+  /** The newest changes of a project (activity feed). */
+  recent(projectId: string, limit: number): ChatChangeRecord[] {
+    return (
+      this.sqlite
+        .prepare('select * from chat_change where project_id = ? order by created_at desc, rowid limit ?')
+        .all(projectId, limit) as ChangeRow[]
+    ).map(change);
   }
 }

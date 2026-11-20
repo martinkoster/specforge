@@ -3,6 +3,8 @@
 // runs, pending decisions, recent activity, artifacts per phase, epics and the Kanban link; ＋ Add feature and the
 // feature wizard drafts (US-082, UF-12).
 import { ArrowRightCircle } from 'lucide-react';
+import { IdeaInbox } from '../features/IdeaInbox.js';
+import { SpecHistory } from '../features/SpecHistory.js';
 import { Icon } from '../components/icons.js';
 import { EmptyState, Menu, PageHeader, Skeleton, StatusBadge } from '../components/index.js';
 import { useEffect, useState } from 'react';
@@ -41,6 +43,12 @@ export interface DashboardAreaProps {
   intentApproved?: boolean;
   /** Opens the feature wizard: a new feature (null) or a stored draft. */
   onAddFeature?(resumeId: string | null): void;
+  /** *Capture idea* from the Add feature menu (US-095 AC-1). */
+  onCaptureIdea?(): void;
+  /** *Create baseline* from the spec history (US-096 AC-1/AC-3). */
+  onCreateBaseline?(): void;
+  /** *Turn into feature* from the idea inbox (US-095 AC-3). */
+  onTurnIdeaIntoFeature?(idea: QueryOutput<'ideas.list'>['ideas'][number]): void;
   /** *Edit specs directly* (Specifications area). */
   onEditSpecs?(): void;
   /** Opens a feature page (US-084). */
@@ -137,6 +145,9 @@ export function DashboardArea({
   onAddFeature,
   onEditSpecs,
   onOpenFeature,
+  onCaptureIdea,
+  onTurnIdeaIntoFeature,
+  onCreateBaseline,
 }: DashboardAreaProps) {
   const layout = useSpecLayout();
   const [data, setData] = useState<Dashboard | null>(null);
@@ -189,6 +200,7 @@ export function DashboardArea({
                     trigger="▾"
                     items={[
                       { label: 'Add feature', onSelect: () => onAddFeature(null) },
+                      ...(onCaptureIdea ? [{ label: 'Capture idea', onSelect: onCaptureIdea }] : []),
                       ...(onEditSpecs ? [{ label: 'Edit specs directly', onSelect: onEditSpecs }] : []),
                     ]}
                   />
@@ -202,6 +214,18 @@ export function DashboardArea({
           : {})}
       />
       {features.some((f) => f.status !== 'withdrawn') && onOpenFeature && <ActiveFeatures features={features} onOpen={onOpenFeature} />}
+      {onTurnIdeaIntoFeature && intentApproved && (
+        <IdeaInbox
+          session={session}
+          projectId={projectId}
+          features={features.filter((f) => f.status !== 'done' && f.status !== 'withdrawn').map((f) => ({ id: f.id, title: f.title }))}
+          onTurnIntoFeature={onTurnIdeaIntoFeature}
+          refreshKey={refreshKey}
+        />
+      )}
+      {onCreateBaseline && intentApproved && (
+        <SpecHistory session={session} projectId={projectId} onCreate={onCreateBaseline} refreshKey={refreshKey} />
+      )}
       {drafts.length > 0 && onAddFeature && (
         <ul aria-label="Draft features" className="feature-drafts">
           {drafts.map((d) => (
@@ -302,7 +326,7 @@ export function DashboardArea({
               ) : (
                 <ul>
                   {data.activity.map((a) => (
-                    <li key={a.runId}>
+                    <li key={a.runId ?? `${a.featureId}:${a.at}`}>
                       <time dateTime={a.at}>{a.at.slice(0, 16).replace('T', ' ')}</time> {a.label}
                     </li>
                   ))}

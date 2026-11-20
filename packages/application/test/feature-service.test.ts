@@ -2,10 +2,15 @@
 // US-081: feature intents — list/get with derived status and links, status written by SpecForge only.
 import { describe, expect, it } from 'vitest';
 import type { BoardStatus, FeatureStatus } from '@specforge/domain';
-import { FeatureService, type FeatureServiceDeps, type FeatureRecord } from '../src/index.js';
+import { FeatureService, type FeatureEvent, type FeatureServiceDeps, type FeatureRecord } from '../src/index.js';
 
 function setup(
-  options: { features?: FeatureRecord[]; stories?: Record<string, { id: string; status: BoardStatus }[]>; delta?: string[] } = {},
+  options: {
+    features?: FeatureRecord[];
+    stories?: Record<string, { id: string; status: BoardStatus }[]>;
+    delta?: string[];
+    extra?: Partial<FeatureServiceDeps>;
+  } = {},
 ) {
   const files = new Map<string, { content: string; hash: string }>();
   const features = options.features ?? [];
@@ -39,9 +44,11 @@ function setup(
     }),
     reindex: async (_p, path) => {
       reindexed.push(path);
-      const f = features.find((x) => x.path === path)!;
+      const f = features.find((x) => x.path === path);
+      if (!f) return;
       f.status = /status: (\w+)/.exec(files.get(path)!.content)![1] as FeatureStatus;
     },
+    ...options.extra,
   };
   return { service: new FeatureService(deps), files, reindexed, features };
 }
@@ -158,5 +165,104 @@ describe('US-085 AC-1: list data for the Active features widget', () => {
     expect(fi1).toMatchObject({ current: 'impact', nextStep: 'Analyse the impact of FI-001', progress: { done: 1, total: 2 } });
     expect(fi1!.phases.map((p) => p.phase)).toEqual(['intent', 'impact', 'requirements', 'design', 'stories', 'kanban', 'epic_review']);
     expect(fi2).toMatchObject({ current: 'intent', nextStep: 'Approve FI-002 Feature FI-002', progress: { done: 0, total: 0 } });
+  });
+});
+
+describe('US-094: feature completion and withdrawal (FR-104)', () => {
+  const events: FeatureEvent[] = [];
+  const recorder = {
+    recordEvent: (e: FeatureEvent) => void events.push(e),
+    events: (_p: string, id: string) => events.filter((e) => e.featureId === id),
+  };
+
+  it('AC-1/AC-3: a feature whose linked stories are all Done becomes Done; the change is written and recorded', async () => {
+    events.splice(0);
+    const { service, files } = setup({
+      features: [record('FI-001', 'approved', 'in_delivery')],
+      stories: {
+        'FI-001': [
+          { id: 'US-010', status: 'done' },
+          { id: 'US-011', status: 'done' },
+        ],
+      },
+      extra: { ...recorder, now: () => '2026-11-20T12:00:00.000Z' },
+    });
+    expect(await service.sync('p1')).toEqual(['FI-001']);
+    expect(files.get('spec/01_intent/FI-001-x.md')!.content).toContain('status: done');
+    expect(events).toEqual([{ projectId: 'p1', featureId: 'FI-001', status: 'done', note: null, at: '2026-11-20T12:00:00.000Z' }]);
+    expect(service.get('p1', 'FI-001')?.events).toEqual(events);
+  });
+
+  it('AC-2: the withdraw preview lists open change sets, applied changes and not-started stories', () => {
+    const { service } = setup({
+      features: [record('FI-001', 'approved', 'in_delivery')],
+      stories: {
+        'FI-001': [
+          { id: 'US-010', status: 'backlog' },
+          { id: 'US-011', status: 'ready' },
+          { id: 'US-012', status: 'done' },
+        ],
+      },
+      extra: { changeSets: { open: () => [{ phase: 'design', state: 'open' }], discard: () => [] } },
+    });
+    expect(service.withdrawPreview('p1', 'FI-001')).toEqual({
+      openChangeSets: ['design'],
+      appliedChanges: ['EP-004', 'FR-012', 'FR-040'],
+      notStartedStories: ['US-010', 'US-011'],
+      blockedBy: null,
+    });
+  });
+
+  it('AC-2: withdrawing discards open change sets, deletes the chosen not-started stories and writes Withdrawn (terminal)', async () => {
+    events.splice(0);
+    const discarded: string[] = [];
+    const removed: string[] = [];
+    const { service, files, reindexed } = setup({
+      features: [record('FI-001', 'approved', 'in_delivery')],
+      stories: {
+        'FI-001': [
+          { id: 'US-010', status: 'backlog' },
+          { id: 'US-011', status: 'ready' },
+          { id: 'US-012', status: 'in_progress' },
+        ],
+      },
+      extra: {
+        ...recorder,
+        now: () => '2026-11-20T13:00:00.000Z',
+        changeSets: {
+          open: () => [{ phase: 'stories', state: 'open' }],
+          discard: (_p, id) => {
+            discarded.push(id);
+            return ['stories'];
+          },
+        },
+        storyPath: (_p, id) => `spec/04_user_stories/${id}.md`,
+        removeFile: async (_p, path) => void removed.push(path),
+      },
+    });
+
+    await expect(service.withdraw('p1', 'FI-001', { deleteStories: ['US-012'] })).rejects.toThrow('US-012');
+    const result = await service.withdraw('p1', 'FI-001', { deleteStories: ['US-010'] });
+    expect(result).toEqual({ discarded: ['stories'], deleted: ['US-010'], kept: ['US-011'] });
+    expect(discarded).toEqual(['FI-001']);
+    expect(removed).toEqual(['spec/04_user_stories/US-010.md']);
+    expect(reindexed).toEqual(expect.arrayContaining(['spec/04_user_stories/US-010.md', 'spec/01_intent/FI-001-x.md']));
+    expect(files.get('spec/01_intent/FI-001-x.md')!.content).toContain('status: withdrawn');
+    expect(events.at(-1)).toMatchObject({ featureId: 'FI-001', status: 'withdrawn', note: 'Deleted US-010; kept US-011.' });
+    expect(service.get('p1', 'FI-001')?.status).toBe('withdrawn');
+    await expect(service.withdraw('p1', 'FI-001', { deleteStories: [] })).rejects.toThrow('already withdrawn');
+  });
+
+  it('AC-2: a Done feature cannot be withdrawn; a running generation blocks the withdrawal', () => {
+    const done = setup({
+      features: [record('FI-001', 'approved', 'done')],
+      stories: { 'FI-001': [{ id: 'US-010', status: 'done' }] },
+    });
+    expect(done.service.withdrawPreview('p1', 'FI-001').blockedBy).toContain('Done');
+    const running = setup({
+      features: [record('FI-001', 'approved', 'approved')],
+      extra: { changeSets: { open: () => [{ phase: 'requirements', state: 'running' }], discard: () => [] } },
+    });
+    expect(running.service.withdrawPreview('p1', 'FI-001').blockedBy).toContain('running');
   });
 });

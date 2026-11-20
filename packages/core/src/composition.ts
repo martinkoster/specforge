@@ -15,6 +15,11 @@ import {
   EpicService,
   mustHaveRequirementIds,
   FeatureService,
+  FeatureError,
+  IdeaError,
+  IdeaService,
+  BaselineError,
+  BaselineService,
   DeltaError,
   DeltaService,
   ImpactError,
@@ -35,6 +40,7 @@ import {
   MergeDetector,
   type GenerationTarget,
   ArtifactAccessError,
+  ApprovalError,
   ArtifactService,
   BoardService,
   ProjectService,
@@ -54,7 +60,7 @@ import {
   type AgentAdapter,
   type SecretStore,
 } from '@specforge/application';
-import { ExecutionSpaceManager, GitClient, GitVcs, SpecCommits } from '@specforge/git';
+import { ExecutionSpaceManager, GitClient, GitVcs, SpecBaselines, SpecCommits } from '@specforge/git';
 import {
   DEFAULT_SPEC_ROOT,
   maintenanceMode,
@@ -69,6 +75,9 @@ import { IpcError, type ContractHandlers, type EventName, type EventPayload } fr
 import {
   AgentRuntimeRepository,
   ChangeSetRepository,
+  EpicChoiceRepository,
+  FeatureEventRepository,
+  BaselineRepository,
   ExecutionStore,
   FeatureWizardRepository,
   ImpactFlagRepository,
@@ -148,7 +157,8 @@ async function mapped<T>(fn: () => Promise<T>): Promise<T> {
   try {
     return await fn();
   } catch (e) {
-    if (e instanceof ProjectRegistryError || e instanceof ArtifactAccessError) throw new IpcError(e.code, e.message);
+    if (e instanceof ProjectRegistryError || e instanceof ArtifactAccessError || e instanceof ApprovalError)
+      throw new IpcError(e.code, e.message);
     throw e;
   }
 }
@@ -358,6 +368,8 @@ export async function createCore(options: CoreOptions): Promise<Core> {
       },
     },
     store: new ChangeSetRepository(database.sqlite),
+    epicChoices: new EpicChoiceRepository(database.sqlite),
+    specIndex: (projectId) => index.specIndexView(projectId),
     get adapter() {
       return agentAdapter;
     },
@@ -412,6 +424,14 @@ export async function createCore(options: CoreOptions): Promise<Core> {
     newId: randomUUID,
     now: () => new Date().toISOString(),
   });
+  const featureCall = async <T>(fn: () => Promise<T>): Promise<T> => {
+    try {
+      return await fn();
+    } catch (e) {
+      if (e instanceof FeatureError) throw new IpcError('INVALID_REQUEST', e.message);
+      throw e;
+    }
+  };
   const deltaCall = async <T>(fn: () => T): Promise<T> => {
     try {
       return fn();
@@ -422,6 +442,7 @@ export async function createCore(options: CoreOptions): Promise<Core> {
   };
 
   // US-081: feature intents with derived lifecycle and typed trace links.
+  const featureEvents = new FeatureEventRepository(database.sqlite);
   const features = new FeatureService({
     delta: (projectId, featureId, phase) => deltas.state(projectId, featureId, phase),
     acceptedDelta: (projectId, featureId) => deltas.acceptedDelta(projectId, featureId),
@@ -432,10 +453,65 @@ export async function createCore(options: CoreOptions): Promise<Core> {
     index,
     files: (projectId) => workspaceFiles(projectId),
     reindex: (projectId, path) => reindexIn(projectId, path),
+    // US-094: status changes for the activity feed; withdrawal discards open change sets and deletes chosen stories.
+    recordEvent: (event) => {
+      featureEvents.save(event);
+      projectChanged(event.projectId);
+    },
+    events: (projectId, featureId) => featureEvents.byFeature(projectId, featureId),
+    changeSets: {
+      open: (projectId, featureId) => deltas.openSets(projectId, featureId),
+      discard: (projectId, featureId) => deltas.discardOpen(projectId, featureId),
+    },
+    storyPath: (projectId, storyId) => index.storyPath(projectId, storyId),
+    removeFile: (projectId, path) => workspaceFiles(projectId).remove(path),
+    now: () => new Date().toISOString(),
   });
   /** zod's optional fields may be present as undefined; drafts store only the given fields. */
   const compact = (draft: { [K in keyof WizardDraft]: WizardDraft[K] | undefined }): WizardDraft =>
     Object.fromEntries(Object.entries(draft).filter(([, v]) => v !== undefined)) as unknown as WizardDraft;
+  // US-095: the idea inbox in `01_intent/ideas.md`.
+  const ideas = new IdeaService({
+    files: (projectId) => workspaceFiles(projectId),
+    reindex: (projectId, path) => reindexIn(projectId, path),
+    ideasPath: (projectId) => `${specLayout(specRootOf(projectId)).folders.intent}/ideas.md`,
+    ideas: (projectId) => index.ideas(projectId),
+    featureIds: (projectId) => index.features(projectId).map((f) => f.id),
+    now: () => new Date().toISOString(),
+  });
+  const ideaCall = async <T>(fn: () => Promise<T>): Promise<T> => {
+    try {
+      const result = await fn();
+      return result;
+    } catch (e) {
+      if (e instanceof IdeaError) throw new IpcError('INVALID_REQUEST', e.message);
+      throw e;
+    }
+  };
+  // US-096: spec baselines as annotated Git tags on the base branch.
+  const specBaselines = { get: () => new SpecBaselines(git) };
+  const baselines = new BaselineService({
+    vcsMode: (projectId) => vcsModes.get(projectId) ?? 'none',
+    baseBranch: async (projectId) => (await projects.get(projectId))?.baseBranch ?? null,
+    uncommittedSpecFiles: async (projectId) => (await specCommits(projectId).status(specFolder(projectId, '.'))).map((f) => f.path),
+    git: {
+      create: (projectId, input) => specBaselines.get().create(specFolder(projectId, '.'), input),
+      fileAt: (projectId, tag, path) => specBaselines.get().fileAt(specFolder(projectId, '.'), tag, path),
+    },
+    store: new BaselineRepository(database.sqlite),
+    features: (projectId) => features.list(projectId).map((f) => ({ id: f.id, title: f.title, status: f.status })),
+    epics: (projectId) => index.epics(projectId).map((e) => ({ id: e.id, title: e.title, featureId: e.featureId })),
+    files: (projectId) => workspaceFiles(projectId),
+    now: () => new Date().toISOString(),
+  });
+  const baselineCall = async <T>(fn: () => Promise<T>): Promise<T> => {
+    try {
+      return await fn();
+    } catch (e) {
+      if (e instanceof BaselineError) throw new IpcError('INVALID_REQUEST', e.message);
+      throw e;
+    }
+  };
   // US-082: resumable feature wizard drafts (ADR-025).
   const wizardStore = new FeatureWizardRepository(database.sqlite);
   const wizards = new FeatureWizardService({
@@ -448,6 +524,7 @@ export async function createCore(options: CoreOptions): Promise<Core> {
       await approvals.approve(projectId, path);
       await reindexIn(projectId, path);
     },
+    ideaTurned: (projectId, ideaId, featureId) => ideas.turnedIntoFeature(projectId, ideaId, featureId),
     newId: randomUUID,
     now: () => new Date().toISOString(),
   });
@@ -472,6 +549,7 @@ export async function createCore(options: CoreOptions): Promise<Core> {
     files: (projectId) => workspaceFiles(projectId),
     reindex: (projectId, path) => reindexIn(projectId, path),
     now: () => new Date().toISOString(),
+    storyStatus: (projectId, storyId) => index.stories(projectId).find((s) => s.storyId === storyId)?.status,
   });
   let currentProjectId: string | null = null;
 
@@ -1103,7 +1181,32 @@ export async function createCore(options: CoreOptions): Promise<Core> {
     'specs.refine': async ({ projectId, path, section, instruction }) =>
       specRuns.refine({ projectId, path, instruction, ...(section ? { section } : {}) }),
     'specs.analyze': async ({ projectId, limitTo }) => specRuns.analyze({ projectId, ...(limitTo ? { limitTo } : {}) }),
-    'features.wizard.create': async ({ projectId, draft }) => wizardView(wizards.create(projectId, compact(draft))),
+    'features.wizard.create': async ({ projectId, draft, sourceIdea }) =>
+      wizardView(wizards.create(projectId, compact(draft), sourceIdea ? { sourceIdea } : {})),
+    'baselines.create': ({ projectId, tag }) =>
+      baselineCall(async () => {
+        const record = await baselines.create(projectId, tag);
+        projectChanged(projectId);
+        return record;
+      }),
+    'ideas.capture': ({ projectId, text, note, source }) =>
+      ideaCall(async () => {
+        const idea = await ideas.capture(projectId, { text, note: note ?? null, source });
+        projectChanged(projectId);
+        return idea;
+      }),
+    'ideas.merge': ({ projectId, ideaId, featureId }) =>
+      ideaCall(async () => {
+        const idea = await ideas.merge(projectId, ideaId, featureId);
+        projectChanged(projectId);
+        return idea;
+      }),
+    'ideas.dismiss': ({ projectId, ideaId, reason }) =>
+      ideaCall(async () => {
+        const idea = await ideas.dismiss(projectId, ideaId, reason);
+        projectChanged(projectId);
+        return idea;
+      }),
     'features.wizard.update': ({ wizardId, step, draft }) =>
       wizardCall(() => wizardView(wizards.update(wizardId, { step, draft: compact(draft) }))),
     'impact.propose': ({ projectId, featureId }) => impactCall(() => impact.propose(projectId, featureId)),
@@ -1119,6 +1222,13 @@ export async function createCore(options: CoreOptions): Promise<Core> {
     'delta.generate': ({ projectId, featureId, phase }) => deltas.generate(projectId, featureId, phase),
     'delta.decide': ({ itemId, decision }) => deltaCall(() => deltas.decide(itemId, decision)),
     'delta.acceptAll': ({ changeSetId }) => deltaCall(() => deltas.acceptAll(changeSetId)),
+    'features.withdraw': ({ projectId, featureId, deleteStories }) =>
+      featureCall(async () => {
+        const result = await features.withdraw(projectId, featureId, { deleteStories });
+        projectChanged(projectId);
+        return result;
+      }),
+    'delta.chooseEpic': ({ projectId, featureId, choice }) => deltaCall(() => deltas.chooseEpic(projectId, featureId, choice)),
     'delta.apply': async ({ changeSetId, decisions }) => {
       try {
         return await deltas.apply(changeSetId, decisions ?? {});
@@ -1395,9 +1505,15 @@ export async function createCore(options: CoreOptions): Promise<Core> {
     'impact.flags': async ({ projectId }) => impactFlags.list(projectId),
     'impact.view': async ({ projectId, featureId }) => impact.view(projectId, featureId),
     'delta.changeSet': async ({ projectId, featureId, phase }) => deltas.view(projectId, featureId, phase) ?? null,
+    'ideas.list': async ({ projectId }) => ideas.list(projectId),
+    'baselines.offer': ({ projectId }) => baselineCall(() => baselines.offer(projectId)),
+    'baselines.list': async ({ projectId }) => baselines.list(projectId),
+    'baselines.compare': ({ projectId, tag, path }) => baselineCall(() => baselines.compare(projectId, tag, path)),
+    'delta.epicProposal': async ({ projectId, featureId }) => deltas.epicProposal(projectId, featureId),
     'inflight.feedback': async ({ projectId, storyId }) => ({ feedback: inFlightDecisions.pendingFeedback(projectId, storyId) }),
     'features.list': async ({ projectId }) => features.list(projectId),
     'features.get': async ({ projectId, featureId }) => features.get(projectId, featureId) ?? null,
+    'features.withdrawPreview': async ({ projectId, featureId }) => featureCall(async () => features.withdrawPreview(projectId, featureId)),
     'features.wizard.get': async ({ wizardId }) => {
       const w = wizards.get(wizardId);
       return w ? wizardView(w) : null;
@@ -1431,6 +1547,12 @@ export async function createCore(options: CoreOptions): Promise<Core> {
           .map((a) => ({ path: a.path, kind: a.kind, approval: a.approval, impacted: impacted.has(a.path) })),
         lanes: board.board(projectId).lanes,
         specRoot: specRootOf(projectId),
+        featureEvents: featureEvents.recent(projectId, 10).map((e) => ({
+          featureId: e.featureId,
+          title: index.features(projectId).find((f) => f.id === e.featureId)?.title ?? e.featureId,
+          status: e.status,
+          at: e.at,
+        })),
       });
     },
     'chat.threads': async ({ projectId }) =>

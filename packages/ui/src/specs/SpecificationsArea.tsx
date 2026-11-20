@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Specifications area: artifacts by type, the split-view editor for the selected one (US-025) and AI generation (US-027).
+import { useBaselines } from './use-baselines.js';
 import { Callout, PageHeader } from '../components/index.js';
 import { useCallback, useEffect, useState } from 'react';
 import type { CoreSession } from '../core/core-session.js';
@@ -38,6 +39,7 @@ export function SpecificationsArea({
   const [content, setContent] = useState('');
   const [focus, setFocus] = useState<{ line: number; seq: number } | null>(null);
   const [openFindings, setOpenFindings] = useState(0);
+  const baselines = useBaselines(session, projectId);
   /** US-034: element to jump to once its artifact is open; links to unknown IDs in all artifacts. */
   const [pendingJump, setPendingJump] = useState<string | null>(null);
   const [linkIssues, setLinkIssues] = useState<{ path: string; message: string }[]>([]);
@@ -133,6 +135,8 @@ export function SpecificationsArea({
             key={`${doc.path}:${doc.hash}`}
             path={doc.path}
             initial={doc}
+            baselines={baselines.tags}
+            onCompare={baselines.compare(doc.path)}
             focusLine={focus}
             openFindings={openFindings}
             onContentChange={setContent}

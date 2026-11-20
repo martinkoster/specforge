@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 // Feature page (US-084, UF-18, FR-105): FI-ID, title, status and the feature-scoped stepper with soft gates (FR-080);
-// tabs Intent · Impact (US-087/US-088) · Changes (US-089) · Epic & stories · Activity.
+// tabs Intent · Impact (US-087/US-088) · Changes (US-089) · Epic & stories (US-093) · Activity; completion banner and
+// *Withdraw* (US-094); the banner offers a spec baseline (US-096).
 import { useEffect, useState } from 'react';
 import type { QueryOutput } from '@specforge/ipc-contract';
 import { EmptyState, StatusBadge } from '../components/index.js';
 import type { CoreSession } from '../core/core-session.js';
 import { ChangesPanel } from './ChangesPanel.js';
 import { ImpactPanel } from './ImpactPanel.js';
+import { StoriesPanel } from './StoriesPanel.js';
+import { WithdrawDialog } from './WithdrawDialog.js';
 
 type Feature = NonNullable<QueryOutput<'features.get'>>;
 type Phase = Feature['phases'][number]['phase'];
@@ -60,6 +63,10 @@ export interface FeaturePageProps {
   refreshKey?: unknown;
   /** Limited mode (US-088 AC-3). */
   aiDisabledReason?: string | null;
+  /** *Open on Kanban* after the feature's stories are applied (US-093 AC-4). */
+  onOpenKanban?(): void;
+  /** *Create baseline* from the completion banner (US-096 AC-1). */
+  onCreateBaseline?(): void;
 }
 
 export function FeaturePage({
@@ -70,12 +77,24 @@ export function FeaturePage({
   onOpenArtifact,
   refreshKey,
   aiDisabledReason = null,
+  onOpenKanban,
+  onCreateBaseline,
 }: FeaturePageProps) {
   const [feature, setFeature] = useState<Feature | null | undefined>(undefined);
   const [tab, setTab] = useState<Tab | null>(null);
   const [gate, setGate] = useState<string | null>(null);
   const [content, setContent] = useState<string | null>(null);
   const [reload, setReload] = useState(0);
+  const [withdrawing, setWithdrawing] = useState(false);
+  const [baseline, setBaseline] = useState<QueryOutput<'baselines.offer'> | null>(null);
+  const done = feature?.status === 'done';
+  useEffect(() => {
+    if (!done || !onCreateBaseline) return;
+    void session
+      .client()
+      .query('baselines.offer', { projectId })
+      .then(setBaseline, () => setBaseline(null));
+  }, [session, projectId, done, onCreateBaseline, refreshKey]);
 
   useEffect(() => {
     void session
@@ -128,11 +147,41 @@ export function FeaturePage({
           <StatusBadge status={feature.status} label={STATUS_LABEL[feature.status]} />
         </div>
         <div className="page-actions">
+          {feature.status !== 'done' && feature.status !== 'withdrawn' && (
+            <button className="btn btn-ghost" type="button" onClick={() => setWithdrawing(true)}>
+              Withdraw…
+            </button>
+          )}
           <button className="btn btn-secondary" type="button" onClick={onBack}>
             Back
           </button>
         </div>
       </header>
+      {feature.status === 'done' && (
+        <div role="status" aria-label="Feature complete" className="callout callout-success">
+          <p>
+            {feature.id} {feature.title} is done 🎯 — all {feature.progress.total} linked stories are Done.
+          </p>
+          {baseline && !baseline.available && <p className="field-hint">{baseline.reason}</p>}
+          {baseline?.available && onCreateBaseline && (
+            <button className="btn btn-primary btn-sm" type="button" onClick={onCreateBaseline}>
+              Create baseline {baseline.nextTag}
+            </button>
+          )}
+        </div>
+      )}
+      {withdrawing && (
+        <WithdrawDialog
+          session={session}
+          projectId={projectId}
+          featureId={feature.id}
+          onClose={() => setWithdrawing(false)}
+          onWithdrawn={() => {
+            setWithdrawing(false);
+            setReload((n) => n + 1);
+          }}
+        />
+      )}
       <nav aria-label="Feature phases" className="feature-stepper">
         {feature.phases.map((p) => (
           <button
@@ -199,19 +248,30 @@ export function FeaturePage({
             onChanged={() => setReload((n) => n + 1)}
           />
         ) : shown === 'stories' ? (
-          stories.length === 0 ? (
-            <EmptyState compact title="No stories yet" description="The feature's epic and stories appear here once they are planned." />
-          ) : (
-            <ul>
-              {stories.map((s) => (
-                <li key={s.id}>{s.id}</li>
-              ))}
-            </ul>
-          )
-        ) : feature.links.length === 0 && feature.decisions.length === 0 ? (
+          <StoriesPanel
+            session={session}
+            projectId={projectId}
+            featureId={feature.id}
+            stories={stories.map((s) => s.id)}
+            aiDisabledReason={aiDisabledReason}
+            onOpenArtifact={onOpenArtifact}
+            onChanged={() => setReload((n) => n + 1)}
+            {...(onOpenKanban ? { onOpenKanban } : {})}
+          />
+        ) : feature.links.length === 0 && feature.decisions.length === 0 && (feature.events ?? []).length === 0 ? (
           <EmptyState compact title="No activity yet" description="Elements introduced or changed by the feature appear here." />
         ) : (
           <>
+            {(feature.events ?? []).length > 0 && (
+              <ul aria-label="Status changes">
+                {feature.events!.map((e) => (
+                  <li key={`${e.status}:${e.at}`}>
+                    <time dateTime={e.at}>{e.at.slice(0, 16).replace('T', ' ')}</time> {STATUS_LABEL[e.status]}
+                    {e.note ? ` — ${e.note}` : ''}
+                  </li>
+                ))}
+              </ul>
+            )}
             {feature.decisions.length > 0 && (
               <ul aria-label="In-flight decisions">
                 {feature.decisions.map((d) => (

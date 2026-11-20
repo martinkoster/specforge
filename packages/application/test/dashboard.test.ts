@@ -109,3 +109,22 @@ describe('US-078 AC-1: dashboard artifacts below the specification root', () => 
     ]);
   });
 });
+
+describe('US-094 AC-3: feature status changes appear in the activity feed', () => {
+  it('merges feature events with the runs by time', () => {
+    const d = buildDashboard({
+      ...input,
+      featureEvents: [
+        { featureId: 'FI-001', title: 'Task comments', status: 'done', at: '2026-10-16T09:30:00.000Z' },
+        { featureId: 'FI-002', title: 'Export', status: 'withdrawn', at: '2026-10-16T07:00:00.000Z' },
+      ],
+    });
+    expect(d.activity.map((a) => [a.runId, a.featureId ?? null, a.label])).toEqual([
+      ['r3', null, 'US-003: implementation running'],
+      [null, 'FI-001', 'FI-001 Task comments: Done'],
+      ['r2', null, 'Specification generate completed'],
+      ['r1', null, 'US-001: implementation completed'],
+      [null, 'FI-002', 'FI-002 Export: Withdrawn'],
+    ]);
+  });
+});

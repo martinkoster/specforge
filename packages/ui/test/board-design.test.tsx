@@ -4,6 +4,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { KanbanBoard } from '../src/board/KanbanBoard.js';
 import { DashboardArea } from '../src/dashboard/DashboardArea.js';
@@ -202,5 +203,27 @@ describe('US-091 AC-5: in-flight decisions on cards', () => {
     render(<KanbanBoard board={flagged as never} onMove={vi.fn(async () => ({ ok: true }))} />);
     const us12 = screen.getByRole('article', { name: 'US-012 Story US-012' });
     expect(us12).toHaveTextContent('FI-001: Apply in corrections');
+  });
+});
+
+describe('US-092 AC-2: rework stories on cards and in the drawer', () => {
+  const reworked = {
+    ...board,
+    columns: board.columns.map((c) =>
+      c.status === 'done'
+        ? { ...c, cards: [card('US-008', 'done', { reworkedBy: ['US-023'] })] }
+        : c.status === 'backlog'
+          ? { ...c, cards: [card('US-023', 'backlog', { reworks: ['US-008'] })] }
+          : c,
+    ),
+  };
+
+  it('the Done original shows "Reworked by US-xxx"; the rework story shows what it reworks', async () => {
+    render(<KanbanBoard board={reworked as never} onMove={vi.fn(async () => ({ ok: true }))} />);
+    expect(screen.getByRole('article', { name: 'US-008 Story US-008' })).toHaveTextContent('Reworked by US-023');
+    expect(screen.getByRole('article', { name: 'US-023 Story US-023' })).toHaveTextContent('Reworks US-008');
+
+    await userEvent.click(screen.getByRole('button', { name: 'Open US-008' }));
+    expect(screen.getByRole('dialog', { name: 'US-008 Story US-008' })).toHaveTextContent('Reworked by US-023');
   });
 });

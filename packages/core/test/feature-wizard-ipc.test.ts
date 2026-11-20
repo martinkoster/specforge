@@ -132,3 +132,46 @@ describe('US-083 over IPC with the scripted agent', () => {
     expect(content).toContain('### In scope\n- Comments on tasks');
   });
 });
+
+describe('US-095 over IPC (FR-111)', () => {
+  it('AC-2..AC-4: a captured idea is appended to ideas.md and indexed; Turn into feature links the saved feature', async () => {
+    const ws = mkdtempSync(join(tmpdir(), 'sf-idea-ws-'));
+    mkdirSync(join(ws, '.specforge'));
+    writeFileSync(join(ws, '.specforge', 'project.yaml'), 'id: idea-p\nname: Ideas\nschemaVersion: 1\n');
+    mkdirSync(join(ws, 'spec', '01_intent'), { recursive: true });
+    writeFileSync(
+      join(ws, 'spec', '01_intent', 'FI-001-comments.md'),
+      '---\nkind: feature_intent\nid: FI-001\ntitle: Comments\napproval: approved\nstatus: approved\n---\n## Problem\nx\n',
+    );
+    const { client } = await boot(mkdtempSync(join(tmpdir(), 'sf-idea-app-')));
+    await client.command('projects.open', { path: ws });
+
+    const idea = await client.command('ideas.capture', { projectId: 'idea-p', text: 'Export board as PDF', source: 'shortcut' });
+    expect(idea).toMatchObject({ id: 'IDEA-001', state: 'new', source: 'shortcut' });
+    await client.command('ideas.capture', { projectId: 'idea-p', text: 'Keyboard moves', note: 'From the retro', source: 'dashboard' });
+    expect(readFileSync(join(ws, 'spec', '01_intent', 'ideas.md'), 'utf8')).toContain('## IDEA-002: Keyboard moves\n- created: ');
+    expect(await client.query('ideas.list', { projectId: 'idea-p' })).toMatchObject({ untriaged: 2 });
+
+    const wizard = await client.command('features.wizard.create', {
+      projectId: 'idea-p',
+      draft: { text: idea.text },
+      sourceIdea: idea.id,
+    });
+    expect(wizard.draft.text).toBe('Export board as PDF');
+    const saved = await client.command('features.wizard.save', { wizardId: wizard.id, title: 'Board export', approve: false });
+    expect(saved.featureId).toBe('FI-002');
+    expect(readFileSync(join(ws, ...saved.path.split('/')), 'utf8')).toContain('source_idea: IDEA-001');
+
+    await client.command('ideas.merge', { projectId: 'idea-p', ideaId: 'IDEA-002', featureId: 'FI-001' });
+    const { ideas, untriaged } = await client.query('ideas.list', { projectId: 'idea-p' });
+    expect(untriaged).toBe(0);
+    expect(ideas.map((i) => [i.id, i.state, i.featureId])).toEqual([
+      ['IDEA-001', 'turned_into_feature', 'FI-002'],
+      ['IDEA-002', 'merged', 'FI-001'],
+    ]);
+    expect(readFileSync(join(ws, 'spec', '01_intent', 'ideas.md'), 'utf8')).toContain('state: turned_into_feature → FI-002');
+    await expect(client.command('ideas.dismiss', { projectId: 'idea-p', ideaId: 'IDEA-001', reason: 'x' })).rejects.toMatchObject({
+      code: 'INVALID_REQUEST',
+    });
+  });
+});

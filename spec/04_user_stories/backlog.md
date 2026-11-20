@@ -6,10 +6,10 @@ _Last updated: 2026-11-20_
 
 | Status | Count |
 |--------|-------|
-| ready for development | 24 |
+| ready for development | 19 |
 | in progress | 0 |
 | blocked | 1 |
-| done | 89 |
+| done | 94 |
 | **Total** | **114** |
 
 ## Stories
@@ -107,11 +107,11 @@ _Last updated: 2026-11-20_
 | US-089 | Delta generation as reviewable change sets | Feature workflow | M | done |
 | US-090 | Apply accepted changes with stable IDs and feature links | Feature workflow | M | done |
 | US-091 | In-flight protection when applying changes | Feature workflow | M | done |
-| US-092 | Rework stories for Done functionality | Feature workflow | S | ready for development |
-| US-093 | Feature epic and story breakdown | Feature workflow | M | ready for development |
-| US-094 | Feature completion and withdrawal | Feature workflow | S | ready for development |
-| US-095 | Idea inbox | Feature workflow | M | ready for development |
-| US-096 | Spec baselines | Feature workflow | M | ready for development |
+| US-092 | Rework stories for Done functionality | Feature workflow | S | done |
+| US-093 | Feature epic and story breakdown | Feature workflow | M | done |
+| US-094 | Feature completion and withdrawal | Feature workflow | S | done |
+| US-095 | Idea inbox | Feature workflow | M | done |
+| US-096 | Spec baselines | Feature workflow | M | done |
 | US-097 | Chat may write through the permission relay | Chat changes | M | ready for development |
 | US-098 | Track chat changes per message | Chat changes | M | ready for development |
 | US-099 | Revert chat changes | Chat changes | S | ready for development |

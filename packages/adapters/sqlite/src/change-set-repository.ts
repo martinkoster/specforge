@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Delta change sets and their items (US-089, data_model.md §2.5, ADR-021/ADR-025): workflow state outside the index.
-import type { ChangeItemRecord, ChangeSetRecord, DeltaPhase } from '@specforge/application';
+import type { ChangeItemRecord, ChangeSetRecord, DeltaPhase, EpicChoice } from '@specforge/application';
 import type { Database as Sqlite } from 'better-sqlite3';
 
 interface SetRow {
@@ -97,5 +97,46 @@ export class ChangeSetRepository {
 
   setItemState(id: string, state: ChangeItemRecord['state']): void {
     this.sqlite.prepare('update change_item set state = ? where id = ?').run(state, id);
+  }
+}
+
+interface ChoiceRow {
+  project_id: string;
+  feature_id: string;
+  mode: EpicChoice['mode'];
+  epic_ids: string;
+  title: string | null;
+  decided_at: string;
+}
+
+/** The approved epic choice of a feature's Epic & stories phase (US-093 AC-1). */
+export class EpicChoiceRepository {
+  constructor(private readonly sqlite: Sqlite) {}
+
+  save(choice: EpicChoice): void {
+    this.sqlite
+      .prepare(
+        `insert into feature_epic_choice (project_id, feature_id, mode, epic_ids, title, decided_at)
+         values (@projectId, @featureId, @mode, @epicIds, @title, @decidedAt)
+         on conflict (project_id, feature_id) do update set mode = excluded.mode, epic_ids = excluded.epic_ids,
+           title = excluded.title, decided_at = excluded.decided_at`,
+      )
+      .run({ ...choice, epicIds: JSON.stringify(choice.epicIds) });
+  }
+
+  get(projectId: string, featureId: string): EpicChoice | undefined {
+    const row = this.sqlite
+      .prepare('select * from feature_epic_choice where project_id = ? and feature_id = ?')
+      .get(projectId, featureId) as ChoiceRow | undefined;
+    return row
+      ? {
+          projectId: row.project_id,
+          featureId: row.feature_id,
+          mode: row.mode,
+          epicIds: JSON.parse(row.epic_ids) as string[],
+          title: row.title,
+          decidedAt: row.decided_at,
+        }
+      : undefined;
   }
 }

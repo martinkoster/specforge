@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Human approval of artifacts (US-026, FR-013, UC-007): Approve writes `approval: approved` + `approved_at`; any AI change
 // makes the artifact Draft again; generation from Draft inputs needs confirmation.
+import { reworkIssues, type BoardStatus } from '@specforge/domain';
+import { parseArtifact } from '../indexing/parse-artifact.js';
 import type { ArtifactFiles } from '../stories/dependency-service.js';
 import { editFrontMatter } from '../stories/front-matter.js';
 import { ArtifactAccessError, type ArtifactListIndex, type IndexedArtifact } from './artifact-service.js';
@@ -45,12 +47,24 @@ export interface ApprovalServiceDeps {
   files(projectId: string): Pick<ArtifactFiles, 'read' | 'writeAtomic'>;
   reindex(projectId: string, path: string): Promise<unknown>;
   now(): string;
+  /** Board status of an indexed story: rework targets must be Done (US-092 AC-1). */
+  storyStatus?(projectId: string, storyId: string): BoardStatus | undefined;
+}
+
+/** An artifact cannot be approved as it is (e.g. invalid rework targets). */
+export class ApprovalError extends Error {
+  readonly code = 'APPROVAL_REFUSED';
+  constructor(message: string) {
+    super(message);
+    this.name = 'ApprovalError';
+  }
 }
 
 export class ApprovalService {
   constructor(private readonly deps: ApprovalServiceDeps) {}
 
   async approve(projectId: string, path: string): Promise<{ ok: true; hash: string }> {
+    await this.checkReworks(projectId, path);
     const hash = await this.edit(projectId, path, (doc) => {
       doc.set('approval', 'approved');
       doc.set('approved_at', this.deps.now());
@@ -69,6 +83,17 @@ export class ApprovalService {
         doc.set('generated_by', runId);
       });
     }
+  }
+
+  /** US-092 AC-1: a story with `reworks:` can only be approved when every target exists and is Done. */
+  private async checkReworks(projectId: string, path: string): Promise<void> {
+    const storyStatus = this.deps.storyStatus;
+    if (!storyStatus || !this.deps.index.artifacts(projectId).some((a) => a.path === path && a.kind === 'story')) return;
+    const file = await this.deps.files(projectId).read(path);
+    const story = file ? parseArtifact(path, file.content).story : undefined;
+    if (!story) return;
+    const issues = reworkIssues(story.id, story.reworks, (id) => storyStatus(projectId, id));
+    if (issues.length) throw new ApprovalError(issues.join(' '));
   }
 
   check(projectId: string, target: GenerationTarget): { drafts: string[]; warning: string | null } {

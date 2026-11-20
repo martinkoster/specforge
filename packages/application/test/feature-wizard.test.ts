@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { FeatureWizardService, featureIntentFile, type FeatureWizardDeps, type WizardRecord } from '../src/index.js';
 
-function setup(options: { existing?: string[]; specRoot?: string } = {}) {
+function setup(options: { existing?: string[]; specRoot?: string; extra?: Partial<FeatureWizardDeps> } = {}) {
   const rows = new Map<string, WizardRecord>();
   const files = new Map<string, string>();
   const log: string[] = [];
@@ -31,6 +31,7 @@ function setup(options: { existing?: string[]; specRoot?: string } = {}) {
     approve: async (_p, path) => void log.push(`approve ${path}`),
     newId: () => `wiz-${++n}`,
     now: () => `2026-11-20T10:00:0${clock++}.000Z`,
+    ...options.extra,
   };
   return { service: new FeatureWizardService(deps), rows, files, log };
 }
@@ -117,5 +118,19 @@ describe('US-082 AC-3: preview and save as FI-xxx-<slug>.md', () => {
     expect(content).not.toContain('priority:');
     expect(content).not.toContain('related_epics');
     expect(content).toContain('## Clarified decisions');
+  });
+});
+
+describe('US-095 AC-3: Turn into feature — the wizard links the saved feature intent to its idea', () => {
+  it('writes source_idea into the feature intent and reports the saved feature to the idea inbox', async () => {
+    const turned: string[] = [];
+    const { service, files } = setup({
+      existing: ['FI-001'],
+      extra: { ideaTurned: async (_p, ideaId, featureId) => void turned.push(`${ideaId}→${featureId}`) },
+    });
+    const wizard = service.create('p1', { text: 'Export board as PDF' }, { sourceIdea: 'IDEA-007' });
+    const saved = await service.save(wizard.id, { title: 'Board export', approve: false });
+    expect(files.get(saved.path)).toContain('source_idea: IDEA-007');
+    expect(turned).toEqual(['IDEA-007→FI-002']);
   });
 });

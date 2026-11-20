@@ -1,11 +1,18 @@
 // SPDX-License-Identifier: Apache-2.0
 // Validation of files produced by a specification run (US-027, ADR-014): front-matter schema, unique IDs, link targets,
-// acyclic blocking dependencies.
-import { DependencyGraph } from '@specforge/domain';
+// acyclic blocking dependencies, rework targets that exist and are Done (US-092).
+import { DependencyGraph, reworkIssues, type BoardStatus } from '@specforge/domain';
 import { ArtifactParseError, parseArtifact, type ParsedArtifact } from '../indexing/parse-artifact.js';
 
 export type SpecIssueKind =
-  'front_matter' | 'duplicate_id' | 'broken_link' | 'unknown_dependency' | 'dependency_cycle' | 'missing_rationale' | 'incomplete';
+  | 'front_matter'
+  | 'duplicate_id'
+  | 'broken_link'
+  | 'unknown_dependency'
+  | 'dependency_cycle'
+  | 'missing_rationale'
+  | 'incomplete'
+  | 'invalid_rework';
 
 const RELATION = { blocking: 'depends on', related: 'is related to' } as const;
 
@@ -19,6 +26,8 @@ export interface SpecValidationIssue {
 export interface SpecIndexView {
   elements: ReadonlyArray<{ id: string; path: string }>;
   dependencies: ReadonlyArray<{ from: string; to: string; type: 'blocking' | 'related'; path: string }>;
+  /** Board status of the indexed stories (rework targets must be Done, US-092). */
+  stories?: ReadonlyArray<{ id: string; status: BoardStatus }>;
 }
 
 /** Changed files of the run; `content: null` for deleted files. */
@@ -65,6 +74,11 @@ export function validateSpecFiles(files: readonly ProducedFile[], index: SpecInd
     }
   }
 
+  const statuses = new Map((index.stories ?? []).filter((s) => !replaced.has(defined.get(s.id) ?? '')).map((s) => [s.id, s.status]));
+  for (const { artifact } of parsed) if (artifact.story) statuses.set(artifact.story.id, artifact.story.status);
+  // A defined story without a known status (index view without statuses) is not reported.
+  const statusOf = (id: string): BoardStatus | undefined => statuses.get(id) ?? (defined.has(id) ? 'done' : undefined);
+
   for (const { path, content, artifact } of parsed) {
     issues.push(...completeness(path, content, artifact));
     for (const link of artifact.links) {
@@ -74,6 +88,10 @@ export function validateSpecFiles(files: readonly ProducedFile[], index: SpecInd
     for (const d of artifact.dependencies) {
       if (defined.has(d.to)) continue;
       issues.push({ path, kind: 'unknown_dependency', message: `${d.from} ${RELATION[d.type]} ${d.to}, which does not exist.` });
+    }
+    if (artifact.story) {
+      for (const message of reworkIssues(artifact.story.id, artifact.story.reworks, statusOf))
+        issues.push({ path, kind: 'invalid_rework', message });
     }
   }
 

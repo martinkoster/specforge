@@ -142,6 +142,15 @@ export function TracePanel({ session, projectId, elements, onNavigate, root }: T
           <p>
             <strong>{trace.node.label}</strong>
           </p>
+          {trace.node.kind === 'story' && trace.downstream.some((n) => n.linkType === 'reworks') && (
+            <p className="hint">
+              Reworked by{' '}
+              {trace.downstream
+                .filter((n) => n.linkType === 'reworks')
+                .map((n) => n.id)
+                .join(', ')}
+            </p>
+          )}
           <h4>Upstream</h4>
           {trace.upstream.length === 0 ? <p className="hint">None</p> : list('Upstream', trace.upstream)}
           <h4>Downstream</h4>

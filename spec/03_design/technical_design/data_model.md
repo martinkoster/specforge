@@ -596,11 +596,31 @@ Index `(project_id, feature_id)`.
 | pending_feedback | TEXT NULL | apply_in_corrections for a running story: stored and pre-filled into "Request corrections" when the story reaches Review (FR-110); cleared when used |
 | decided_at | TEXT | |
 
+**feature_epic_choice** (US-093 — workflow state; the approved epic choice of a feature's *Epic & stories* phase)
+| Column | Type | Notes |
+|---|---|---|
+| project_id, feature_id | TEXT | PK |
+| mode | TEXT | `new` / `extend` |
+| epic_ids | TEXT (JSON array) | the new epic's ID, or the epics to extend |
+| title | TEXT NULL | title of a new epic |
+| decided_at | TEXT | |
+A `stories` change set holds one item per changed story/epic file (`element_id` = the story or epic ID, `before_text`/`after_text` = whole file); applying writes the file with `feature:` (new) or `Changed by FI-x.` (adjusted).
+
+**feature_event** (US-094 — workflow state; status changes of feature intents for the activity feed)
+| Column | Type | Notes |
+|---|---|---|
+| project_id, feature_id | TEXT | |
+| status | TEXT | the new derived or user-set status (`done`, `withdrawn`, …) |
+| note | TEXT NULL | e.g. "Deleted US-010; kept US-011." on withdrawal |
+| at | TEXT | |
+Index `(project_id, feature_id, at)`.
+
 **idea** (index of `ideas.md`)
 | Column | Type | Notes |
 |---|---|---|
 | project_id, idea_id | TEXT | PK |
-| text, note, source, created_at, state, feature_id, dismiss_reason | | |
+| artifact_path | TEXT | `ideas.md` the idea was parsed from (replaced per artifact on reindex) |
+| text, note, source, created_at, state, feature_id, dismiss_reason | | state: `new` / `turned_into_feature` / `merged` / `dismissed` |
 
 **baseline** (index of Git tags created by SpecForge)
 | Column | Type | Notes |
@@ -683,4 +703,4 @@ app_setup (1 row) · permission_rule (global | project) ──n project_rule_ove
 
 No predecessor system — no data migration. Schema evolution via numbered SQL migrations run at startup inside a transaction; the workspace index tables can be dropped and rebuilt at any time (`Rebuild index` command). Front-matter carries `specforge: <schemaVersion>`; older files are upgraded lazily on write.
 
-**Release 2 migrations** (R1 databases upgrade in place): add `project.spec_root` (default `spec`; `project.yaml` without `specRoot` means `spec`); drop the index columns `element.impact_flag` / `impact_source` (R1 never set them persistently — flags start empty) and add `element.content_hash`; create `impact_flag`, `feature_wizard`, `chat_change`, `chat_message.baseline_ref`, `impact_item`, `change_set`, `change_item`, `in_flight_decision`, `baseline`, `artifact_revision` and the index tables `feature_intent` / `idea`; add `feature_id` / `reworks` to the index tables (filled by the next indexing). Workflow-state tables (`impact_flag`, `feature_wizard`, `impact_item`, `change_*`, `in_flight_decision`) are never touched by *Rebuild index*.
+**Release 2 migrations** (R1 databases upgrade in place): add `project.spec_root` (default `spec`; `project.yaml` without `specRoot` means `spec`); drop the index columns `element.impact_flag` / `impact_source` (R1 never set them persistently — flags start empty) and add `element.content_hash`; create `impact_flag`, `feature_wizard`, `chat_change`, `chat_message.baseline_ref`, `impact_item`, `change_set`, `change_item`, `in_flight_decision`, `feature_epic_choice`, `feature_event`, `baseline`, `artifact_revision` and the index tables `feature_intent` / `idea`; add `feature_id` / `reworks` to the index tables (filled by the next indexing). Workflow-state tables (`impact_flag`, `feature_wizard`, `impact_item`, `change_*`, `in_flight_decision`, `feature_epic_choice`, `feature_event`, `baseline`) are never touched by *Rebuild index*.

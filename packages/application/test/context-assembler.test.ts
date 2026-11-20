@@ -131,3 +131,32 @@ describe('US-078: the implementation prompt names the specification root', () =>
     expect(assembleContext(input()).systemAppend).toContain('Do not modify files in spec/ or .specforge/');
   });
 });
+
+describe('US-092 AC-3: the context of a rework story includes the original story', () => {
+  it('adds the reworked Done story with its text, run summary and changed files (FR-068)', () => {
+    const { prompt } = assembleContext(
+      input({
+        reworks: [
+          {
+            id: 'US-008',
+            title: 'Export',
+            status: 'done',
+            summary: 'CSV export added.',
+            changedFiles: ['src/export.ts', 'test/export.test.ts'],
+            content: '---\nid: US-008\n---\n## Acceptance Criteria\n- [x] AC-1: Exports CSV.\n',
+          },
+        ],
+      }),
+    );
+    const section = prompt.slice(prompt.indexOf('## Reworked Done stories'));
+    expect(section).toContain('This story changes functionality of Done stories; they stay Done.');
+    expect(section).toContain('### US-008 Export (Done): CSV export added.');
+    expect(section).toContain('Changed files: src/export.ts, test/export.test.ts');
+    expect(section).toContain('- [x] AC-1: Exports CSV.');
+    expect(section).not.toContain('id: US-008');
+  });
+
+  it('has no rework section for normal stories', () => {
+    expect(assembleContext(input()).prompt).not.toContain('Reworked Done stories');
+  });
+});

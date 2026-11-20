@@ -5,6 +5,7 @@ export const LAYER = 'domain' as const;
 
 export * from './story/state-machine.js';
 export * from './story/epic-status.js';
+export * from './story/rework.js';
 export * from './execution/run-isolation.js';
 export * from './dependencies/graph.js';
 export * from './permissions/policy.js';

@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Changes tab of the feature page (US-089, UF-18, FR-107): *Generate delta* for the Requirements (delta) and
 // Design (delta) phases; the change set grouped by file with badges *New* / *Modified* / *Deprecated*, the diff per
-// item and *Accept* / *Discard* / *Accept all*.
+// item and *Accept* / *Discard* / *Accept all*. The Epic & stories phase (US-093) reuses it with *New* / *Adjusted* /
+// *Rework of US-xxx* badges and *Open on Kanban*.
 import { useCallback, useEffect, useState } from 'react';
 import type { CommandOutput, QueryOutput } from '@specforge/ipc-contract';
 import { Dialog } from '../components/index.js';
@@ -71,6 +72,16 @@ function InFlightDialog({
 }
 
 const KIND: Record<Item['kind'], string> = { new: 'New', modified: 'Modified', deprecated: 'Deprecated' };
+const PHASE_LABEL: Record<Phase, string> = { requirements: 'Requirements (delta)', design: 'Design (delta)', stories: 'Epic & stories' };
+
+/** Badge of an item; in the stories phase: *New* / *Adjusted* / *Rework of US-xxx* (US-093 AC-2). */
+function badgeOf(item: Item, phase: Phase): string {
+  if (!item.elementId) return 'Other changes';
+  if (phase !== 'stories') return `${KIND[item.kind]} ${item.elementId}`;
+  const reworked = /^reworks:\s*\[?\s*(US-\d+)/m.exec(item.after)?.[1];
+  if (item.kind === 'new' && reworked) return `Rework of ${reworked}`;
+  return `${item.kind === 'new' ? 'New' : 'Adjusted'} ${item.elementId}`;
+}
 const STATE: Record<Item['state'], string> = { open: 'Open', accepted: 'Accepted', discarded: 'Discarded', applied: 'Applied' };
 
 export interface ChangesPanelProps {
@@ -78,6 +89,10 @@ export interface ChangesPanelProps {
   projectId: string;
   featureId: string;
   initialPhase: Phase;
+  /** Phases offered by the segmented control (default requirements and design); a single phase hides it. */
+  phases?: readonly Phase[];
+  /** Stories phase: jumps to the board once the stories are applied (US-093 AC-4). */
+  onOpenKanban?(): void;
   /** Limited mode: no delta generation. */
   aiDisabledReason?: string | null;
   /** The change set changed (→ the feature stepper). */
@@ -107,6 +122,8 @@ export function ChangesPanel({
   projectId,
   featureId,
   initialPhase,
+  phases = ['requirements', 'design'],
+  onOpenKanban,
   aiDisabledReason = null,
   onChanged,
   onOpenArtifact,
@@ -169,13 +186,15 @@ export function ChangesPanel({
 
   return (
     <div className="changes-panel">
-      <div className="segmented" role="group" aria-label="Delta phase">
-        {(['requirements', 'design'] as const).map((p) => (
-          <button key={p} type="button" className="btn btn-ghost btn-sm" aria-pressed={phase === p} onClick={() => setPhase(p)}>
-            {p === 'requirements' ? 'Requirements (delta)' : 'Design (delta)'}
-          </button>
-        ))}
-      </div>
+      {phases.length > 1 && (
+        <div className="segmented" role="group" aria-label="Delta phase">
+          {phases.map((p) => (
+            <button key={p} type="button" className="btn btn-ghost btn-sm" aria-pressed={phase === p} onClick={() => setPhase(p)}>
+              {PHASE_LABEL[p]}
+            </button>
+          ))}
+        </div>
+      )}
       {error && <p role="alert">{error}</p>}
       {view?.state === 'failed' && view.reason && <p role="alert">The delta generation failed: {view.reason}</p>}
       {view?.state === 'running' && <p role="status">Generating the delta… the agent writes into a snapshot of the target folder.</p>}
@@ -187,7 +206,7 @@ export function ChangesPanel({
           title={aiDisabledReason ?? undefined}
           onClick={() => void generate().catch((e: unknown) => setError(message(e)))}
         >
-          Generate delta
+          {phase === 'stories' ? 'Generate stories' : 'Generate delta'}
         </button>
       )}
       {files.map((path) => (
@@ -203,7 +222,7 @@ export function ChangesPanel({
                     <span
                       className={`badge ${i.kind === 'new' ? 'badge-success' : i.kind === 'deprecated' ? 'badge-warning' : 'badge-info'}`}
                     >
-                      {i.elementId ? `${KIND[i.kind]} ${i.elementId}` : 'Other changes'}
+                      {badgeOf(i, phase)}
                     </span>{' '}
                     {i.state === 'open' && view!.state === 'open' ? (
                       <>
@@ -244,6 +263,11 @@ export function ChangesPanel({
       {view?.state === 'applied' && (
         <div role="status" className="callout callout-success">
           <p>Applied. Review and approve the changed artifacts to finish the phase.</p>
+          {phase === 'stories' && onOpenKanban && (
+            <button className="btn btn-primary btn-sm" type="button" onClick={onOpenKanban}>
+              Open on Kanban
+            </button>
+          )}
           {onOpenArtifact &&
             appliedPaths.map((path) => (
               <button

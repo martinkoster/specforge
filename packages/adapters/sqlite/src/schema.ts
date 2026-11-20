@@ -120,6 +120,24 @@ const FEATURE_INTENT_TABLE: IndexTable = {
     )`,
 };
 
+/** Ideas of the idea inbox file (US-095, data_model.md §2.5); added by migration 29. */
+const IDEA_TABLE: IndexTable = {
+  name: 'idea',
+  ddl: `create table idea (
+      project_id text not null references project(id) on delete cascade,
+      idea_id text not null,
+      artifact_path text not null,
+      text text not null,
+      note text,
+      source text not null,
+      created_at text not null,
+      state text not null,
+      feature_id text,
+      dismiss_reason text,
+      primary key (project_id, idea_id)
+    )`,
+};
+
 /** Release 2 element table (US-086): content hash per element; impact flags moved to `impact_flag` (ADR-025). */
 const ELEMENT_TABLE: IndexTable = {
   name: 'element',
@@ -139,6 +157,7 @@ const ELEMENT_TABLE: IndexTable = {
 export const INDEX_TABLES: readonly IndexTable[] = [
   ...R1_INDEX_TABLES.map((t) => (t.name === 'element' ? ELEMENT_TABLE : t)),
   FEATURE_INTENT_TABLE,
+  IDEA_TABLE,
 ];
 
 export const MIGRATIONS: readonly Migration[] = [
@@ -600,6 +619,54 @@ export const MIGRATIONS: readonly Migration[] = [
       decided_at text not null
     );
     create index in_flight_decision_by_story on in_flight_decision (project_id, story_id);`,
+  },
+  {
+    version: 27,
+    name: 'feature_epic_choice',
+    // The approved epic choice of a feature's Epic & stories phase (US-093, FR-108): a new epic or epics to extend.
+    sql: `create table feature_epic_choice (
+      project_id text not null references project(id) on delete cascade,
+      feature_id text not null,
+      mode text not null,
+      epic_ids text not null,
+      title text,
+      decided_at text not null,
+      primary key (project_id, feature_id)
+    );`,
+  },
+  {
+    version: 28,
+    name: 'feature_event',
+    // Feature status changes for the activity feed (US-094, FR-104): completion, withdrawal and the other derived states.
+    sql: `create table feature_event (
+      project_id text not null references project(id) on delete cascade,
+      feature_id text not null,
+      status text not null,
+      note text,
+      at text not null
+    );
+    create index feature_event_by_feature on feature_event (project_id, feature_id, at);`,
+  },
+  {
+    version: 29,
+    name: 'idea',
+    // The idea inbox in the workspace index (US-095, FR-111): rebuilt from `01_intent/ideas.md`.
+    sql: `${IDEA_TABLE.ddl};`,
+  },
+  {
+    version: 30,
+    name: 'baseline',
+    // Spec baselines (US-096, FR-112): the annotated Git tags SpecForge created, with the included features and epics.
+    sql: `create table baseline (
+      project_id text not null references project(id) on delete cascade,
+      tag text not null,
+      commit_sha text not null,
+      created_at text not null,
+      feature_ids text not null,
+      epic_ids text not null,
+      notes text not null,
+      primary key (project_id, tag)
+    );`,
   },
 ];
 

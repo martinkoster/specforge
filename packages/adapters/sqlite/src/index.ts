@@ -13,4 +13,5 @@ export * from './feature-wizard-repository.js';
 export * from './impact-flag-repository.js';
 export * from './impact-item-repository.js';
 export * from './change-set-repository.js';
+export * from './feature-event-repository.js';
 export * from './in-flight-repository.js';

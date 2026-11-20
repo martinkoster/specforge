@@ -83,6 +83,8 @@ export interface FeatureWizardDeps {
   reindex(projectId: string, path: string): Promise<unknown>;
   /** The approval flow of all artifacts (approved_at, Draft → Approved). */
   approve(projectId: string, path: string): Promise<unknown>;
+  /** US-095: the feature intent saved from an idea — the idea shows "→ FI-xxx". */
+  ideaTurned?(projectId: string, ideaId: string, featureId: string): Promise<unknown>;
   newId(): string;
   now(): string;
 }
@@ -121,7 +123,18 @@ const slugOf = (title: string) =>
     .replace(/-+$/, '') || 'feature';
 
 /** The feature intent file for a wizard draft (data_model.md §1.5). */
-export function featureIntentFile({ id, title, draft }: { id: string; title: string; draft: WizardDraft }): string {
+export function featureIntentFile({
+  id,
+  title,
+  draft,
+  sourceIdea = null,
+}: {
+  id: string;
+  title: string;
+  draft: WizardDraft;
+  /** The idea the feature was turned from (US-095). */
+  sourceIdea?: string | null;
+}): string {
   const front = [
     '---',
     'specforge: 1',
@@ -132,6 +145,7 @@ export function featureIntentFile({ id, title, draft }: { id: string; title: str
     'status: draft',
     ...(draft.priority ? [`priority: ${draft.priority}`] : []),
     ...(draft.epicId ? [`related_epics: [${draft.epicId}]`] : []),
+    ...(sourceIdea ? [`source_idea: ${sourceIdea}`] : []),
     '---',
   ];
   const review = draft.review;
@@ -241,7 +255,12 @@ export class FeatureWizardService {
     const featureId = row.featureId ?? nextFeatureId(this.deps.featureIds(row.projectId));
     const finalTitle = (title ?? row.draft.title ?? titleFromIdea(row.draft.text)).trim();
     const path = `${specLayout(this.deps.specRoot(row.projectId)).folders.intent}/${featureId}-${slugOf(finalTitle)}.md`;
-    return { featureId, title: finalTitle, path, content: featureIntentFile({ id: featureId, title: finalTitle, draft: row.draft }) };
+    return {
+      featureId,
+      title: finalTitle,
+      path,
+      content: featureIntentFile({ id: featureId, title: finalTitle, draft: row.draft, sourceIdea: row.sourceIdea }),
+    };
   }
 
   /** Writes the feature intent (AC-3); approving removes the draft (ADR-025), a Draft keeps it linked to the feature. */
@@ -252,6 +271,8 @@ export class FeatureWizardService {
     const preview = this.preview(wizardId, options.title);
     await this.deps.files(row.projectId).writeAtomic(preview.path, preview.content, { expectedHash: null });
     await this.deps.reindex(row.projectId, preview.path);
+    // US-095 AC-3: the idea shows "→ FI-xxx"; a triaged or missing idea does not block the save.
+    if (row.sourceIdea) await this.deps.ideaTurned?.(row.projectId, row.sourceIdea, preview.featureId).catch(() => undefined);
     if (options.approve) {
       await this.deps.approve(row.projectId, preview.path);
       this.deps.store.remove(wizardId);

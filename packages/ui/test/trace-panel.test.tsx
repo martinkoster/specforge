@@ -122,3 +122,21 @@ describe('US-081 AC-3: feature trace types', () => {
     expect(elementIdsOf('---\nkind: feature_intent\nid: FI-003\n---\n## Problem')).toEqual(['FI-003']);
   });
 });
+
+describe('US-092 AC-2: the traceability panel of a reworked story', () => {
+  it('shows "Reworked by US-xxx" for downstream rework stories', async () => {
+    traces['element:US-008'] = {
+      node: { kind: 'story', id: 'US-008', label: 'US-008: Export', path: 'spec/04_user_stories/US-008.md', exists: true },
+      upstream: [],
+      downstream: [
+        { kind: 'story', id: 'US-023', label: 'US-023: Export as XLSX', path: 'a', exists: true, linkType: 'reworks' },
+        { kind: 'story', id: 'US-030', label: 'US-030: Later', path: 'b', exists: true },
+      ],
+      issues: [],
+    };
+    const session = await fakeCore({ 'trace.get': async ({ target }) => traces[`${target.kind}:${target.id}`] as never });
+    render(<TracePanel session={session} projectId="p1" elements={['US-008']} onNavigate={() => undefined} />);
+    const panel = await screen.findByRole('region', { name: 'Trace' });
+    expect(await within(panel).findByText('Reworked by US-023')).toBeInTheDocument();
+  });
+});

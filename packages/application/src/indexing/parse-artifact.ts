@@ -2,6 +2,7 @@
 // Parses a workspace Markdown artifact (data_model.md §1): front-matter, element-ID headings, ID references.
 import { BOARD_STATUSES, FEATURE_STATUSES, type BoardStatus, type FeatureStatus } from '@specforge/domain';
 import { parse as parseYaml } from 'yaml';
+import { parseIdeas, type ParsedIdea } from '../specs/ideas.js';
 
 export type Approval = 'draft' | 'approved';
 
@@ -66,6 +67,8 @@ export interface ParsedArtifact {
   story?: ParsedStory;
   epic?: ParsedEpic;
   feature?: ParsedFeature;
+  /** Ideas of the idea inbox file (`kind: ideas`, US-095). */
+  ideas?: ParsedIdea[];
   /** Content hash per element: its section (heading elements) or the body (story, epic, feature intent) — US-086. */
   elementHashes?: Record<string, string>;
   dependencies: ParsedDependency[];
@@ -205,6 +208,8 @@ export function parseArtifact(path: string, content: string): ParsedArtifact {
       ...(result.feature.sourceIdea ? [result.feature.sourceIdea] : []),
     );
   }
+
+  if (kind === 'ideas') result.ideas = parseIdeas(body);
 
   const links = new Map<string, ParsedLink>();
   const link = (source: string | undefined, target: string, type?: FeatureLinkType) => {

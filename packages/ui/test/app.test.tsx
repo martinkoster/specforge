@@ -4,7 +4,7 @@ import { MessageChannel, type MessagePort } from 'node:worker_threads';
 import { CONTRACT_VERSION, IpcError, serveContract, type ContractHandlers, type PortLike } from '@specforge/ipc-contract';
 import { act, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanupChecked } from './styled-controls.js';
 import { App } from '../src/App.js';
 import { CoreSession } from '../src/core/core-session.js';
@@ -744,5 +744,92 @@ describe('US-082 AC-1: opening the feature wizard', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Kanban' }));
     await userEvent.keyboard('{Control>}{Shift>}F{/Shift}{/Control}');
     expect(await screen.findByRole('dialog', { name: 'Add feature' })).toBeInTheDocument();
+  });
+});
+
+describe('US-095 AC-1/AC-3: capturing ideas and turning them into features', () => {
+  const phasesWithIntent = async () => ({
+    phases: (['intent', 'requirements', 'design', 'stories', 'kanban'] as const).map((phase) => ({
+      phase,
+      state: phase === 'intent' ? ('approved' as const) : ('not_started' as const),
+      step: 'write' as const,
+      enabled: true,
+      unapprovedInputs: [],
+    })),
+    recommended: 'requirements' as const,
+    maintenance: false,
+  });
+  const ideaRow = {
+    id: 'IDEA-001',
+    text: 'Export board as PDF',
+    note: null,
+    source: 'shortcut',
+    createdAt: '2026-11-20',
+    state: 'new' as const,
+    featureId: null,
+    dismissReason: null,
+  };
+
+  it('Ctrl+Shift+I opens the capture popover from any screen; the Add feature menu offers Capture idea', async () => {
+    const core = projectCore();
+    core.open(opened());
+    const capture = vi.fn(async () => ideaRow);
+    const session = await connect({
+      ...core.handlers,
+      'phases.status': phasesWithIntent,
+      'features.wizard.drafts': async () => [],
+      'features.list': async () => [],
+      'ideas.list': async () => ({ ideas: [], untriaged: 0 }),
+      'ideas.capture': capture,
+      'epics.list': async () => ({ epics: [], uncovered: [] }),
+    });
+    render(<App session={session} testMode={false} pickFolder={async () => null} />);
+
+    await userEvent.click(await screen.findByRole('button', { name: 'More ways to add a feature' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Capture idea' }));
+    const menuDialog = await screen.findByRole('dialog', { name: 'Capture idea' });
+    await userEvent.click(within(menuDialog).getByRole('button', { name: 'Cancel' }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Capture idea' })).toBeNull());
+
+    await userEvent.click(screen.getByRole('button', { name: 'Kanban' }));
+    await userEvent.keyboard('{Control>}{Shift>}I{/Shift}{/Control}');
+    const dialog = await screen.findByRole('dialog', { name: 'Capture idea' });
+    await userEvent.type(within(dialog).getByRole('textbox', { name: 'Idea' }), 'Export board as PDF{Enter}');
+    expect(capture).toHaveBeenCalledWith({ projectId: 'p9', text: 'Export board as PDF', source: 'shortcut' });
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Capture idea' })).toBeNull());
+  });
+
+  it('Turn into feature opens the wizard pre-filled and creates the draft for the idea', async () => {
+    const core = projectCore();
+    core.open(opened());
+    const create = vi.fn(async ({ draft }: { draft: { text: string } }) => ({
+      id: 'wiz-1',
+      projectId: 'p9',
+      step: 'describe' as const,
+      draft,
+      featureId: null,
+      updatedAt: 't',
+    }));
+    const session = await connect({
+      ...core.handlers,
+      'phases.status': phasesWithIntent,
+      'features.wizard.drafts': async () => [],
+      'features.list': async () => [],
+      'ideas.list': async () => ({ ideas: [ideaRow], untriaged: 1 }),
+      'features.wizard.create': create as never,
+      'features.wizard.update': (async ({ draft }: { draft: { text: string } }) => ({ ...(await create({ draft })) })) as never,
+      'epics.list': async () => ({ epics: [], uncovered: [] }),
+    });
+    render(<App session={session} testMode={false} pickFolder={async () => null} />);
+
+    const inbox = await screen.findByRole('region', { name: 'Idea inbox' });
+    await userEvent.click(await within(inbox).findByRole('button', { name: 'Turn into feature' }));
+    const sheet = await screen.findByRole('dialog', { name: 'Add feature' });
+    expect(within(sheet).getByRole('textbox', { name: /What would you like/ })).toHaveValue('Export board as PDF');
+    await waitFor(() =>
+      expect(create).toHaveBeenCalledWith(
+        expect.objectContaining({ projectId: 'p9', sourceIdea: 'IDEA-001', draft: { text: 'Export board as PDF' } }),
+      ),
+    );
   });
 });

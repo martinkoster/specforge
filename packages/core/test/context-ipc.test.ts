@@ -85,6 +85,8 @@ describe('US-050 over IPC', () => {
     );
     writeFileSync(join(spec, '04_user_stories', 'US-001.md'), story('US-001', 'ready'));
     writeFileSync(join(spec, '04_user_stories', 'US-002.md'), story('US-002', 'ready', 'depends_on: [US-001]\n'));
+    // US-092 AC-3: a rework story of US-001 (approved once US-001 is Done).
+    writeFileSync(join(spec, '04_user_stories', 'US-003.md'), story('US-003', 'ready', 'reworks: [US-001]\n'));
     await client.command('projects.openById', { projectId: project.id });
 
     await client.command('board.move', { projectId: project.id, storyId: 'US-001', to: 'in_progress', beforeStoryId: null });
@@ -105,6 +107,16 @@ describe('US-050 over IPC', () => {
     expect(prompt).toContain('## Epic EP-001: Accounts');
     expect(prompt).toContain('Goal: Users manage their accounts.');
     expect(prompt).toMatch(/US-001 Story US-001 \(Done\): US-001 implemented with a session store\./);
+
+    // US-092 AC-3: the rework story's context includes the original story, its run summary and changed files.
+    await client.command('board.move', { projectId: project.id, storyId: 'US-003', to: 'in_progress', beforeStoryId: null });
+    await waitFor(async () =>
+      (await client.query('runs.list', { projectId: project.id })).find((r) => r.storyId === 'US-003' && r.status === 'completed'),
+    );
+    const rework = prompts.at(-1)!;
+    expect(rework).toContain('## Reworked Done stories');
+    expect(rework).toContain('### US-001 Story US-001 (Done): US-001 implemented with a session store.');
+    expect(rework).toContain('- [ ] AC-1: US-001 works.');
 
     const { context } = await client.query('runs.context', { runId: run.id });
     expect(context).toContain('Goal: Users manage their accounts.');

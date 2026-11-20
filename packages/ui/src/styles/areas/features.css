@@ -246,4 +246,52 @@
   .change-item.change-discarded {
     opacity: 0.6;
   }
+
+  /* Epic & stories tab (US-093): epic choice and the chosen epic. */
+  .epic-choice {
+    display: grid;
+    gap: var(--space-2);
+    margin: 0 0 var(--space-4);
+    padding: var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+  }
+
+  .epic-chosen {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-weight: 600;
+  }
+
+  .stories-panel {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  /* Idea inbox (US-095): capture popover and the dashboard widget. */
+  .capture-idea {
+    display: grid;
+    gap: var(--space-3);
+  }
+
+  .idea-list {
+    display: grid;
+    gap: var(--space-2);
+    margin: var(--space-2) 0 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .idea-row {
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .idea-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+  }
 }

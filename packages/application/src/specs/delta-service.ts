@@ -9,9 +9,19 @@ import { specLayout } from '@specforge/domain';
 import { runAgent, type AgentRunDeps } from './agent-run.js';
 import { elementSections, nextFreeIds, splitDelta, type DeltaItem } from './delta.js';
 import type { FeatureReviewRunStore } from './feature-review.js';
+import {
+  BLOCKING_STORY_ISSUES,
+  applyStoryFile,
+  splitStoryFile,
+  storiesPrompt,
+  type EpicChoice,
+  type EpicProposal,
+} from './feature-stories.js';
 import type { SpecSnapshots } from './spec-run-service.js';
+import { validateSpecFiles, type SpecIndexView } from './spec-validation.js';
 
-export type DeltaPhase = 'requirements' | 'design';
+/** Delta phases of a feature: requirements and design (US-089), epic & stories (US-093). */
+export type DeltaPhase = 'requirements' | 'design' | 'stories';
 
 export interface ChangeSetRecord {
   id: string;
@@ -72,6 +82,13 @@ export interface DeltaServiceDeps extends Omit<AgentRunDeps, 'store' | 'permissi
     moveToReady(projectId: string, storyId: string): Promise<void>;
   };
   snapshots: SpecSnapshots;
+  /** Indexed elements, dependencies and story states — validation of the stories phase (US-093 AC-3). */
+  specIndex?(projectId: string): SpecIndexView;
+  /** The approved epic choice per feature (US-093 AC-1). */
+  epicChoices?: {
+    get(projectId: string, featureId: string): EpicChoice | undefined;
+    save(choice: EpicChoice): void;
+  };
   reindex(projectId: string, path: string): Promise<unknown>;
   /** Impact flagging off/on for a folder while a delta run's temporary changes are on disk. */
   suppress(projectId: string, folder: string, active: boolean): void;
@@ -106,8 +123,8 @@ export interface InFlightDecisionRecord {
 }
 
 const IN_FLIGHT: ReadonlySet<string> = new Set(['in_progress', 'review']);
-const changeLabel = (i: ChangeItemRecord) =>
-  `${i.kind === 'new' ? 'new' : i.kind === 'deprecated' ? 'deprecated' : 'changed'} ${i.elementId}`;
+const changeLabel = (i: ChangeItemRecord, phase: DeltaPhase) =>
+  `${i.kind === 'new' ? 'new' : i.kind === 'deprecated' ? 'deprecated' : phase === 'stories' ? 'adjusted' : 'changed'} ${i.elementId}`;
 
 export class DeltaError extends Error {
   constructor(message: string) {
@@ -116,7 +133,11 @@ export class DeltaError extends Error {
   }
 }
 
-const PREFIXES: Record<DeltaPhase, readonly string[]> = { requirements: ['FR', 'NFR', 'CON'], design: ['UC', 'BP', 'UF', 'ADR'] };
+const PREFIXES: Record<DeltaPhase, readonly string[]> = {
+  requirements: ['FR', 'NFR', 'CON'],
+  design: ['UC', 'BP', 'UF', 'ADR'],
+  stories: ['EP', 'US'],
+};
 
 export class DeltaService {
   private readonly active = new Set<Promise<void>>();
@@ -146,6 +167,28 @@ export class DeltaService {
     return set?.state === 'open' || set?.state === 'running' ? 'open' : 'none';
   }
 
+  /** Latest change sets of the feature that are open or still generating, per phase (US-094 AC-2). */
+  openSets(projectId: string, featureId: string): { phase: DeltaPhase; state: 'open' | 'running' }[] {
+    return (['requirements', 'design', 'stories'] as const).flatMap((phase) => {
+      const state = this.deps.store.latest(projectId, featureId, phase)?.state;
+      return state === 'open' || state === 'running' ? [{ phase, state }] : [];
+    });
+  }
+
+  /** US-094 AC-2: withdrawing the feature discards its open change sets; applied changes stay. */
+  discardOpen(projectId: string, featureId: string): DeltaPhase[] {
+    const discarded: DeltaPhase[] = [];
+    for (const { phase, state } of this.openSets(projectId, featureId)) {
+      if (state !== 'open') continue;
+      const set = this.deps.store.latest(projectId, featureId, phase)!;
+      for (const item of this.deps.store.items(set.id)) if (item.state !== 'applied') this.deps.store.setItemState(item.id, 'discarded');
+      this.deps.store.saveSet({ ...set, state: 'discarded', reason: 'The feature was withdrawn.' });
+      discarded.push(phase);
+    }
+    if (discarded.length > 0) this.deps.onUpdated?.(projectId, featureId);
+    return discarded;
+  }
+
   /** A delta of the feature was applied (→ feature *In delivery*, FR-104). */
   acceptedDelta(projectId: string, featureId: string): boolean {
     return (['requirements', 'design'] as const).some((phase) => this.deps.store.latest(projectId, featureId, phase)?.state === 'applied');
@@ -168,7 +211,7 @@ export class DeltaService {
     if (items.some((i) => i.state === 'open')) throw new DeltaError('Accept or discard every change before applying.');
     const accepted = items.filter((i) => i.state === 'accepted');
     // US-091 AC-1: every affected in-flight story needs a decision before anything is applied.
-    const affected = this.affected(set.projectId, accepted);
+    const affected = this.affected(set.projectId, accepted, set.phase);
     if (affected.some((a) => decisions[a.storyId] === undefined)) return { needsDecision: affected };
     const files = deps.files(set.projectId);
     const applied: string[] = [];
@@ -176,7 +219,10 @@ export class DeltaService {
     for (const path of [...new Set(accepted.map((i) => i.path))]) {
       const fileItems = accepted.filter((i) => i.path === path);
       const current = await files.read(path);
-      const content = applyItems(current?.content ?? null, fileItems, set.featureId, deps.now().slice(0, 10));
+      const content =
+        set.phase === 'stories'
+          ? applyStoryFile(current?.content ?? null, fileItems[0]!, set.featureId)
+          : applyItems(current?.content ?? null, fileItems, set.featureId, deps.now().slice(0, 10));
       if (content === null) {
         conflicts.push(path);
         continue;
@@ -221,8 +267,13 @@ export class DeltaService {
     if (latest && (latest.state === 'running' || latest.state === 'open')) {
       return { ok: false, reason: `A ${phase} change set of ${featureId} is still open — accept or discard its items first.` };
     }
+    const choice = phase === 'stories' ? deps.epicChoices?.get(projectId, featureId) : undefined;
+    if (phase === 'stories' && !choice) return { ok: false, reason: `Approve the epic choice for ${featureId} first.` };
     const space = deps.workspace(projectId);
-    const folder = specLayout(space.specRoot).folders[phase];
+    const layout = specLayout(space.specRoot);
+    const folder = layout.folders[phase];
+    const specIndex = phase === 'stories' ? deps.specIndex?.(projectId) : undefined;
+    const statusOf = new Map((specIndex?.stories ?? []).map((st) => [st.id, st.status]));
     const elements = deps.elements(projectId);
     const byId = new Map(elements.map((e) => [e.id, e]));
     const before = new Map<string, string>();
@@ -256,22 +307,20 @@ export class DeltaService {
     deps.store.saveSet(set);
     deps.onUpdated?.(projectId, featureId);
 
-    const prompt = [
-      `Generate the delta ${phase} for the feature intent ${deps.featurePath(projectId, featureId)} (${featureId}).`,
-      'Scope — the confirmed impact; change only these elements unless a new element is needed:',
-      ...scope.map((s) => {
-        const e = byId.get(s.targetRef);
-        return `- ${s.targetRef}${e ? ` "${e.title}" (${e.path})` : ''}: ${s.reason}`;
-      }),
-      `Next free IDs: ${Object.values(next).join(', ')}.`,
-      `New elements use the next free IDs and carry a line "**Feature**: ${featureId}".`,
-      `Change existing elements in place and add a line "Changed by ${featureId}: <what changed>".`,
-      'Deprecate instead of deleting: put "[DEPRECATED] <reason>" into the heading. Never delete or renumber elements or files.',
-      ...(phase === 'design' ? ['New architecture decisions: "### ADR-0xx: Title" with "**Status**: Proposed".'] : []),
-      'Update changelogs or summary tables of the changed documents with an entry referencing the feature.',
-      `Write only files inside ${folder}/ (other writes and shell commands are denied).`,
-      'SpecForge turns your changes into a change set the user reviews item by item.',
-    ].join('\n');
+    const prompt =
+      phase === 'stories'
+        ? storiesPrompt({
+            featureId,
+            featurePath: deps.featurePath(projectId, featureId),
+            choice: choice!,
+            epicsFolder: layout.folders.epics,
+            storiesFolder: folder,
+            scope,
+            element: (id) => byId.get(id),
+            storyStatus: (id) => statusOf.get(id),
+            nextIds: Object.values(next),
+          })
+        : this.specPrompt(projectId, featureId, phase, scope, byId, next, folder);
     const run = runAgent(
       deps.adapter,
       { ...deps, store: deps.runs },
@@ -290,7 +339,24 @@ export class DeltaService {
         const changed = await deps.snapshots.changes(projectId, folder, snapshotId).catch(() => []);
         const items: ChangeItemRecord[] = [];
         const issues: string[] = [];
-        if (outcome.status === 'completed') {
+        if (outcome.status === 'completed' && phase === 'stories') {
+          // US-093: one item per file; Done stories stay unchanged; dependencies and rework targets are validated.
+          const done = new Set([...statusOf].filter(([, status]) => status === 'done').map(([id]) => id));
+          const produced: { path: string; content: string | null }[] = [];
+          const split: DeltaItem[] = [];
+          for (const change of changed) {
+            const after = change.change === 'D' ? null : ((await deps.files(projectId).read(change.path))?.content ?? null);
+            produced.push({ path: change.path, content: after });
+            const file = splitStoryFile({ path: change.path, before: before.get(change.path) ?? null, after, doneStories: done });
+            issues.push(...file.issues);
+            split.push(...file.items);
+          }
+          const view = specIndex ?? { elements: elements.map((e) => ({ id: e.id, path: e.path })), dependencies: [] };
+          issues.push(...validateSpecFiles(produced, view).flatMap((i) => (BLOCKING_STORY_ISSUES.has(i.kind) ? [i.message] : [])));
+          const rank = (i: DeltaItem) => `${i.kind === 'new' ? 0 : 1}${i.path.startsWith(`${layout.folders.epics}/`) ? 0 : 1}${i.path}`;
+          split.sort((a, b) => (rank(a) < rank(b) ? -1 : rank(a) > rank(b) ? 1 : 0));
+          items.push(...split.map((i) => ({ ...i, id: deps.newId(), changeSetId: set.id, state: 'open' as const })));
+        } else if (outcome.status === 'completed') {
           for (const change of changed) {
             const after = change.change === 'D' ? null : ((await deps.files(projectId).read(change.path))?.content ?? null);
             const elsewhere = elements.filter((e) => e.path !== change.path).map((e) => e.id);
@@ -328,6 +394,83 @@ export class DeltaService {
     return { ok: true, runId };
   }
 
+  /** The prompt of a requirements or design delta run (US-089). */
+  private specPrompt(
+    projectId: string,
+    featureId: string,
+    phase: DeltaPhase,
+    scope: readonly { targetRef: string; reason: string }[],
+    byId: ReadonlyMap<string, { title: string; path: string }>,
+    next: Record<string, string>,
+    folder: string,
+  ): string {
+    return [
+      `Generate the delta ${phase} for the feature intent ${this.deps.featurePath(projectId, featureId)} (${featureId}).`,
+      'Scope — the confirmed impact; change only these elements unless a new element is needed:',
+      ...scope.map((s) => {
+        const e = byId.get(s.targetRef);
+        return `- ${s.targetRef}${e ? ` "${e.title}" (${e.path})` : ''}: ${s.reason}`;
+      }),
+      `Next free IDs: ${Object.values(next).join(', ')}.`,
+      `New elements use the next free IDs and carry a line "**Feature**: ${featureId}".`,
+      `Change existing elements in place and add a line "Changed by ${featureId}: <what changed>".`,
+      'Deprecate instead of deleting: put "[DEPRECATED] <reason>" into the heading. Never delete or renumber elements or files.',
+      ...(phase === 'design' ? ['New architecture decisions: "### ADR-0xx: Title" with "**Status**: Proposed".'] : []),
+      'Update changelogs or summary tables of the changed documents with an entry referencing the feature.',
+      `Write only files inside ${folder}/ (other writes and shell commands are denied).`,
+      'SpecForge turns your changes into a change set the user reviews item by item.',
+    ].join('\n');
+  }
+
+  /** US-093 AC-1: a new epic for the feature (default) or extending epics of the confirmed impact list. */
+  epicProposal(projectId: string, featureId: string): EpicProposal {
+    const elements = this.deps.elements(projectId);
+    const byId = new Map(elements.map((e) => [e.id, e]));
+    const next = nextFreeIds(
+      elements.map((e) => e.id),
+      ['EP'],
+    ).EP!;
+    return {
+      newEpic: { id: next, title: byId.get(featureId)?.title ?? featureId },
+      extend: this.deps
+        .scope(projectId, featureId)
+        .filter((s) => s.targetRef.startsWith('EP-') && byId.has(s.targetRef))
+        .map((s) => ({ id: s.targetRef, title: byId.get(s.targetRef)!.title, reason: s.reason })),
+      choice: this.deps.epicChoices?.get(projectId, featureId) ?? null,
+    };
+  }
+
+  /** US-093 AC-1: the user approves the epic choice before the stories are generated. */
+  chooseEpic(
+    projectId: string,
+    featureId: string,
+    choice: { mode: 'new'; title?: string } | { mode: 'extend'; epicIds: string[] },
+  ): EpicProposal {
+    const store = this.deps.epicChoices;
+    if (!store) throw new DeltaError('Epic choices are not available.');
+    const proposal = this.epicProposal(projectId, featureId);
+    if (choice.mode === 'extend') {
+      const epics = new Set(
+        this.deps
+          .elements(projectId)
+          .filter((e) => e.id.startsWith('EP-'))
+          .map((e) => e.id),
+      );
+      const unknown = choice.epicIds.filter((id) => !epics.has(id));
+      if (choice.epicIds.length === 0 || unknown.length > 0) throw new DeltaError(`Unknown epic ${unknown.join(', ') || '(none)'}.`);
+    }
+    store.save({
+      projectId,
+      featureId,
+      mode: choice.mode,
+      epicIds: choice.mode === 'new' ? [proposal.newEpic.id] : [...choice.epicIds],
+      title: choice.mode === 'new' ? choice.title?.trim() || proposal.newEpic.title : null,
+      decidedAt: this.deps.now(),
+    });
+    this.deps.onUpdated?.(projectId, featureId);
+    return this.epicProposal(projectId, featureId);
+  }
+
   /** AC-3: *Accept* / *Discard* one item; discarding every item closes the change set (AC-5). */
   decide(itemId: string, decision: 'accept' | 'discard'): ChangeSetView {
     const item = this.deps.store.item(itemId);
@@ -343,7 +486,7 @@ export class DeltaService {
   }
 
   /** Stories in flight (queued, running, in Review) reached downstream from the accepted elements (US-091). */
-  private affected(projectId: string, accepted: readonly ChangeItemRecord[]): AffectedStory[] {
+  private affected(projectId: string, accepted: readonly ChangeItemRecord[], phase: DeltaPhase): AffectedStory[] {
     const inFlight = this.deps.inFlight;
     if (!inFlight) return [];
     const sources = new Map<string, string[]>();
@@ -351,6 +494,10 @@ export class DeltaService {
     const stories = new Map(inFlight.stories(projectId).map((s) => [s.id, s]));
     const reached = new Map<string, Set<string>>();
     for (const item of accepted.filter((i) => i.elementId !== null)) {
+      // US-093 AC-3: an adjusted story that is itself in flight.
+      const self = stories.get(item.elementId!);
+      if (self && IN_FLIGHT.has(self.status))
+        reached.set(item.elementId!, (reached.get(item.elementId!) ?? new Set()).add(changeLabel(item, phase)));
       const seen = new Set<string>([item.elementId!]);
       const queue = [item.elementId!];
       for (let i = 0; i < queue.length; i++) {
@@ -359,7 +506,7 @@ export class DeltaService {
           seen.add(source);
           queue.push(source);
           const story = stories.get(source);
-          if (story && IN_FLIGHT.has(story.status)) reached.set(source, (reached.get(source) ?? new Set()).add(changeLabel(item)));
+          if (story && IN_FLIGHT.has(story.status)) reached.set(source, (reached.get(source) ?? new Set()).add(changeLabel(item, phase)));
         }
       }
     }

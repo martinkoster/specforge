@@ -163,11 +163,11 @@ Design refresh for Release 2: intent D26/D27, ADR-024 – ADR-026 (`spec/03_desi
 | [US-089](US-089-delta-change-sets.md) | Delta generation as reviewable change sets | M | done |
 | [US-090](US-090-apply-change-sets.md) | Apply accepted changes with stable IDs and feature links | M | done |
 | [US-091](US-091-in-flight-protection.md) | In-flight protection when applying changes | M | done |
-| [US-092](US-092-rework-stories.md) | Rework stories for Done functionality | S | ready for development |
-| [US-093](US-093-feature-epic-stories.md) | Feature epic and story breakdown | M | ready for development |
-| [US-094](US-094-feature-completion-withdrawal.md) | Feature completion and withdrawal | S | ready for development |
-| [US-095](US-095-idea-inbox.md) | Idea inbox | M | ready for development |
-| [US-096](US-096-spec-baselines.md) | Spec baselines | M | ready for development |
+| [US-092](US-092-rework-stories.md) | Rework stories for Done functionality | S | done |
+| [US-093](US-093-feature-epic-stories.md) | Feature epic and story breakdown | M | done |
+| [US-094](US-094-feature-completion-withdrawal.md) | Feature completion and withdrawal | S | done |
+| [US-095](US-095-idea-inbox.md) | Idea inbox | M | done |
+| [US-096](US-096-spec-baselines.md) | Spec baselines | M | done |
 
 ### Change awareness (Release 2)
 

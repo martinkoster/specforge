@@ -39,6 +39,8 @@ export interface FeatureWizardProps {
   onView?(ref: string): void;
   /** The idea was merged into an existing feature intent. */
   onMerged?(path: string): void;
+  /** *Turn into feature* of an inbox idea (US-095 AC-3): pre-fills the description and links the draft to the idea. */
+  idea?: { id: string; text: string; note: string | null };
 }
 
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
@@ -64,10 +66,11 @@ export function FeatureWizard({
   aiDisabledReason = null,
   onView,
   onMerged,
+  idea,
 }: FeatureWizardProps) {
   const [wizardId, setWizardId] = useState<string | null>(resumeId);
   const [step, setStep] = useState<Step>('describe');
-  const [draft, setDraft] = useState<Draft>({ text: '' });
+  const [draft, setDraft] = useState<Draft>(idea ? { text: idea.text, ...(idea.note ? { motivation: idea.note } : {}) } : { text: '' });
   const [loading, setLoading] = useState(resumeId !== null);
   const [epics, setEpics] = useState<{ id: string; title: string }[]>([]);
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -128,12 +131,21 @@ export function FeatureWizard({
     });
   }, [session, wizardId]);
 
+  // US-095 AC-3: a draft turned from an idea is stored right away, linked to the idea.
+  const ideaId = idea?.id;
+  useEffect(() => {
+    if (!ideaId || resumeId !== null) return;
+    void persist('describe').catch((e: unknown) => setError(message(e)));
+    // Only once for the idea the wizard was opened with (persist is recreated on every render).
+  }, [ideaId]);
+
   /** Stores the draft at `next` (AC-4); returns the wizard id. */
   const persist = async (next: Step, value: Draft = draft): Promise<string> => {
     const client = session.client();
     let id = wizardId;
     if (id === null) {
-      id = (await client.command('features.wizard.create', { projectId, draft: compact(value) })).id;
+      id = (await client.command('features.wizard.create', { projectId, draft: compact(value), ...(idea ? { sourceIdea: idea.id } : {}) }))
+        .id;
       setWizardId(id);
       if (next === 'describe') return id;
     }

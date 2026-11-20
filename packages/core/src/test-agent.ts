@@ -122,6 +122,48 @@ export function testAgentScript(request: RunRequest): MockStep[] {
     }
     return [...steps, { type: 'result', text: 'Delta written.' }];
   }
+  // US-093 (FR-108): the Epic & stories phase — the chosen epic (a new epic file, or the extended epic), four stories of
+  // which one reworks a Done story of the scope, and an adjustment of a not-started story.
+  const plan = /^Plan the epic and user stories for the feature intent \S+ \((FI-\d+)\)/.exec(prompt);
+  if (request.kind === 'generate' && plan) {
+    const folder = /Write only files inside (\S+)\//.exec(prompt)?.[1] ?? '';
+    const created = /Create the new epic (EP-\d+) "([^"]*)" as (\S+\.md)/.exec(prompt);
+    const epicId = created?.[1] ?? /Extend the existing epic (EP-\d+)/.exec(prompt)?.[1] ?? 'EP-900';
+    const requirement = /^- ((?:FR|NFR)-\d+) /m.exec(prompt)?.[1] ?? 'FR-001';
+    const done = [...prompt.matchAll(/^- (US-\d+) "([^"]*)" \(Done, (\S+)\):/gm)].map((m) => ({ id: m[1]!, title: m[2]! }));
+    const notStarted = [...prompt.matchAll(/^- (US-\d+) "[^"]*" \((?:Backlog|Ready), (\S+)\):/gm)].map((m) => m[2]!);
+    let next = Number(/Next free IDs: .*?\bUS-(\d+)/.exec(prompt)?.[1] ?? '900');
+    const storyFile = (title: string, extra = '') => {
+      const id = `US-${String(next++).padStart(3, '0')}`;
+      const slug = title.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      return write(
+        `${folder}/${id}-${slug}.md`,
+        `---\nkind: story\nid: ${id}\ntitle: ${title}\nstatus: backlog\napproval: draft\nsize: S\nepic: ${epicId}\nrequirements: [${requirement}]\n${extra}---\n## Description\nAs a user I want ${title.toLowerCase()}.\n## Acceptance criteria\n- [ ] ${title} works.\n`,
+      );
+    };
+    const steps: MockStep[] = [];
+    if (created) {
+      steps.push(
+        write(
+          created[3]!,
+          `---\nkind: epic\nid: ${epicId}\ntitle: ${created[2]}\napproval: draft\nrequirements: [${requirement}]\n---\n## Goal\n${created[2]}.\n## Value\nTeams discuss work where it happens.\n## Acceptance criteria\n- [ ] ${created[2]} is delivered.\n`,
+        ),
+      );
+    }
+    const titles = ['Comment list', 'Add a comment', 'Mention teammates', 'Comment notifications'];
+    const first = `US-${String(next).padStart(3, '0')}`;
+    for (const [i, title] of titles.slice(0, done.length > 0 ? 3 : 4).entries()) {
+      steps.push(storyFile(title, i === 1 ? `depends_on:\n  - id: ${first}\n    rationale: Comments are listed first.\n` : ''));
+    }
+    if (done[0]) steps.push(storyFile(`Show comments in ${done[0].title}`, `reworks: [${done[0].id}]\n`));
+    if (notStarted[0])
+      steps.push({
+        type: 'tool',
+        toolName: 'Edit',
+        input: { file_path: notStarted[0], old_string: '## Description', new_string: '## Description\nAlso shows the number of comments.' },
+      });
+    return [...steps, { type: 'result', text: 'Epic and stories written.' }];
+  }
   if (request.kind === 'generate' || request.kind === 'refine') {
     // The target folder below the project's specification root (US-078), or the folder of a refined artifact.
     const target = /Write only files inside (\S+)\//.exec(prompt)?.[1] ?? /Edit only (\S+)\/[^/\s]+\.md /.exec(prompt)?.[1] ?? '';

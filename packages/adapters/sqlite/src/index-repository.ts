@@ -2,6 +2,7 @@
 // IndexStore implementation on SQLite (data_model.md §2.2): replaces all index rows of one artifact at a time.
 import type {
   ArtifactListIndex,
+  ParsedIdea,
   BoardIndex,
   BoardStoryRow,
   DependencyIndex,
@@ -71,6 +72,10 @@ export class IndexRepository implements IndexStore, DependencyIndex, StoryStatus
         prepare(`insert or replace into feature_intent (project_id, feature_id, title, approval_state, status, source_idea, baseline_tag)
         values (?, ?, ?, ?, ?, ?, ?)`),
       deleteArtifact: prepare('delete from artifact where project_id = ? and path = ?'),
+      deleteIdeas: prepare('delete from idea where project_id = ? and artifact_path = ?'),
+      insertIdea:
+        prepare(`insert or replace into idea (project_id, idea_id, artifact_path, text, note, source, created_at, state, feature_id,
+          dismiss_reason) values (@projectId, @id, @path, @text, @note, @source, @createdAt, @state, @featureId, @dismissReason)`),
       insertElement: prepare(`insert or replace into element (project_id, element_id, type, title, artifact_path, anchor, content_hash)
         values (?, ?, ?, ?, ?, ?, ?)`),
       elementState: prepare(`select e.element_id, e.type, e.content_hash, a.approval_state from element e
@@ -99,7 +104,7 @@ export class IndexRepository implements IndexStore, DependencyIndex, StoryStatus
             where e.project_id = a.project_id and e.artifact_path = a.path) as impacted
         from artifact a where a.project_id = ? and a.parse_state <> 'invalid'`),
       artifacts: prepare('select path, kind, approval_state, parse_state, parse_error from artifact where project_id = ? order by path'),
-      boardStories: prepare(`select s.story_id, s.title, s.size, s.approval_state, s.board_status, s.epic_id,
+      boardStories: prepare(`select s.story_id, s.title, s.size, s.approval_state, s.board_status, s.epic_id, s.reworks,
           coalesce(st.exec_substate, 'none') as exec_substate, st.board_order, st.status_notice, st.authorised_at,
           q.reason, coalesce(q.waiting_for, '[]') as waiting_for
         from story s
@@ -170,6 +175,31 @@ export class IndexRepository implements IndexStore, DependencyIndex, StoryStatus
       const fi = artifact.feature;
       this.s.insertFeature!.run(projectId, fi.id, fi.title, fi.approval, fi.status, fi.sourceIdea, fi.baseline);
     }
+    for (const idea of artifact.ideas ?? []) this.s.insertIdea!.run({ projectId, path, ...idea });
+  }
+
+  /** The idea inbox (US-095), in ID order. */
+  ideas(projectId: string): ParsedIdea[] {
+    const rows = this.sqlite.prepare('select * from idea where project_id = ? order by idea_id').all(projectId) as {
+      idea_id: string;
+      text: string;
+      note: string | null;
+      source: string;
+      created_at: string;
+      state: ParsedIdea['state'];
+      feature_id: string | null;
+      dismiss_reason: string | null;
+    }[];
+    return rows.map((r) => ({
+      id: r.idea_id,
+      text: r.text,
+      note: r.note,
+      source: r.source,
+      createdAt: r.created_at,
+      state: r.state,
+      featureId: r.feature_id,
+      dismissReason: r.dismiss_reason,
+    }));
   }
 
   /** Keeps the previously indexed elements of the artifact (last valid state, US-020 AC-2). */
@@ -253,6 +283,7 @@ export class IndexRepository implements IndexStore, DependencyIndex, StoryStatus
       reason: BoardStoryRow['queueReason'];
       waiting_for: string;
       epic_id: string | null;
+      reworks: string;
     }[];
     return rows.map((r) => ({
       storyId: r.story_id,
@@ -267,6 +298,7 @@ export class IndexRepository implements IndexStore, DependencyIndex, StoryStatus
       statusNotice: r.status_notice,
       authorisedAt: r.authorised_at,
       epicId: r.epic_id,
+      reworks: JSON.parse(r.reworks) as string[],
     }));
   }
 
@@ -465,6 +497,7 @@ export class IndexRepository implements IndexStore, DependencyIndex, StoryStatus
   specIndexView(projectId: string): {
     elements: { id: string; path: string }[];
     dependencies: { from: string; to: string; type: 'blocking' | 'related'; path: string }[];
+    stories: { id: string; status: BoardStoryRow['status'] }[];
   } {
     const elements = this.sqlite
       .prepare('select element_id as id, artifact_path as path from element where project_id = ? order by element_id')
@@ -476,7 +509,11 @@ export class IndexRepository implements IndexStore, DependencyIndex, StoryStatus
          where d.project_id = ?`,
       )
       .all(projectId) as { from: string; to: string; type: 'blocking' | 'related'; path: string }[];
-    return { elements, dependencies };
+    const stories = this.sqlite.prepare('select story_id as id, board_status as status from story where project_id = ?').all(projectId) as {
+      id: string;
+      status: BoardStoryRow['status'];
+    }[];
+    return { elements, dependencies, stories };
   }
 
   element(projectId: string, elementId: string): { type: string; title: string; artifactPath: string } | undefined {
@@ -536,5 +573,6 @@ export class IndexRepository implements IndexStore, DependencyIndex, StoryStatus
     }
     this.s.deleteElements!.run(projectId, path);
     this.s.deleteLinks!.run(projectId, path);
+    this.s.deleteIdeas!.run(projectId, path);
   }
 }

@@ -24,6 +24,7 @@ const SpecReview = z.object({
         'dependency_cycle',
         'missing_rationale',
         'incomplete',
+        'invalid_rework',
       ]),
       message: z.string(),
     }),
@@ -88,7 +89,7 @@ const ChangeSetView = z.object({
   id: z.string(),
   projectId: z.string(),
   featureId: z.string(),
-  phase: z.enum(['requirements', 'design']),
+  phase: z.enum(['requirements', 'design', 'stories']),
   runId: z.string(),
   state: z.enum(['running', 'open', 'failed', 'discarded', 'applied']),
   reason: z.string().nullable(),
@@ -106,6 +107,42 @@ const ChangeSetView = z.object({
       state: z.enum(['open', 'accepted', 'discarded', 'applied']),
     }),
   ),
+});
+/** US-095: an idea of the idea inbox (`01_intent/ideas.md`). */
+const Idea = z.object({
+  id: z.string(),
+  text: z.string(),
+  note: z.string().nullable(),
+  source: z.string(),
+  createdAt: z.string(),
+  state: z.enum(['new', 'turned_into_feature', 'merged', 'dismissed']),
+  featureId: z.string().nullable(),
+  dismissReason: z.string().nullable(),
+});
+/** US-096: a spec baseline (annotated Git tag). */
+const Baseline = z.object({
+  projectId: z.string(),
+  tag: z.string(),
+  commit: z.string(),
+  createdAt: z.string(),
+  featureIds: z.array(z.string()),
+  epicIds: z.array(z.string()),
+  notes: z.string(),
+});
+/** US-093 AC-1: the epic proposal of a feature's Epic & stories phase and the approved choice. */
+const EpicProposal = z.object({
+  newEpic: z.object({ id: z.string(), title: z.string() }),
+  extend: z.array(z.object({ id: z.string(), title: z.string(), reason: z.string() })),
+  choice: z
+    .object({
+      projectId: z.string(),
+      featureId: z.string(),
+      mode: z.enum(['new', 'extend']),
+      epicIds: z.array(z.string()),
+      title: z.string().nullable(),
+      decidedAt: z.string(),
+    })
+    .nullable(),
 });
 const FeaturePhase = z.enum(['intent', 'impact', 'requirements', 'design', 'stories', 'kanban', 'epic_review']);
 const FeatureView = z.object({
@@ -409,8 +446,32 @@ export const CONTRACT = {
     },
     /** Feature wizard (US-082, UC-043): drafts stored after every step (ADR-025), saved as FI-xxx-<slug>.md. */
     'features.wizard.create': {
-      input: z.object({ projectId: z.string().min(1), draft: WizardDraft }),
+      /** `sourceIdea`: *Turn into feature* of an idea (US-095 AC-3). */
+      input: z.object({ projectId: z.string().min(1), draft: WizardDraft, sourceIdea: z.string().min(1).optional() }),
       output: FeatureWizard,
+    },
+    /** US-096 AC-2: creates the spec baseline tag on the base branch. */
+    'baselines.create': {
+      input: z.object({ projectId: z.string().min(1), tag: z.string().min(1).max(200) }),
+      output: Baseline,
+    },
+    /** US-095: capture and triage ideas. */
+    'ideas.capture': {
+      input: z.object({
+        projectId: z.string().min(1),
+        text: z.string().min(1).max(500),
+        note: z.string().max(5_000).optional(),
+        source: z.enum(['menu', 'dashboard', 'shortcut', 'chat']),
+      }),
+      output: Idea,
+    },
+    'ideas.merge': {
+      input: z.object({ projectId: z.string().min(1), ideaId: z.string().min(1), featureId: z.string().min(1) }),
+      output: Idea,
+    },
+    'ideas.dismiss': {
+      input: z.object({ projectId: z.string().min(1), ideaId: z.string().min(1), reason: z.string().min(1).max(1_000) }),
+      output: Idea,
     },
     'features.wizard.update': {
       input: z.object({ wizardId: z.string().min(1), step: WizardStep, draft: WizardDraft }),
@@ -429,9 +490,30 @@ export const CONTRACT = {
     },
     'impact.approve': { input: z.object({ projectId: z.string().min(1), featureId: z.string().min(1) }), output: ImpactView },
     /** US-089: delta generation as a change set; accept / discard per item. */
+    /** US-094 AC-2: withdraws a feature (terminal); deletes the chosen not-started stories. */
+    'features.withdraw': {
+      input: z.object({ projectId: z.string().min(1), featureId: z.string().min(1), deleteStories: z.array(z.string().min(1)) }),
+      output: z.object({ discarded: z.array(z.string()), deleted: z.array(z.string()), kept: z.array(z.string()) }),
+    },
     'delta.generate': {
-      input: z.object({ projectId: z.string().min(1), featureId: z.string().min(1), phase: z.enum(['requirements', 'design']) }),
+      input: z.object({
+        projectId: z.string().min(1),
+        featureId: z.string().min(1),
+        phase: z.enum(['requirements', 'design', 'stories']),
+      }),
       output: SpecStart,
+    },
+    /** US-093 AC-1: approves the epic choice (a new epic, or epics of the impact list to extend). */
+    'delta.chooseEpic': {
+      input: z.object({
+        projectId: z.string().min(1),
+        featureId: z.string().min(1),
+        choice: z.union([
+          z.object({ mode: z.literal('new'), title: z.string().optional() }),
+          z.object({ mode: z.literal('extend'), epicIds: z.array(z.string().min(1)).min(1) }),
+        ]),
+      }),
+      output: EpicProposal,
     },
     'delta.decide': { input: z.object({ itemId: z.string().min(1), decision: z.enum(['accept', 'discard']) }), output: ChangeSetView },
     'delta.acceptAll': { input: z.object({ changeSetId: z.string().min(1) }), output: ChangeSetView },
@@ -855,8 +937,37 @@ export const CONTRACT = {
       output: z.object({ feedback: z.string().nullable() }),
     },
     'delta.changeSet': {
-      input: z.object({ projectId: z.string().min(1), featureId: z.string().min(1), phase: z.enum(['requirements', 'design']) }),
+      input: z.object({
+        projectId: z.string().min(1),
+        featureId: z.string().min(1),
+        phase: z.enum(['requirements', 'design', 'stories']),
+      }),
       output: ChangeSetView.nullable(),
+    },
+    'baselines.offer': {
+      input: z.object({ projectId: z.string().min(1) }),
+      output: z.object({
+        available: z.boolean(),
+        reason: z.string().nullable(),
+        uncommitted: z.array(z.string()),
+        nextTag: z.string(),
+        features: z.array(z.object({ id: z.string(), title: z.string() })),
+        epics: z.array(z.object({ id: z.string(), title: z.string() })),
+      }),
+    },
+    'baselines.list': { input: z.object({ projectId: z.string().min(1) }), output: z.array(Baseline) },
+    /** US-096 AC-3: the file at the baseline and now. */
+    'baselines.compare': {
+      input: z.object({ projectId: z.string().min(1), tag: z.string().min(1), path: z.string().min(1) }),
+      output: z.object({ before: z.string().nullable(), after: z.string().nullable() }),
+    },
+    'ideas.list': {
+      input: z.object({ projectId: z.string().min(1) }),
+      output: z.object({ ideas: z.array(Idea), untriaged: z.number().int().nonnegative() }),
+    },
+    'delta.epicProposal': {
+      input: z.object({ projectId: z.string().min(1), featureId: z.string().min(1) }),
+      output: EpicProposal,
     },
     'features.list': {
       input: z.object({ projectId: z.string().min(1) }),
@@ -880,7 +991,29 @@ export const CONTRACT = {
         decisions: z.array(
           z.object({ storyId: z.string(), decision: z.enum(['continue', 'cancel', 'apply_in_corrections']), decidedAt: z.string() }),
         ),
+        /** Status changes (US-094 AC-3), newest first. */
+        events: z
+          .array(
+            z.object({
+              projectId: z.string(),
+              featureId: z.string(),
+              status: z.enum(['draft', 'approved', 'in_delivery', 'done', 'withdrawn']),
+              note: z.string().nullable(),
+              at: z.string(),
+            }),
+          )
+          .optional(),
       }).nullable(),
+    },
+    /** US-094 AC-2: what *Withdraw* would discard, keep and ask about. */
+    'features.withdrawPreview': {
+      input: z.object({ projectId: z.string().min(1), featureId: z.string().min(1) }),
+      output: z.object({
+        openChangeSets: z.array(z.string()),
+        appliedChanges: z.array(z.string()),
+        notStartedStories: z.array(z.string()),
+        blockedBy: z.string().nullable(),
+      }),
     },
     /** Dashboard (US-061): statistics, runs, decisions, activity, artifacts per phase and epics. */
     'dashboard.get': {
@@ -891,7 +1024,16 @@ export const CONTRACT = {
         runs: z.object({ active: z.number().int(), queued: z.number().int() }),
         pendingDecisions: z.number().int(),
         unmerged: z.number().int(),
-        activity: z.array(z.object({ runId: z.string(), storyId: z.string().nullable(), label: z.string(), at: z.string() })),
+        /** Runs and feature status changes (US-094 AC-3); `runId` is null for feature events. */
+        activity: z.array(
+          z.object({
+            runId: z.string().nullable(),
+            storyId: z.string().nullable(),
+            featureId: z.string().optional(),
+            label: z.string(),
+            at: z.string(),
+          }),
+        ),
         artifacts: z.array(
           z.object({
             phase: z.enum(['intent', 'requirements', 'design', 'stories']),
@@ -1048,6 +1190,10 @@ export const CONTRACT = {
                   .object({ decision: z.enum(['continue', 'cancel', 'apply_in_corrections']), featureId: z.string() })
                   .nullable()
                   .optional(),
+                /** Done stories this rework story changes (US-092). */
+                reworks: z.array(z.string()).optional(),
+                /** Stories reworking this Done story: "Reworked by US-xxx" (US-092 AC-2). */
+                reworkedBy: z.array(z.string()).optional(),
               }),
             ),
           }),

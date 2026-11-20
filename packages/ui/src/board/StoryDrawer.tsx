@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Story drawer (US-043 AC-3, US-040 AC-1): status, queue position, Remove from queue, dependency editor; the review of
-// stories in Review (US-057); its trace and rejected branches (US-034, US-058).
+// stories in Review (US-057); its trace and rejected branches (US-034, US-058); rework links (US-092).
 import { Drawer } from '../components/index.js';
 import { useEffect, useState, type ReactNode } from 'react';
 import type { CommandOutput } from '@specforge/ipc-contract';
@@ -49,6 +49,8 @@ export function StoryDrawer({
         {COLUMN_LABELS[card.status]}
         {queued && ` · ${queueLabel(board, card)}`}
       </p>
+      {(card.reworkedBy?.length ?? 0) > 0 && <p>Reworked by {card.reworkedBy!.join(', ')}</p>}
+      {(card.reworks?.length ?? 0) > 0 && <p>Reworks {card.reworks!.join(', ')} (stays Done)</p>}
       {queued && position >= 0 && (
         <p>
           Position {position + 1} of {board.queue.length} in the queue

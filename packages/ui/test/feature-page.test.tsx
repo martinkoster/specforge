@@ -47,6 +47,7 @@ const feature = (over: Partial<Feature> = {}): Feature => ({
 async function renderPage(data: Feature | null = feature()) {
   const session = await fakeCore({
     'features.get': async () => data,
+    'delta.epicProposal': async () => ({ newEpic: { id: 'EP-002', title: 'Task comments' }, extend: [], choice: null }),
     'artifact.read': async () => ({ content: '---\nkind: feature_intent\n---\n## Problem\nNo comments.\n', hash: 'h' }),
   });
   const props = { onBack: vi.fn(), onOpenArtifact: vi.fn() };
@@ -91,6 +92,7 @@ describe('US-084 AC-1: feature page', () => {
     expect(screen.getByRole('group', { name: 'Delta phase' })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('tab', { name: 'Epic & stories' }));
     expect(screen.getByRole('tabpanel')).toHaveTextContent('US-010');
+    expect(await screen.findByRole('radiogroup', { name: 'Epic' })).toBeInTheDocument();
     await userEvent.click(screen.getByRole('tab', { name: 'Activity' }));
     expect(screen.getByRole('tabpanel')).toHaveTextContent('FR-040 introduces');
   });
@@ -212,5 +214,128 @@ describe('US-091 AC-5: in-flight decisions on the Activity tab', () => {
     render(<FeaturePage session={session} projectId="p1" featureId="FI-001" onBack={vi.fn()} onOpenArtifact={vi.fn()} />);
     await userEvent.click(await screen.findByRole('tab', { name: 'Activity' }));
     expect(screen.getByRole('tabpanel')).toHaveTextContent('US-011: Continue unchanged');
+  });
+});
+
+describe('US-094: feature completion and withdrawal on the feature page', () => {
+  it('AC-1: a Done feature shows the completion banner and no Withdraw action', async () => {
+    await renderPage(feature({ status: 'done', progress: { done: 2, total: 2 } }));
+    expect(await screen.findByRole('status', { name: 'Feature complete' })).toHaveTextContent('FI-001 Task comments is done');
+    expect(screen.queryByRole('button', { name: 'Withdraw…' })).not.toBeInTheDocument();
+  });
+
+  it('AC-2: Withdraw asks for confirmation, lists what happens and deletes only the chosen not-started stories', async () => {
+    const withdraw = vi.fn(async () => ({ discarded: ['design'], deleted: ['US-010'], kept: ['US-011'] }));
+    let current = feature();
+    const session = await fakeCore({
+      'features.get': async () => current,
+      'delta.epicProposal': async () => ({ newEpic: { id: 'EP-002', title: 'Task comments' }, extend: [], choice: null }),
+      'features.withdrawPreview': async () => ({
+        openChangeSets: ['design'],
+        appliedChanges: ['FR-040'],
+        notStartedStories: ['US-010', 'US-011'],
+        blockedBy: null,
+      }),
+      'features.withdraw': async (input) => {
+        current = feature({ status: 'withdrawn' });
+        return withdraw(input);
+      },
+    });
+    render(<FeaturePage session={session} projectId="p1" featureId="FI-001" onBack={vi.fn()} onOpenArtifact={vi.fn()} />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Withdraw…' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Withdraw FI-001?' });
+    expect(dialog).toHaveTextContent('Open change sets are discarded: design');
+    expect(dialog).toHaveTextContent('Applied changes stay: FR-040');
+    expect(dialog).toHaveTextContent('deprecate');
+    const us10 = within(dialog).getByRole('radiogroup', { name: 'US-010' });
+    expect(within(us10).getByRole('radio', { name: 'Keep' })).toBeChecked();
+    await userEvent.click(within(us10).getByRole('radio', { name: 'Delete' }));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Withdraw feature' }));
+
+    expect(withdraw).toHaveBeenCalledWith({ projectId: 'p1', featureId: 'FI-001', deleteStories: ['US-010'] });
+    expect(await screen.findByText('Withdrawn')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Withdraw…' })).not.toBeInTheDocument();
+  });
+
+  it('AC-2: a blocked withdrawal explains why', async () => {
+    const session = await fakeCore({
+      'features.get': async () => feature(),
+      'delta.epicProposal': async () => ({ newEpic: { id: 'EP-002', title: 'Task comments' }, extend: [], choice: null }),
+      'features.withdrawPreview': async () => ({
+        openChangeSets: [],
+        appliedChanges: [],
+        notStartedStories: [],
+        blockedBy: 'A requirements generation of FI-001 is running — wait until it finishes.',
+      }),
+    });
+    render(<FeaturePage session={session} projectId="p1" featureId="FI-001" onBack={vi.fn()} onOpenArtifact={vi.fn()} />);
+    await userEvent.click(await screen.findByRole('button', { name: 'Withdraw…' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Withdraw FI-001?' });
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('running');
+    expect(within(dialog).getByRole('button', { name: 'Withdraw feature' })).toBeDisabled();
+  });
+
+  it('AC-3: status changes appear on the Activity tab', async () => {
+    await renderPage(
+      feature({
+        events: [{ projectId: 'p1', featureId: 'FI-001', status: 'withdrawn', note: 'Kept US-011.', at: '2026-11-20T13:00:00.000Z' }],
+      }),
+    );
+    await userEvent.click(await screen.findByRole('tab', { name: 'Activity' }));
+    expect(screen.getByRole('list', { name: 'Status changes' })).toHaveTextContent('2026-11-20 13:00 Withdrawn — Kept US-011.');
+  });
+});
+
+describe('US-096 AC-1: the completion banner offers a spec baseline', () => {
+  const baselineOffer = (available: boolean) => ({
+    available,
+    reason: available ? null : 'Spec baselines are Git tags — this project has no Git repository.',
+    uncommitted: [],
+    nextTag: 'spec-v1.1',
+    features: [{ id: 'FI-001', title: 'Task comments' }],
+    epics: [],
+  });
+
+  it('shows Create baseline spec-vX.Y on a Done feature', async () => {
+    const onCreateBaseline = vi.fn();
+    const session = await fakeCore({
+      'features.get': async () => feature({ status: 'done' }),
+      'delta.epicProposal': async () => ({ newEpic: { id: 'EP-002', title: 'Task comments' }, extend: [], choice: null }),
+      'baselines.offer': async () => baselineOffer(true),
+    });
+    render(
+      <FeaturePage
+        session={session}
+        projectId="p1"
+        featureId="FI-001"
+        onBack={vi.fn()}
+        onOpenArtifact={vi.fn()}
+        onCreateBaseline={onCreateBaseline}
+      />,
+    );
+    const banner = await screen.findByRole('status', { name: 'Feature complete' });
+    await userEvent.click(await within(banner).findByRole('button', { name: 'Create baseline spec-v1.1' }));
+    expect(onCreateBaseline).toHaveBeenCalled();
+  });
+
+  it('AC-4: without Git the banner explains why there is no baseline', async () => {
+    const session = await fakeCore({
+      'features.get': async () => feature({ status: 'done' }),
+      'delta.epicProposal': async () => ({ newEpic: { id: 'EP-002', title: 'Task comments' }, extend: [], choice: null }),
+      'baselines.offer': async () => baselineOffer(false),
+    });
+    render(
+      <FeaturePage
+        session={session}
+        projectId="p1"
+        featureId="FI-001"
+        onBack={vi.fn()}
+        onOpenArtifact={vi.fn()}
+        onCreateBaseline={vi.fn()}
+      />,
+    );
+    const banner = await screen.findByRole('status', { name: 'Feature complete' });
+    expect(await within(banner).findByText(/no Git repository/)).toBeInTheDocument();
+    expect(within(banner).queryByRole('button')).not.toBeInTheDocument();
   });
 });

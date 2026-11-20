@@ -202,6 +202,12 @@ export class ContextPromptBuilder implements RunPromptBuilder {
       .dependencies(projectId)
       .filter((d) => d.from === storyId && d.type === 'blocking')
       .map((d) => info(d.to));
+    // US-092 AC-3: a rework story gets the Done stories it changes with their text, run summary and changed files.
+    const reworks = [];
+    for (const id of stories.get(storyId)?.reworks ?? []) {
+      const path = this.index.storyPath(projectId, id);
+      reworks.push({ ...info(id), content: path ? await read(path) : '' });
+    }
     const instructions = (await read(INSTRUCTIONS_PATH)).trim() || null;
     // US-059: review feedback; a fresh agent session also gets the summary of the run being corrected.
     const correction = request.startKind === 'correct' ? this.store.correction(projectId, storyId) : undefined;
@@ -217,6 +223,7 @@ export class ContextPromptBuilder implements RunPromptBuilder {
       linked,
       epic,
       predecessors,
+      reworks,
       concurrent: this.store
         .activeStories(projectId, storyId)
         .map((id) => ({ id, title: stories.get(id)?.title ?? id, touchedFiles: this.store.touchedFiles(projectId, id) })),

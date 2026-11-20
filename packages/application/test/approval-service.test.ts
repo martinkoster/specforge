@@ -73,3 +73,42 @@ describe('US-026 AC-3: generating from Draft inputs needs confirmation', () => {
     expect(generationInputCheck('stories', artifacts)).toEqual({ drafts: [], warning: null });
   });
 });
+
+describe('US-092 AC-1: approving a rework story validates its `reworks` targets', () => {
+  function reworkSetup(reworks: string) {
+    const path = 'spec/04_user_stories/US-023.md';
+    const files = new Map([[path, `---\nkind: story\nid: US-023\ntitle: Rework\napproval: draft\nreworks: ${reworks}\n---\nBody\n`]]);
+    const statuses = new Map([
+      ['US-008', 'done'],
+      ['US-009', 'ready'],
+    ] as const);
+    const service = new ApprovalService({
+      index: { artifacts: () => [{ path, kind: 'story', approval: 'draft', parseState: 'ok', parseError: null }] },
+      files: () => ({
+        read: async (p) => (files.has(p) ? { content: files.get(p)!, hash: 'h' } : undefined),
+        writeAtomic: async (p, content) => {
+          files.set(p, content);
+          return 'h2';
+        },
+      }),
+      reindex: async () => undefined,
+      now: () => '2026-11-20T09:00:00.000Z',
+      storyStatus: (_p, id) => statuses.get(id as 'US-008'),
+    });
+    return { service, files, path };
+  }
+
+  it('approves a rework story of a Done story', async () => {
+    const { service, files, path } = reworkSetup('[US-008]');
+    await service.approve('p1', path);
+    expect(files.get(path)).toContain('approval: approved');
+  });
+
+  it('refuses targets that do not exist or are not Done and leaves the file unchanged', async () => {
+    const { service, files, path } = reworkSetup('[US-009, US-099]');
+    await expect(service.approve('p1', path)).rejects.toThrow(
+      'US-023 reworks US-009, which is not Done (Ready). US-023 reworks US-099, which does not exist.',
+    );
+    expect(files.get(path)).toContain('approval: draft');
+  });
+});

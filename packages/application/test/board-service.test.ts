@@ -81,6 +81,8 @@ describe('US-038 AC-1: five columns with cards', () => {
         related: [],
         impact: null,
         inFlight: null,
+        reworks: [],
+        reworkedBy: [],
       },
     ]);
     expect(board.columns[0]!.cards[0]).toMatchObject({ storyId: 'US-003', approval: 'draft', size: null });
@@ -369,5 +371,26 @@ describe('US-086 AC-4: Potentially impacted flags on cards', () => {
       reason: 'FR-003 changed after it was approved.',
     });
     expect(cards.find((c) => c.storyId === 'US-001')?.impact).toBeNull();
+  });
+});
+
+describe('US-092: rework stories on the board', () => {
+  it('AC-2: the original story stays Done and its card shows the stories reworking it', () => {
+    const { service } = setup([
+      story('US-008', 'done'),
+      story('US-023', 'backlog', { reworks: ['US-008'] }),
+      story('US-024', 'ready', { reworks: ['US-008'] }),
+    ]);
+    const cards = service.board('p1').columns.flatMap((c) => c.cards);
+    expect(cards.find((c) => c.storyId === 'US-008')).toMatchObject({ status: 'done', reworkedBy: ['US-023', 'US-024'] });
+    expect(cards.find((c) => c.storyId === 'US-023')).toMatchObject({ reworks: ['US-008'], reworkedBy: [] });
+  });
+
+  it('AC-4: a rework story moves through the board like any other story', async () => {
+    const { service, stories, transitions } = setup([story('US-008', 'done'), story('US-023', 'ready', { reworks: ['US-008'] })]);
+    await expect(service.move('p1', 'US-023', 'in_progress')).resolves.toEqual({ ok: true });
+    expect(stories.get('US-023')!.status).toBe('in_progress');
+    expect(transitions).toEqual([['US-023', 'startImplementation']]);
+    expect(stories.get('US-008')!.status).toBe('done');
   });
 });

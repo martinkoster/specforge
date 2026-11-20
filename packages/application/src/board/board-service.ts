@@ -11,6 +11,7 @@ import {
   type StoryCommand,
   type StoryDependency,
   deriveEpicStatus,
+  reworkedBy,
   type EpicProgress,
   type EpicStatus,
 } from '@specforge/domain';
@@ -32,6 +33,8 @@ export interface BoardStoryRow {
   authorisedAt: string | null;
   /** Epic of the story (`epic` front-matter), null = No epic. */
   epicId?: string | null;
+  /** Done stories this rework story changes (`reworks`, US-092). */
+  reworks?: string[];
 }
 
 export interface BoardIndex {
@@ -43,8 +46,12 @@ export interface BoardIndex {
   dependencies(projectId: string): StoryDependency[];
 }
 
-export type BoardCard = Omit<BoardStoryRow, 'order' | 'authorisedAt' | 'epicId'> & {
+export type BoardCard = Omit<BoardStoryRow, 'order' | 'authorisedAt' | 'epicId' | 'reworks'> & {
   epicId: string | null;
+  /** Done stories this story reworks (US-092). */
+  reworks: string[];
+  /** Stories reworking this (Done) story: "Reworked by US-xxx" (US-092 AC-2). */
+  reworkedBy: string[];
   /** Blocking predecessors (`depends_on`). */
   dependsOn: string[];
   /** Related stories in either direction (`related_to`). */
@@ -109,13 +116,16 @@ function sortColumn(rows: BoardStoryRow[]): BoardStoryRow[] {
 }
 
 const toCard = (
-  { order: _o, authorisedAt: _a, epicId, ...card }: BoardStoryRow,
+  { order: _o, authorisedAt: _a, epicId, reworks, ...card }: BoardStoryRow,
   deps: readonly StoryDependency[],
   impacts: ReadonlyMap<string, { sourceRef: string; reason: string }>,
   inFlight: ReadonlyMap<string, NonNullable<BoardCard['inFlight']>>,
+  reworked: ReadonlyMap<string, string[]>,
 ): BoardCard => ({
   ...card,
   epicId: epicId ?? null,
+  reworks: reworks ?? [],
+  reworkedBy: reworked.get(card.storyId) ?? [],
   impact: impacts.get(card.storyId) ?? null,
   inFlight: inFlight.get(card.storyId) ?? null,
   dependsOn: deps.filter((d) => d.type === 'blocking' && d.from === card.storyId).map((d) => d.to),
@@ -139,10 +149,11 @@ export class BoardService {
     const dependencies = this.deps.index.dependencies(projectId);
     const impacts = this.deps.impacts?.(projectId) ?? new Map<string, { sourceRef: string; reason: string }>();
     const inFlight = this.deps.inFlight?.(projectId) ?? new Map<string, NonNullable<BoardCard['inFlight']>>();
+    const reworked = reworkedBy(rows.map((r) => ({ storyId: r.storyId, reworks: r.reworks ?? [] })));
     return {
       columns: BOARD_STATUSES.map((status) => ({
         status,
-        cards: sortColumn(rows.filter((r) => r.status === status)).map((r) => toCard(r, dependencies, impacts, inFlight)),
+        cards: sortColumn(rows.filter((r) => r.status === status)).map((r) => toCard(r, dependencies, impacts, inFlight, reworked)),
       })),
       lanes: this.lanes(projectId, rows),
       queue: this.deps.queueOrder?.(projectId) ?? [],

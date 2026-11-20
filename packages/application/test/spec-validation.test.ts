@@ -181,3 +181,31 @@ describe('US-036 AC-2: dependency cycles of produced stories are reported', () =
     ]);
   });
 });
+
+describe('US-092 AC-1: reworks targets of produced stories exist and are Done', () => {
+  const withStatuses: SpecIndexView = {
+    ...index,
+    stories: [
+      { id: 'US-001', status: 'done' },
+      { id: 'US-002', status: 'review' },
+    ],
+  };
+
+  it('accepts a rework story of a Done story and reports other targets', () => {
+    const path = 'spec/04_user_stories/US-003.md';
+    expect(validateSpecFiles([{ path, content: story('US-003', 'reworks: [US-001]\n') }], withStatuses)).toEqual([]);
+    expect(validateSpecFiles([{ path, content: story('US-003', 'reworks: [US-002, US-077]\n') }], withStatuses)).toEqual([
+      { path, kind: 'broken_link', message: 'US-003 references US-077, which does not exist.' },
+      { path, kind: 'invalid_rework', message: 'US-003 reworks US-002, which is not Done (Review).' },
+      { path, kind: 'invalid_rework', message: 'US-003 reworks US-077, which does not exist.' },
+    ]);
+  });
+
+  it('a produced story that is reworked uses its produced status', () => {
+    const files = [
+      { path: 'spec/04_user_stories/US-002.md', content: story('US-002').replace('status: backlog', 'status: done') },
+      { path: 'spec/04_user_stories/US-003.md', content: story('US-003', 'reworks: [US-002]\n') },
+    ];
+    expect(validateSpecFiles(files, withStatuses)).toEqual([]);
+  });
+});

@@ -17,6 +17,8 @@ import { CommitSpecDialog } from './shell/CommitSpecDialog.js';
 import { PhaseStepper, type PhaseStatus } from './shell/PhaseStepper.js';
 import { ComponentGallery } from './components/ComponentGallery.js';
 import { FeaturePage } from './features/FeaturePage.js';
+import { BaselineDialog } from './features/BaselineDialog.js';
+import { CaptureIdeaDialog, type IdeaSource } from './features/CaptureIdeaDialog.js';
 import { FeatureWizard } from './features/FeatureWizard.js';
 import { AdoptProjectDialog, type AdoptFolder } from './projects/AdoptProjectDialog.js';
 import { ADOPT_HINT, CreateProjectDialog } from './projects/CreateProjectDialog.js';
@@ -121,7 +123,11 @@ export function App({ session, testMode, pickFolder, notify, isFocused = () => d
   const [boardEpic, setBoardEpic] = useState<string | null>(null);
   const [committing, setCommitting] = useState(false);
   /** US-082: the feature wizard (new feature or a stored draft) and the last saved feature intent. */
-  const [wizard, setWizard] = useState<{ resumeId: string | null } | null>(null);
+  const [wizard, setWizard] = useState<{ resumeId: string | null; idea?: { id: string; text: string; note: string | null } } | null>(null);
+  /** US-095: the open *Capture idea* popover and where it was opened from. */
+  const [capture, setCapture] = useState<IdeaSource | null>(null);
+  /** US-096: the *Create spec baseline* dialog. */
+  const [baselineOpen, setBaselineOpen] = useState(false);
   /** US-084: the open feature page (shown instead of the area content). */
   const [featureView, setFeatureView] = useState<string | null>(null);
   const [pending, setPending] = useState<PendingGroups>([]);
@@ -406,6 +412,11 @@ export function App({ session, testMode, pickFolder, notify, isFocused = () => d
         e.preventDefault();
         setWizard((w) => w ?? { resumeId: null });
       }
+      // US-095 AC-1: Ctrl/Cmd+Shift+I captures an idea from any screen.
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'i') {
+        e.preventDefault();
+        setCapture((c) => c ?? 'shortcut');
+      }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -474,6 +485,9 @@ export function App({ session, testMode, pickFolder, notify, isFocused = () => d
         aiDisabledReason={aiDisabledReason}
         intentApproved={intentApproved}
         onAddFeature={(resumeId) => setWizard({ resumeId })}
+        onCaptureIdea={() => setCapture('menu')}
+        onCreateBaseline={() => setBaselineOpen(true)}
+        onTurnIdeaIntoFeature={(idea) => setWizard({ resumeId: null, idea: { id: idea.id, text: idea.text, note: idea.note } })}
         onOpenFeature={setFeatureView}
         onEditSpecs={() => {
           setSpecPhase(null);
@@ -557,6 +571,8 @@ export function App({ session, testMode, pickFolder, notify, isFocused = () => d
         refreshKey={state}
         aiDisabledReason={aiDisabledReason}
         onBack={() => setFeatureView(null)}
+        onOpenKanban={() => navigate('kanban')}
+        onCreateBaseline={() => setBaselineOpen(true)}
         onOpenArtifact={(path) => {
           setFeatureView(null);
           openArtifactPath(path);
@@ -677,12 +693,39 @@ export function App({ session, testMode, pickFolder, notify, isFocused = () => d
             onCancel={() => setAdoptFolder(null)}
           />
         )}
+        {baselineOpen && state.currentProjectId !== null && (
+          <BaselineDialog
+            session={session}
+            projectId={state.currentProjectId}
+            onClose={() => setBaselineOpen(false)}
+            onCreated={() => {
+              setBaselineOpen(false);
+              void refresh();
+            }}
+            onCommitSpecChanges={() => {
+              setBaselineOpen(false);
+              setCommitting(true);
+            }}
+          />
+        )}
+        {capture && state.currentProjectId !== null && (
+          <CaptureIdeaDialog
+            session={session}
+            projectId={state.currentProjectId}
+            source={capture}
+            onClose={() => {
+              setCapture(null);
+              void refresh();
+            }}
+          />
+        )}
         {wizard && state.currentProjectId !== null && (
           <FeatureWizard
-            key={wizard.resumeId ?? 'new'}
+            key={wizard.resumeId ?? wizard.idea?.id ?? 'new'}
             session={session}
             projectId={state.currentProjectId}
             resumeId={wizard.resumeId}
+            {...(wizard.idea ? { idea: wizard.idea } : {})}
             aiDisabledReason={aiDisabledReason}
             onView={(ref) => {
               const projectId = state.currentProjectId!;

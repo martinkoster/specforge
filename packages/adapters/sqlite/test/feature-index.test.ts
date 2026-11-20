@@ -131,3 +131,70 @@ describe('US-082 AC-4: feature wizard drafts survive restarts (feature_wizard, A
     expect(wizards.list('other')).toEqual([]);
   });
 });
+
+describe('US-092: rework stories in the index', () => {
+  it('AC-1/AC-2: board rows carry `reworks`; the spec index view carries story statuses', async () => {
+    const { index } = await setup();
+    index.save('p1', 'spec/04_user_stories/US-001.md', 'h1', story('US-001', null, 'done'));
+    index.save('p1', 'spec/04_user_stories/US-010.md', 'h2', story('US-010', 'FI-003'));
+    const rows = index.stories('p1');
+    expect(rows.find((r) => r.storyId === 'US-010')?.reworks).toEqual(['US-001']);
+    expect(index.specIndexView('p1').stories).toEqual(
+      expect.arrayContaining([
+        { id: 'US-001', status: 'done' },
+        { id: 'US-010', status: 'backlog' },
+      ]),
+    );
+  });
+});
+
+describe('US-095 AC-2: ideas in the index (idea)', () => {
+  it('indexes the ideas of ideas.md, replaces them on re-index and is part of Rebuild index', async () => {
+    const { db, index } = await setup();
+    const ideas = (states: ('new' | 'dismissed')[]): ParsedArtifact => ({
+      kind: 'ideas',
+      approval: 'draft',
+      elements: states.map((_, i) => ({ id: `IDEA-00${i + 1}`, type: 'idea', title: `Idea ${i + 1}`, anchor: null })),
+      links: [],
+      dependencies: [],
+      ideas: states.map((state, i) => ({
+        id: `IDEA-00${i + 1}`,
+        text: `Idea ${i + 1}`,
+        note: i === 0 ? 'A note' : null,
+        source: 'shortcut',
+        createdAt: '2026-11-20',
+        state,
+        featureId: null,
+        dismissReason: state === 'dismissed' ? 'No.' : null,
+      })),
+    });
+    index.save('p1', 'spec/01_intent/ideas.md', 'h1', ideas(['new', 'dismissed']));
+    expect(index.ideas('p1')).toEqual([
+      {
+        id: 'IDEA-001',
+        text: 'Idea 1',
+        note: 'A note',
+        source: 'shortcut',
+        createdAt: '2026-11-20',
+        state: 'new',
+        featureId: null,
+        dismissReason: null,
+      },
+      {
+        id: 'IDEA-002',
+        text: 'Idea 2',
+        note: null,
+        source: 'shortcut',
+        createdAt: '2026-11-20',
+        state: 'dismissed',
+        featureId: null,
+        dismissReason: 'No.',
+      },
+    ]);
+    index.save('p1', 'spec/01_intent/ideas.md', 'h2', ideas(['new']));
+    expect(index.ideas('p1').map((i) => i.id)).toEqual(['IDEA-001']);
+    expect(INDEX_TABLES.map((t) => t.name)).toContain('idea');
+    rebuildIndex(db.sqlite);
+    expect(index.ideas('p1')).toEqual([]);
+  });
+});

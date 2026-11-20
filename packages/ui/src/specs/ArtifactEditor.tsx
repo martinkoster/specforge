@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: Apache-2.0
-// Artifact split view: CodeMirror editor and rendered preview; atomic save with conflict handling (US-025, US-021).
+// Artifact split view: CodeMirror editor and rendered preview; atomic save with conflict handling (US-025, US-021);
+// *Compare with baseline…* (US-096 AC-3).
 import { StatusBadge } from '../components/index.js';
 import { useEffect, useState } from 'react';
 import type { CommandOutput } from '@specforge/ipc-contract';
 import { ConflictDialog } from '../documents/ConflictDialog.js';
+import { DiffView } from '../review/DiffView.js';
 import { MarkdownEditor } from './MarkdownEditor.js';
 import { MarkdownPreview } from './MarkdownPreview.js';
 import { useSpecLayout } from './spec-layout-context.js';
@@ -24,6 +26,10 @@ export interface ArtifactEditorProps {
   openFindings?: number;
   /** Notified on every edit (the AI panel works on the current content). */
   onContentChange?(content: string): void;
+  /** Spec baselines to compare with (US-096), newest first; none = no comparison. */
+  baselines?: readonly string[];
+  /** The file at a baseline (null = it did not exist there). */
+  onCompare?(tag: string): Promise<{ before: string | null; after: string | null }>;
 }
 
 export function ArtifactEditor({
@@ -35,7 +41,10 @@ export function ArtifactEditor({
   focusLine = null,
   openFindings = 0,
   onContentChange,
+  baselines = [],
+  onCompare,
 }: ArtifactEditorProps) {
+  const [compared, setCompared] = useState<{ tag: string; before: string } | null>(null);
   const layout = useSpecLayout();
   const [content, setContentState] = useState(initial.content);
   const setContent = (next: string) => {
@@ -103,7 +112,42 @@ export function ArtifactEditor({
           Save
         </button>
         <span aria-live="polite">{dirty ? 'Unsaved changes' : status === 'saved' ? 'Saved' : ''}</span>
+        {onCompare && baselines.length > 0 && (
+          <select
+            className="select"
+            aria-label="Compare with baseline…"
+            value=""
+            onChange={(e) => {
+              const tag = e.target.value;
+              if (!tag) return;
+              void onCompare(tag).then(
+                (r) => setCompared({ tag, before: r.before ?? '' }),
+                (err: unknown) => setError(err instanceof Error ? err.message : String(err)),
+              );
+            }}
+          >
+            <option value="">Compare with baseline…</option>
+            {baselines.map((tag) => (
+              <option key={tag} value={tag}>
+                {tag}
+              </option>
+            ))}
+          </select>
+        )}
       </div>
+      {compared && (
+        <section aria-label={`Compared with ${compared.tag}`} className="baseline-compare">
+          <div className="artifact-toolbar">
+            <span>
+              Changes since {compared.tag} (left: {compared.tag}, right: current content)
+            </span>
+            <button className="btn btn-ghost btn-sm" type="button" onClick={() => setCompared(null)}>
+              Close comparison
+            </button>
+          </div>
+          <DiffView before={compared.before} after={content} mode="unified" label={`${path} since ${compared.tag}`} />
+        </section>
+      )}
       {error && <p role="alert">{error}</p>}
       <div className="split">
         <section aria-label="Editor">

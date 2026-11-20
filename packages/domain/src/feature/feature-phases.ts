@@ -18,6 +18,8 @@ export interface FeatureProgress {
   /** Delta change sets (US-087/US-088): none, open for review, or applied. */
   requirementsDelta: 'none' | 'open' | 'applied';
   designDelta: 'none' | 'open' | 'applied';
+  /** Epic & stories change set (US-093): none, open for review, or applied; absent = none. */
+  storiesDelta?: 'none' | 'open' | 'applied';
   /** Stories linked with `feature: FI-xxx`. */
   stories: readonly { status: BoardStatus; approval: 'draft' | 'approved' }[];
   /** The feature's epic review is decided (US-091). */
@@ -45,7 +47,14 @@ function phaseStates(p: FeatureProgress): Record<FeaturePhase, PhaseState> {
     ] as PhaseState,
     requirements: deltaState(p.requirementsDelta),
     design: deltaState(p.designDelta),
-    stories: stories.length === 0 ? 'not_started' : stories.every((s) => s.approval === 'approved') ? 'approved' : 'awaiting_approval',
+    stories:
+      p.storiesDelta === 'open'
+        ? 'awaiting_approval'
+        : stories.length === 0
+          ? 'not_started'
+          : stories.every((s) => s.approval === 'approved')
+            ? 'approved'
+            : 'awaiting_approval',
     kanban: allDone ? 'approved' : stories.some((s) => s.status !== 'backlog') ? 'in_progress' : 'not_started',
     epic_review: p.epicReviewed ? 'approved' : allDone ? 'awaiting_approval' : 'not_started',
   };
@@ -96,6 +105,8 @@ export function featureNextStep(p: FeatureProgress): FeatureStep | undefined {
       return step(`Generate delta ${name} for ${p.id}`, `The impact is confirmed; the ${name} changes are next.`);
   }
   if (states.stories === 'not_started') return step(`Plan the epic and stories for ${p.id}`, 'The delta specifications are approved.');
+  if (p.storiesDelta === 'open')
+    return step(`Review the epic and stories proposed for ${p.id}`, 'Accept or discard the proposed epic and stories, then apply them.');
   if (states.stories === 'awaiting_approval')
     return step(`Approve the stories of ${p.id}`, 'Approved stories can be planned on the board.');
   if (states.epic_review === 'awaiting_approval') return step(`Review the epic of ${p.id}`, 'All stories of the feature are Done.');

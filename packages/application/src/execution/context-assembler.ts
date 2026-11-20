@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // ContextAssembler (US-050, FR-037, FR-068, FR-099): the prompt of an implementation or correction run — story with
-// acceptance criteria, project instructions, predecessors, epic goal and siblings, linked specification elements,
+// acceptance criteria, project instructions, predecessors, reworked Done stories (US-092), epic goal and siblings, linked specification elements,
 // concurrently running stories, scope rule and result schema — deterministically truncated to a size budget.
 import { specLayout, type BoardStatus, type StartKind } from '@specforge/domain';
 import { RESULT_INSTRUCTION } from './result-parser.js';
@@ -24,6 +24,8 @@ export interface ContextInput {
   linked: { id: string; title: string; path: string; text: string | null }[];
   epic: { id: string; title: string; goal: string | null; siblings: StoryInfo[] } | null;
   predecessors: StoryInfo[];
+  /** Done stories a rework story changes, with their story text (FR-109, FR-068, US-092). */
+  reworks?: (StoryInfo & { content: string })[];
   concurrent: { id: string; title: string; touchedFiles: string[] }[];
   /** Maximum prompt size in characters. */
   budget: number;
@@ -100,6 +102,15 @@ export function assembleContext(input: ContextInput): AssembledContext {
   if (input.previousSummary) fixed.push('', '## Summary of the previous run', input.previousSummary.trim());
   if (input.instructions?.trim()) fixed.push('', '## Project instructions & conventions', input.instructions.trim());
   if (input.predecessors.length) fixed.push('', '## Blocking predecessors', ...input.predecessors.map(storyLine));
+  if (input.reworks?.length) {
+    fixed.push('', '## Reworked Done stories', 'This story changes functionality of Done stories; they stay Done.');
+    for (const r of input.reworks) {
+      fixed.push('', `### ${r.id} ${r.title} (${STATUS[r.status]})${r.summary ? `: ${r.summary}` : ''}`);
+      if (r.changedFiles.length) fixed.push(`Changed files: ${r.changedFiles.join(', ')}`);
+      const text = stripFrontMatter(r.content);
+      if (text) fixed.push(text);
+    }
+  }
   if (input.epic) {
     fixed.push('', `## Epic ${input.epic.id}: ${input.epic.title}`);
     if (input.epic.goal) fixed.push(`Goal: ${input.epic.goal}`);

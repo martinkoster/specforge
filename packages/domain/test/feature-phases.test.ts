@@ -197,3 +197,20 @@ describe('US-084 AC-4: maintenance mode', () => {
     expect(maintenanceMode([{ featureId: 'FI-001', done: true }])).toBe(false);
   });
 });
+
+describe('US-093: the Epic & stories phase follows its change set', () => {
+  const delivered = { impact: 'confirmed', requirementsDelta: 'applied', designDelta: 'applied' } as const;
+
+  it('an open stories change set awaits approval; the next step asks to review it', () => {
+    const p = progress({ ...delivered, storiesDelta: 'open' });
+    expect(states(p)).toContain('stories:awaiting_approval');
+    expect(featureNextStep(p)?.label).toBe('Review the epic and stories proposed for FI-001');
+  });
+
+  it('without a change set the phase follows the linked stories as before', () => {
+    expect(states(progress({ ...delivered, storiesDelta: 'none' }))).toContain('stories:not_started');
+    expect(states(progress({ ...delivered, storiesDelta: 'applied', stories: [{ status: 'backlog', approval: 'approved' }] }))).toContain(
+      'stories:approved',
+    );
+  });
+});

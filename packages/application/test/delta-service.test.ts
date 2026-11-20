@@ -8,6 +8,7 @@ import {
   type ChangeItemRecord,
   type ChangeSetRecord,
   type DeltaServiceDeps,
+  type EpicChoice,
   type RunHooks,
   type RunRequest,
 } from '../src/index.js';
@@ -428,5 +429,280 @@ describe('US-091: in-flight protection when applying', () => {
     ctx.service.acceptAll(view.id);
     ctx.stories.splice(0);
     expect(await ctx.service.apply(view.id)).toMatchObject({ applied: [FR] });
+  });
+});
+
+// US-093: the Epic & stories phase — epic choice, generated story files as change items, validation, apply.
+const S = 'spec/04_user_stories';
+const storyFile = (id: string, status: string, extra = '') =>
+  `---\nkind: story\nid: ${id}\ntitle: Story ${id}\nstatus: ${status}\napproval: approved\nepic: EP-002\nrequirements: [FR-034]\n${extra}---\n## Acceptance criteria\n- [ ] AC-1: ${id} works.\n`;
+const EPIC2 = `---\nkind: epic\nid: EP-002\ntitle: Tasks\napproval: approved\nrequirements: [FR-034]\n---\n## Goal\nTasks.\n`;
+
+function storiesSetup(over: Partial<DeltaServiceDeps> = {}) {
+  const holder: { files?: Map<string, string>; snapshot?: Map<string, string> } = {};
+  const inStories = (p: string) => p.startsWith(`${S}/`);
+  const choices = new Map<string, EpicChoice>();
+  const elements = [
+    { id: 'FI-001', path: 'spec/01_intent/FI-001-comments.md', title: 'Task comments' },
+    { id: 'FR-034', path: FR, title: 'Task details' },
+    { id: 'EP-002', path: `${S}/epics/EP-002.md`, title: 'Tasks' },
+    { id: 'US-008', path: `${S}/US-008.md`, title: 'Story US-008' },
+    { id: 'US-011', path: `${S}/US-011.md`, title: 'Story US-011' },
+    { id: 'US-012', path: `${S}/US-012.md`, title: 'Story US-012' },
+  ];
+  const statuses = [
+    { id: 'US-008', status: 'done' as const },
+    { id: 'US-011', status: 'backlog' as const },
+    { id: 'US-012', status: 'in_progress' as const },
+  ];
+  const t = setup({
+    elements: () => elements,
+    scope: () => [
+      { targetRef: 'FR-034', reason: 'Related requirement' },
+      { targetRef: 'EP-002', reason: 'The task epic' },
+      { targetRef: 'US-008', reason: 'Task view (Done)' },
+      { targetRef: 'US-011', reason: 'Task list' },
+    ],
+    folderFiles: () => [...holder.files!.keys()].filter(inStories),
+    specIndex: () => ({ elements: elements.map((e) => ({ id: e.id, path: e.path })), dependencies: [], stories: statuses }),
+    epicChoices: { get: (_p, featureId) => choices.get(featureId), save: (c) => void choices.set(c.featureId, c) },
+    snapshots: {
+      capture: async () => {
+        holder.snapshot = new Map([...holder.files!].filter(([p]) => inStories(p)));
+        return 'snap-s';
+      },
+      changes: async () => {
+        const now = new Map([...holder.files!].filter(([p]) => inStories(p)));
+        const out: { path: string; change: 'A' | 'M' | 'D' }[] = [];
+        for (const [p, c] of now) {
+          if (!holder.snapshot!.has(p)) out.push({ path: p, change: 'A' });
+          else if (holder.snapshot!.get(p) !== c) out.push({ path: p, change: 'M' });
+        }
+        for (const p of holder.snapshot!.keys()) if (!now.has(p)) out.push({ path: p, change: 'D' });
+        return out;
+      },
+      restore: async () => {
+        for (const p of [...holder.files!.keys()].filter(inStories)) holder.files!.delete(p);
+        for (const [p, c] of holder.snapshot!) holder.files!.set(p, c);
+      },
+    },
+    ...over,
+  });
+  holder.files = t.files;
+  t.files.set(`${S}/epics/EP-002.md`, EPIC2);
+  t.files.set(`${S}/US-008.md`, storyFile('US-008', 'done'));
+  t.files.set(`${S}/US-011.md`, storyFile('US-011', 'backlog'));
+  t.files.set(`${S}/US-012.md`, storyFile('US-012', 'in_progress'));
+  t.stories.push(
+    { id: 'US-011', title: 'Story US-011', status: 'backlog', subState: 'none' },
+    { id: 'US-012', title: 'Story US-012', status: 'in_progress', subState: 'running' },
+  );
+  return { ...t, choices };
+}
+
+const storiesSettled = async (service: DeltaService) => {
+  await vi.waitFor(() => expect(service.view('p1', 'FI-001', 'stories')?.state).not.toBe('running'));
+  return service.view('p1', 'FI-001', 'stories')!;
+};
+
+/** The agent proposes a new epic, a new story, a rework story of Done US-008 and adjusts not-started US-011. */
+const writeProposal = (files: Map<string, string>) => {
+  files.set(
+    `${S}/epics/EP-003.md`,
+    `---\nkind: epic\nid: EP-003\ntitle: Task comments\nrequirements: [FR-034]\n---\n## Goal\nComment on tasks.\n## Value\nV.\n## Acceptance criteria\n- A.\n`,
+  );
+  files.set(
+    `${S}/US-013-comment-list.md`,
+    storyFile('US-013', 'backlog', 'depends_on:\n  - id: US-008\n    rationale: Needs the task view.\n').replace(
+      'epic: EP-002',
+      'epic: EP-003',
+    ),
+  );
+  files.set(
+    `${S}/US-014-task-view-comments.md`,
+    storyFile('US-014', 'backlog', 'reworks: [US-008]\n').replace('epic: EP-002', 'epic: EP-003'),
+  );
+  files.set(`${S}/US-011.md`, storyFile('US-011', 'backlog').replace('works.', 'works with comments.'));
+};
+
+describe('US-093 AC-1: the epic choice comes first', () => {
+  it('proposes a new epic (default) or extending epics from the impact list; generation needs the approved choice', async () => {
+    const { service } = storiesSetup();
+    expect(service.epicProposal('p1', 'FI-001')).toEqual({
+      newEpic: { id: 'EP-003', title: 'Task comments' },
+      extend: [{ id: 'EP-002', title: 'Tasks', reason: 'The task epic' }],
+      choice: null,
+    });
+    await expect(service.generate('p1', 'FI-001', 'stories')).resolves.toMatchObject({
+      ok: false,
+      reason: expect.stringContaining('epic'),
+    });
+    expect(() => service.chooseEpic('p1', 'FI-001', { mode: 'extend', epicIds: ['EP-077'] })).toThrow('EP-077');
+    const chosen = service.chooseEpic('p1', 'FI-001', { mode: 'new', title: 'Comments on tasks' });
+    expect(chosen.choice).toMatchObject({ mode: 'new', epicIds: ['EP-003'], title: 'Comments on tasks' });
+  });
+
+  it('the generation prompt names the chosen epic, feature links, rework rules and the scope with story states', async () => {
+    const { service, adapter } = storiesSetup();
+    service.chooseEpic('p1', 'FI-001', { mode: 'new' });
+    await expect(service.generate('p1', 'FI-001', 'stories')).resolves.toMatchObject({ ok: true });
+    expect(adapter.requests[0]!.kind).toBe('generate');
+    const prompt = adapter.requests[0]!.prompt;
+    for (const text of [
+      `Create the new epic EP-003 "Task comments" as ${S}/epics/EP-003.md`,
+      'feature: FI-001',
+      `- US-008 "Story US-008" (Done, ${S}/US-008.md): Task view (Done)`,
+      `- US-011 "Story US-011" (Backlog, ${S}/US-011.md): Task list`,
+      'reworks: [US-008]',
+      'Next free IDs: EP-003, US-013.',
+      'depends_on',
+      `Write only files inside ${S}/`,
+    ]) {
+      expect(prompt).toContain(text);
+    }
+    const extend = storiesSetup();
+    extend.service.chooseEpic('p1', 'FI-001', { mode: 'extend', epicIds: ['EP-002'] });
+    await extend.service.generate('p1', 'FI-001', 'stories');
+    expect(extend.adapter.requests[0]!.prompt).toContain(`Extend the existing epic EP-002 "Tasks" (${S}/epics/EP-002.md)`);
+  });
+});
+
+describe('US-093 AC-2: stories, adjustments and rework stories become change items', () => {
+  it('splits the run per file: new epic, new story, rework story, adjusted not-started story; the folder is restored', async () => {
+    const { service, adapter, files } = storiesSetup();
+    service.chooseEpic('p1', 'FI-001', { mode: 'new' });
+    await service.generate('p1', 'FI-001', 'stories');
+    writeProposal(files);
+    adapter.complete();
+    const view = await storiesSettled(service);
+    expect(view.reason).toBeNull();
+    expect(view.items.map((i) => [i.kind, i.elementId, i.path])).toEqual([
+      ['new', 'EP-003', `${S}/epics/EP-003.md`],
+      ['new', 'US-013', `${S}/US-013-comment-list.md`],
+      ['new', 'US-014', `${S}/US-014-task-view-comments.md`],
+      ['modified', 'US-011', `${S}/US-011.md`],
+    ]);
+    expect(view.items[3]!.patch).toContain('+- [ ] AC-1: US-011 works with comments.');
+    expect(files.has(`${S}/US-013-comment-list.md`)).toBe(false);
+    expect(files.get(`${S}/US-011.md`)).toBe(storyFile('US-011', 'backlog'));
+    expect(service.state('p1', 'FI-001', 'stories')).toBe('open');
+  });
+});
+
+describe('US-093 AC-3: proposed dependencies and reworks are validated (FR-063)', () => {
+  it('rejects changes to Done stories, reworks of stories that are not Done, unknown dependencies and cycles', async () => {
+    const cases: [(files: Map<string, string>) => void, string][] = [
+      [(f) => f.set(`${S}/US-008.md`, storyFile('US-008', 'done').replace('works.', 'changed.')), 'US-008 is Done'],
+      [(f) => f.set(`${S}/US-013.md`, storyFile('US-013', 'backlog', 'reworks: [US-011]\n')), 'US-013 reworks US-011, which is not Done'],
+      [
+        (f) => f.set(`${S}/US-013.md`, storyFile('US-013', 'backlog', 'depends_on: [US-099]\n')),
+        'US-013 depends on US-099, which does not exist',
+      ],
+      [
+        (f) => {
+          f.set(`${S}/US-013.md`, storyFile('US-013', 'backlog', 'depends_on: [US-014]\n'));
+          f.set(`${S}/US-014.md`, storyFile('US-014', 'backlog', 'depends_on: [US-013]\n'));
+        },
+        'Dependency cycle',
+      ],
+    ];
+    for (const [write, expected] of cases) {
+      const { service, adapter, files } = storiesSetup();
+      service.chooseEpic('p1', 'FI-001', { mode: 'new' });
+      await service.generate('p1', 'FI-001', 'stories');
+      write(files);
+      adapter.complete();
+      const view = await storiesSettled(service);
+      expect(view.state).toBe('failed');
+      expect(view.reason).toContain(expected);
+    }
+  });
+
+  it('adjusting a story that is in flight needs the in-flight decision (US-091) before anything is applied', async () => {
+    const { service, adapter, files, log } = storiesSetup();
+    service.chooseEpic('p1', 'FI-001', { mode: 'new' });
+    await service.generate('p1', 'FI-001', 'stories');
+    files.set(`${S}/US-012.md`, storyFile('US-012', 'in_progress').replace('works.', 'works with comments.'));
+    adapter.complete();
+    const view = await storiesSettled(service);
+    service.acceptAll(view.id);
+    const result = await service.apply(view.id);
+    expect(result).toEqual({
+      needsDecision: [
+        expect.objectContaining({ storyId: 'US-012', status: 'in_progress', subState: 'running', changes: ['adjusted US-012'] }),
+      ],
+    });
+    expect(log.filter((l) => l.startsWith('write'))).toEqual([]);
+  });
+});
+
+describe('US-093 AC-4: applying writes the stories into the epic lane in Backlog', () => {
+  it('new files get the feature link and Backlog status; adjustments are marked "Changed by"; files become Draft', async () => {
+    const { service, adapter, files, log, approvals } = storiesSetup();
+    service.chooseEpic('p1', 'FI-001', { mode: 'new' });
+    await service.generate('p1', 'FI-001', 'stories');
+    writeProposal(files);
+    files.set(`${S}/US-013-comment-list.md`, files.get(`${S}/US-013-comment-list.md`)!.replace('status: backlog', 'status: ready'));
+    adapter.complete();
+    const view = await storiesSettled(service);
+    service.acceptAll(view.id);
+    await expect(service.apply(view.id)).resolves.toEqual({
+      applied: [`${S}/epics/EP-003.md`, `${S}/US-013-comment-list.md`, `${S}/US-014-task-view-comments.md`, `${S}/US-011.md`],
+      conflicts: [],
+    });
+    const story = files.get(`${S}/US-013-comment-list.md`)!;
+    expect(story).toContain('feature: FI-001');
+    expect(story).toContain('status: backlog');
+    expect(story).toContain('epic: EP-003');
+    expect(files.get(`${S}/epics/EP-003.md`)).toContain('feature: FI-001');
+    expect(files.get(`${S}/US-014-task-view-comments.md`)).toMatch(/reworks: \[ ?US-008 ?\]/);
+    expect(files.get(`${S}/US-011.md`)).toContain('works with comments.');
+    expect(files.get(`${S}/US-011.md`)).toContain('Changed by FI-001.');
+    expect(files.get(`${S}/US-011.md`)).not.toContain('feature: FI-001');
+    expect(log).toContain(
+      `draft ${S}/epics/EP-003.md,${S}/US-013-comment-list.md,${S}/US-014-task-view-comments.md,${S}/US-011.md ${view.runId}`,
+    );
+    expect(service.view('p1', 'FI-001', 'stories')!.state).toBe('applied');
+    approvals.set(`${S}/US-011.md`, 'draft');
+    expect(service.state('p1', 'FI-001', 'stories')).toBe('open');
+  });
+
+  it('a new file that exists by now is a conflict', async () => {
+    const { service, adapter, files } = storiesSetup();
+    service.chooseEpic('p1', 'FI-001', { mode: 'new' });
+    await service.generate('p1', 'FI-001', 'stories');
+    writeProposal(files);
+    adapter.complete();
+    const view = await storiesSettled(service);
+    service.acceptAll(view.id);
+    files.set(`${S}/epics/EP-003.md`, 'someone else');
+    const result = await service.apply(view.id);
+    expect(result).toMatchObject({ conflicts: [`${S}/epics/EP-003.md`] });
+  });
+});
+
+describe('US-094 AC-2: withdrawing a feature discards its open change sets', () => {
+  it('lists open and running change sets per phase and discards the open ones; applied ones stay', async () => {
+    const { service, adapter, files, sets } = setup();
+    await service.generate('p1', 'FI-001', 'requirements');
+    expect(service.openSets('p1', 'FI-001')).toEqual([{ phase: 'requirements', state: 'running' }]);
+    files.set(FR, ORIGINAL.concat('### FR-118: Comment\nx\n'));
+    adapter.complete();
+    await settled(service);
+    sets.set('applied-design', {
+      id: 'applied-design',
+      projectId: 'p1',
+      featureId: 'FI-001',
+      phase: 'design',
+      runId: 'r0',
+      state: 'applied',
+      reason: null,
+      createdAt: 't',
+    });
+    expect(service.openSets('p1', 'FI-001')).toEqual([{ phase: 'requirements', state: 'open' }]);
+    expect(service.discardOpen('p1', 'FI-001')).toEqual(['requirements']);
+    expect(service.view('p1', 'FI-001', 'requirements')).toMatchObject({ state: 'discarded', reason: 'The feature was withdrawn.' });
+    expect(service.view('p1', 'FI-001', 'design')?.state).toBe('applied');
+    expect(service.openSets('p1', 'FI-001')).toEqual([]);
   });
 });

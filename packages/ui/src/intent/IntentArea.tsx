@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Intent area (US-028, UC-004/UC-005): template for new projects, Markdown editor with approval, AI quality check and
 // refinement, the clarification dialogue and the codebase analysis of adopted projects (US-080).
+import { useBaselines } from '../specs/use-baselines.js';
 import { PageHeader, Skeleton } from '../components/index.js';
 import { useCallback, useEffect, useState } from 'react';
 import type { CoreSession } from '../core/core-session.js';
@@ -26,6 +27,7 @@ export function IntentArea({ session, projectId, aiDisabledReason = null, onAddF
   const [content, setContent] = useState('');
   const [focus, setFocus] = useState<{ line: number; seq: number } | null>(null);
   const [openFindings, setOpenFindings] = useState(0);
+  const baselines = useBaselines(session, projectId);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -84,6 +86,8 @@ export function IntentArea({ session, projectId, aiDisabledReason = null, onAddF
             key={doc.hash}
             path={INTENT_PATH}
             initial={doc}
+            baselines={baselines.tags}
+            onCompare={baselines.compare(INTENT_PATH)}
             approval={approval}
             focusLine={focus}
             openFindings={openFindings}

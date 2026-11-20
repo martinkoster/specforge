@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Story card (US-038, US-041, US-043): ID, title, size, approval, execution/queue indicator, dependency badges,
-// conflict files with Re-check, drag handle and the accessible "Move to" control.
+// conflict files with Re-check, rework links (US-092), drag handle and the accessible "Move to" control.
 import { GripVertical, Link2, LoaderCircle } from 'lucide-react';
 import { StatusBadge, Tag, statusLabel, statusTone } from '../components/index.js';
 import { Icon, STATUS_ICONS } from '../components/icons.js';
@@ -144,6 +144,8 @@ export function StoryCard({
           {card.inFlight.featureId}: {IN_FLIGHT_LABEL[card.inFlight.decision]}
         </p>
       )}
+      {(card.reworkedBy?.length ?? 0) > 0 && <p className="card-notice card-rework">Reworked by {card.reworkedBy!.join(', ')}</p>}
+      {(card.reworks?.length ?? 0) > 0 && <p className="card-notice card-rework">Reworks {card.reworks!.join(', ')}</p>}
       {card.impact && (
         <p className="card-notice card-impact" title={`Changed: ${card.impact.sourceRef}`}>
           <StatusBadge status="impacted" label="Potentially impacted" /> <span>{card.impact.reason}</span>

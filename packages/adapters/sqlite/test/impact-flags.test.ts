@@ -9,6 +9,9 @@ import {
   ChangeSetRepository,
   ImpactFlagRepository,
   ImpactItemRepository,
+  BaselineRepository,
+  EpicChoiceRepository,
+  FeatureEventRepository,
   InFlightDecisionRepository,
   IndexRepository,
   ProjectRepository,
@@ -195,5 +198,48 @@ describe('US-087 AC-3: impact items (impact_item)', () => {
     rebuildIndex(db.sqlite);
     expect(items.items('p1', 'FI-001')).toEqual([{ ...item('d', 'trace', 'FR-004'), confirmed: true }]);
     expect(items.items('p1', 'FI-002')).toEqual([]);
+  });
+});
+
+describe('US-093 AC-1: the approved epic choice per feature (feature_epic_choice)', () => {
+  it('saves, replaces and reads the choice', async () => {
+    const { db } = await setup();
+    const repo = new EpicChoiceRepository(db.sqlite);
+    const base = { projectId: 'p1', featureId: 'FI-001', decidedAt: '2026-11-20T10:00:00.000Z' };
+    expect(repo.get('p1', 'FI-001')).toBeUndefined();
+    repo.save({ ...base, mode: 'new', epicIds: ['EP-003'], title: 'Task comments' });
+    repo.save({ ...base, mode: 'extend', epicIds: ['EP-001', 'EP-002'], title: null });
+    expect(repo.get('p1', 'FI-001')).toEqual({ ...base, mode: 'extend', epicIds: ['EP-001', 'EP-002'], title: null });
+    expect(repo.get('p1', 'FI-002')).toBeUndefined();
+  });
+});
+
+describe('US-094 AC-3: feature status changes (feature_event)', () => {
+  it('records events and lists them per feature and per project, newest first', async () => {
+    const { db } = await setup();
+    const repo = new FeatureEventRepository(db.sqlite);
+    repo.save({ projectId: 'p1', featureId: 'FI-001', status: 'in_delivery', note: null, at: '2026-11-20T10:00:00.000Z' });
+    repo.save({ projectId: 'p1', featureId: 'FI-002', status: 'withdrawn', note: 'Kept US-011.', at: '2026-11-20T11:00:00.000Z' });
+    repo.save({ projectId: 'p1', featureId: 'FI-001', status: 'done', note: null, at: '2026-11-20T12:00:00.000Z' });
+    expect(repo.byFeature('p1', 'FI-001').map((e) => e.status)).toEqual(['done', 'in_delivery']);
+    expect(repo.recent('p1', 2)).toEqual([
+      { projectId: 'p1', featureId: 'FI-001', status: 'done', note: null, at: '2026-11-20T12:00:00.000Z' },
+      { projectId: 'p1', featureId: 'FI-002', status: 'withdrawn', note: 'Kept US-011.', at: '2026-11-20T11:00:00.000Z' },
+    ]);
+  });
+});
+
+describe('US-096 AC-2: baselines (baseline)', () => {
+  it('saves baselines and lists them newest first', async () => {
+    const { db } = await setup();
+    const repo = new BaselineRepository(db.sqlite);
+    const base = { projectId: 'p1', commit: 'c1', epicIds: [], notes: 'n' };
+    repo.save({ ...base, tag: 'spec-v1.0', createdAt: '2026-11-20T10:00:00.000Z', featureIds: [] });
+    repo.save({ ...base, tag: 'spec-v1.1', createdAt: '2026-11-20T11:00:00.000Z', featureIds: ['FI-001'], epicIds: ['EP-003'] });
+    expect(repo.list('p1')).toEqual([
+      { ...base, tag: 'spec-v1.1', createdAt: '2026-11-20T11:00:00.000Z', featureIds: ['FI-001'], epicIds: ['EP-003'] },
+      { ...base, tag: 'spec-v1.0', createdAt: '2026-11-20T10:00:00.000Z', featureIds: [] },
+    ]);
+    expect(repo.list('p2')).toEqual([]);
   });
 });

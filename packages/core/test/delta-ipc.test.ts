@@ -30,7 +30,7 @@ const FR = 'spec/02_requirements/functional_requirements.md';
 const REQS =
   '---\nkind: requirements\napproval: approved\n---\n### FR-020: Export\nUsers export tasks.\n### FR-034: Task details\nDetails show the title.\n';
 
-async function boot(): Promise<{ client: ContractClient; ws: string }> {
+async function boot(extra?: (ws: string) => void): Promise<{ client: ContractClient; ws: string }> {
   const core = await createCore({
     appDataDir: mkdtempSync(join(tmpdir(), 'sf-delta-app-')),
     platform: process.platform,
@@ -63,13 +63,14 @@ async function boot(): Promise<{ client: ContractClient; ws: string }> {
     'spec/04_user_stories/US-008.md',
     '---\nkind: story\nid: US-008\ntitle: Details\napproval: approved\nstatus: done\nrequirements: [FR-034]\n---\n## Description\nx\n',
   );
+  extra?.(ws);
   await client.command('projects.open', { path: ws });
   await client.command('impact.propose', { projectId: 'delta-1', featureId: 'FI-001' });
   await client.command('impact.approve', { projectId: 'delta-1', featureId: 'FI-001' });
   return { client, ws };
 }
 
-async function settled(client: ContractClient, phase: 'requirements' | 'design') {
+async function settled(client: ContractClient, phase: 'requirements' | 'design' | 'stories') {
   for (let i = 0; i < 400; i++) {
     const view = await client.query('delta.changeSet', { projectId: 'delta-1', featureId: 'FI-001', phase });
     if (view && view.state !== 'running') return view;
@@ -202,5 +203,111 @@ describe('US-091 over IPC (FR-110)', () => {
       ['US-011', 'continue'],
       ['US-012', 'apply_in_corrections'],
     ]);
+  });
+});
+
+describe('US-093 over IPC with the scripted agent (FR-108)', () => {
+  it('AC-1..AC-4: epic choice first, then a new epic with four stories incl. a rework story; applied into the epic lane in Backlog', async () => {
+    const { client, ws } = await boot((root) =>
+      write(
+        root,
+        'spec/04_user_stories/US-011.md',
+        '---\nkind: story\nid: US-011\ntitle: Task list\napproval: approved\nstatus: backlog\nrequirements: [FR-034]\n---\n## Description\nx\n',
+      ),
+    );
+    const ids = { projectId: 'delta-1', featureId: 'FI-001' };
+    const proposal = await client.query('delta.epicProposal', ids);
+    expect(proposal).toMatchObject({ newEpic: { id: 'EP-001', title: 'Comments' }, choice: null });
+    expect(await client.command('delta.generate', { ...ids, phase: 'stories' })).toMatchObject({ ok: false });
+    await expect(client.command('delta.chooseEpic', { ...ids, choice: { mode: 'extend', epicIds: ['EP-404'] } })).rejects.toMatchObject({
+      code: 'INVALID_REQUEST',
+    });
+    const chosen = await client.command('delta.chooseEpic', { ...ids, choice: { mode: 'new', title: 'Task comments' } });
+    expect(chosen.choice).toMatchObject({ mode: 'new', epicIds: ['EP-001'], title: 'Task comments' });
+
+    expect(await client.command('delta.generate', { ...ids, phase: 'stories' })).toMatchObject({ ok: true });
+    const view = await settled(client, 'stories');
+    expect(view.reason).toBeNull();
+    expect(view.items.map((i) => [i.kind, i.elementId])).toEqual([
+      ['new', 'EP-001'],
+      ['new', 'US-012'],
+      ['new', 'US-013'],
+      ['new', 'US-014'],
+      ['new', 'US-015'],
+      ['modified', 'US-011'],
+    ]);
+    expect(view.items.find((i) => i.elementId === 'US-015')!.after).toContain('reworks: [US-008]');
+    expect(() => readFileSync(join(ws, 'spec', '04_user_stories', 'epics', 'EP-001.md'), 'utf8')).toThrow();
+    const pending = await client.query('features.get', ids);
+    expect(pending?.phases.find((p) => p.phase === 'stories')?.state).toBe('awaiting_approval');
+
+    await client.command('delta.acceptAll', { changeSetId: view.id });
+    const applied = await client.command('delta.apply', { changeSetId: view.id });
+    expect(applied).toMatchObject({ conflicts: [] });
+
+    const board = await client.query('board.get', { projectId: 'delta-1' });
+    const backlog = board.columns.find((c) => c.status === 'backlog')!.cards;
+    expect(backlog.filter((c) => c.epicId === 'EP-001').map((c) => c.storyId)).toEqual(['US-012', 'US-013', 'US-014', 'US-015']);
+    expect(board.lanes?.map((l) => l.epicId)).toContain('EP-001');
+    expect(board.columns.flatMap((c) => c.cards).find((c) => c.storyId === 'US-008')?.reworkedBy).toEqual(['US-015']);
+    const fi = await client.query('features.get', ids);
+    expect(fi?.links.filter((l) => l.type === 'introduces').map((l) => l.id)).toEqual(
+      expect.arrayContaining(['EP-001', 'US-012', 'US-013', 'US-014', 'US-015']),
+    );
+    expect(fi?.links.find((l) => l.id === 'US-011')).toEqual({ id: 'US-011', type: 'changes' });
+    expect(readFileSync(join(ws, 'spec', '04_user_stories', 'US-011.md'), 'utf8')).toContain('Also shows the number of comments.');
+  });
+});
+
+describe('US-094 over IPC (FR-104)', () => {
+  const ids = { projectId: 'delta-1', featureId: 'FI-001' };
+  const story = (id: string, status: string) =>
+    `---\nkind: story\nid: ${id}\ntitle: Story ${id}\napproval: approved\nstatus: ${status}\nfeature: FI-001\nrequirements: [FR-034]\n---\n## Description\nx\n`;
+  const activity = async (client: ContractClient) =>
+    (await client.query('dashboard.get', { projectId: 'delta-1' })).activity.map((a) => a.label);
+  const until = async <T>(fn: () => Promise<T | undefined>): Promise<T> => {
+    for (let i = 0; i < 400; i++) {
+      const v = await fn();
+      if (v !== undefined) return v;
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    throw new Error('timeout');
+  };
+
+  it('AC-1/AC-3: all linked stories Done → the feature is Done, written to the file and shown in the activity feed', async () => {
+    const { client, ws } = await boot((root) => write(root, 'spec/04_user_stories/US-020.md', story('US-020', 'done')));
+    const fi = await until(async () => {
+      const f = await client.query('features.get', ids);
+      return f?.status === 'done' && (f.events ?? []).length > 0 ? f : undefined;
+    });
+    expect(fi.events?.[0]).toMatchObject({ status: 'done' });
+    expect(readFileSync(join(ws, 'spec', '01_intent', 'FI-001-comments.md'), 'utf8')).toContain('status: done');
+    expect(await activity(client)).toContain('FI-001 Comments: Done');
+  });
+
+  it('AC-2: withdraw discards the open change set, deletes the chosen not-started story and is terminal', async () => {
+    const { client, ws } = await boot((root) => {
+      write(root, 'spec/04_user_stories/US-020.md', story('US-020', 'backlog'));
+      write(root, 'spec/04_user_stories/US-021.md', story('US-021', 'ready'));
+    });
+    await client.command('delta.generate', { ...ids, phase: 'requirements' });
+    await settled(client, 'requirements');
+    expect(await client.query('features.withdrawPreview', ids)).toMatchObject({
+      openChangeSets: ['requirements'],
+      notStartedStories: ['US-020', 'US-021'],
+      blockedBy: null,
+    });
+
+    expect(await client.command('features.withdraw', { ...ids, deleteStories: ['US-020'] })).toEqual({
+      discarded: ['requirements'],
+      deleted: ['US-020'],
+      kept: ['US-021'],
+    });
+    expect(() => readFileSync(join(ws, 'spec', '04_user_stories', 'US-020.md'), 'utf8')).toThrow();
+    expect(readFileSync(join(ws, 'spec', '01_intent', 'FI-001-comments.md'), 'utf8')).toContain('status: withdrawn');
+    expect(await client.query('delta.changeSet', { ...ids, phase: 'requirements' })).toMatchObject({ state: 'discarded' });
+    expect((await client.query('features.get', ids))?.status).toBe('withdrawn');
+    expect(await activity(client)).toContain('FI-001 Comments: Withdrawn');
+    await expect(client.command('features.withdraw', { ...ids, deleteStories: [] })).rejects.toMatchObject({ code: 'INVALID_REQUEST' });
   });
 });
